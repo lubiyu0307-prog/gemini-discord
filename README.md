@@ -8,7 +8,7 @@ Your local Gemini CLI agent, reachable from Discord.
 [![Discord.js](https://img.shields.io/badge/discord.js-14.x-5865F2.svg)](https://discord.js.org)
 [![Node.js](https://img.shields.io/badge/node-22%2B-green.svg)](https://nodejs.org)
 
-This is not a hosted chatbot. Discord is the transport — Gemini CLI is still the agent, running on your machine with the same identity, context, sessions, and tools you already use.
+gemini-discord is not just a Discord chat bot. It is an ACP-powered control surface for Gemini CLI that runs locally on your machine and lets you interact with your agent through Discord DMs or server channels.
 
 Send a task from your phone. Your agent picks it up, works in the same workspace, and replies in the same channel. Sessions stay warm. Credentials stay local. Authority stays with one Discord user ID you control.
 
