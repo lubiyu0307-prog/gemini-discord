@@ -40,6 +40,7 @@ export function handleStatusRoutes(
       serverName: config.discordServerName || undefined,
       ownerIds: config.ownerIds,
       enableDMs: config.enableDMs,
+      enableGuests: config.enableGuests,
       sessionScope: config.memoryScope,
       geminiSessionBindingScope: config.geminiSessionBindingScope,
       useGeminiCliSessions: config.useGeminiCliSessions,

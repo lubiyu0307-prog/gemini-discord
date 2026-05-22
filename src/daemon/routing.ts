@@ -26,10 +26,15 @@ export interface RoutingDecision {
   trigger?: string;
 }
 
+export function isAuthorAuthorized(authorId: string, config: Config): boolean {
+  if (isConfiguredBossDiscordId(config, authorId)) {
+    return true;
+  }
+  return Boolean(config.enableGuests && config.allowedUserIds.includes(authorId));
+}
+
 export function isDirectMessageAuthorAllowed(authorId: string, config: Config): boolean {
-  return isConfiguredBossDiscordId(config, authorId)
-    || config.ownerIds.includes(authorId)
-    || config.allowedUserIds.includes(authorId);
+  return isAuthorAuthorized(authorId, config);
 }
 
 export function shouldAcceptMessage(input: RoutingInput, config: Config): RoutingDecision {
@@ -37,9 +42,12 @@ export function shouldAcceptMessage(input: RoutingInput, config: Config): Routin
     return reject();
   }
 
+  const isSelf = input.authorId === input.botUserId;
+  const isBoss = isConfiguredBossDiscordId(config, input.authorId);
+
   if (input.isDM) {
     if (!config.enableDMs) return reject();
-    if (!isDirectMessageAuthorAllowed(input.authorId, config)) return reject();
+    if (!isAuthorAuthorized(input.authorId, config)) return reject();
     return finalizeRoute(input, config, 'dm');
   }
 
@@ -47,10 +55,12 @@ export function shouldAcceptMessage(input: RoutingInput, config: Config): Routin
     return reject();
   }
 
-  const isSelf = input.authorId === input.botUserId;
-
-  // Guild humans may talk in allowed channels. Role/permission checks happen
-  // later so allowlists do not grant BOSS authority.
+  // Authorization check: BOSS always allowed, GUESTS only if enabled and allowlisted.
+  if (!isSelf && !input.isBot && !isBoss) {
+    if (!config.enableGuests || !config.allowedUserIds.includes(input.authorId)) {
+      return reject();
+    }
+  }
 
   // Agents are strictly blocked unless they are the bot itself (CRON) or in allowed list.
   if (input.isBot && !isSelf && !config.allowedAgentIds.includes(input.authorId)) {
@@ -147,8 +157,7 @@ function finalizeRoute(
     return reject();
   }
 
-  // We allow all humans in the routing decision here. Role/permission checks
-  // happen after stable Discord ID based role resolution.
+  // Authorization is already checked in shouldAcceptMessage before reaching here.
 
   const stripped = stripLeadingBotMention(stripPrefix(input.content, config.discordPrefix), input.botUserId);
   const normalized = stripped.content.trim();

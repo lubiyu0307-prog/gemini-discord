@@ -27,6 +27,7 @@ const baseConfig: Config = {
   streaming: true,
   queueMaxDepth: 20,
   enableDMs: true,
+  enableGuests: false,
   requireMention: false,
   respondToReplies: true,
   memoryScope: 'global',
@@ -58,8 +59,21 @@ function route(overrides: Partial<Parameters<typeof shouldAcceptMessage>[0]> = {
 }
 
 describe('shouldAcceptMessage', () => {
-  it('accepts allowlisted human messages in allowed channels', () => {
-    expect(route()).toMatchObject({
+  it('accepts the boss always', () => {
+    expect(route({ authorId: '111111111111111111' })).toMatchObject({
+      accept: true,
+      trigger: 'channel',
+    });
+  });
+
+  it('rejects allowlisted humans when guests are globally disabled', () => {
+    // owner-1 is allowlisted in baseConfig, but enableGuests is false
+    expect(route({ authorId: 'owner-1' })).toMatchObject({ accept: false });
+  });
+
+  it('accepts allowlisted humans only when guests are enabled', () => {
+    const config: Config = { ...baseConfig, enableGuests: true };
+    expect(route({ authorId: 'owner-1' }, config)).toMatchObject({
       accept: true,
       speakerKind: 'human',
       trigger: 'channel',
@@ -67,30 +81,28 @@ describe('shouldAcceptMessage', () => {
     });
   });
 
-  it('strips command prefixes', () => {
-    expect(route({ content: '!hello there' })).toMatchObject({
+  it('strips command prefixes for authorized users', () => {
+    const config: Config = { ...baseConfig, enableGuests: true };
+    expect(route({ authorId: 'owner-1', content: '!hello there' }, config)).toMatchObject({
       accept: true,
       trigger: 'prefix',
       content: 'hello there',
     });
   });
 
-  it('accepts non-allowlisted humans in allowed guild channels as guests', () => {
-    expect(route({ authorId: '222222222222222222' })).toMatchObject({
-      accept: true,
-      speakerKind: 'human',
-      trigger: 'channel',
-      content: 'hello',
-    });
+  it('rejects non-allowlisted humans even if guests are enabled', () => {
+    const config: Config = { ...baseConfig, enableGuests: true };
+    expect(route({ authorId: 'stranger' }, config)).toMatchObject({ accept: false });
   });
 
-  it('requires explicit triggers for peer agents', () => {
+  it('requires explicit triggers for peer agents even if they are allowlisted', () => {
+    const config: Config = { ...baseConfig, enableGuests: true };
     expect(route({
       authorId: 'agent1',
       authorTag: 'OtherAgent#9999',
       isBot: true,
       content: 'hello',
-    })).toMatchObject({ accept: false });
+    }, config)).toMatchObject({ accept: false });
 
     expect(route({
       authorId: 'agent1',
@@ -98,7 +110,7 @@ describe('shouldAcceptMessage', () => {
       isBot: true,
       content: '<@bot1> hello',
       mentionedBot: true,
-    })).toMatchObject({
+    }, config)).toMatchObject({
       accept: true,
       speakerKind: 'agent',
       trigger: 'mention',
@@ -106,30 +118,10 @@ describe('shouldAcceptMessage', () => {
     });
   });
 
-  it('supports DMs for allowlisted humans', () => {
+  it('supports DMs for authorized users only', () => {
+    const config: Config = { ...baseConfig, enableGuests: true };
     expect(route({
-      isDM: true,
-      guildId: null,
-      guildName: null,
-      channelId: 'dm1',
-      channelName: 'dm-user',
-      content: 'private hello',
-    })).toMatchObject({
-      accept: true,
-      trigger: 'dm',
-      content: 'private hello',
-    });
-  });
-
-  it('allows DMs from configured owners even when they are not the explicit boss id', () => {
-    const config: Config = {
-      ...baseConfig,
-      discordAdminId: 'owner2',
-      ownerIds: ['owner-1', 'owner2'],
-      allowedUserIds: ['owner-1', 'owner2'],
-    };
-
-    expect(route({
+      authorId: 'owner-1',
       isDM: true,
       guildId: null,
       guildName: null,
@@ -141,38 +133,39 @@ describe('shouldAcceptMessage', () => {
       trigger: 'dm',
       content: 'private hello',
     });
-  });
 
-  it('rejects DMs from non-allowlisted users', () => {
     expect(route({
-      authorId: 'stranger',
+      authorId: 'owner-1',
       isDM: true,
       guildId: null,
       guildName: null,
       channelId: 'dm1',
       channelName: 'dm-user',
       content: 'private hello',
-    })).toMatchObject({ accept: false });
+    }, baseConfig)).toMatchObject({ accept: false });
   });
 
-  it('matches the shared DM allowlist helper', () => {
-    expect(isDirectMessageAuthorAllowed('owner-1', baseConfig)).toBe(true);
-    expect(isDirectMessageAuthorAllowed('user2', baseConfig)).toBe(true);
-    expect(isDirectMessageAuthorAllowed('stranger', baseConfig)).toBe(false);
+  it('matches the shared authorization helper', () => {
+    const enabledConfig = { ...baseConfig, enableGuests: true };
+    expect(isDirectMessageAuthorAllowed('111111111111111111', baseConfig)).toBe(true);
+    expect(isDirectMessageAuthorAllowed('owner-1', baseConfig)).toBe(false); // disabled
+    expect(isDirectMessageAuthorAllowed('owner-1', enabledConfig)).toBe(true); // enabled + allowlisted
+    expect(isDirectMessageAuthorAllowed('stranger', enabledConfig)).toBe(false); // enabled + not allowlisted
   });
 
-  it('accepts attachment-only messages', () => {
-    expect(route({ content: '', attachmentCount: 1 })).toMatchObject({
+  it('accepts attachment-only messages from authorized users', () => {
+    const config: Config = { ...baseConfig, enableGuests: true };
+    expect(route({ authorId: 'owner-1', content: '', attachmentCount: 1 }, config)).toMatchObject({
       accept: true,
       content: '',
       trigger: 'channel',
     });
   });
 
-  it('honors requireMention in guild channels', () => {
-    const config: Config = { ...baseConfig, requireMention: true };
-    expect(route({}, config)).toMatchObject({ accept: false });
-    expect(route({ mentionedBot: true, content: '<@bot1> hello' }, config)).toMatchObject({
+  it('honors requireMention for authorized users in guild channels', () => {
+    const config: Config = { ...baseConfig, enableGuests: true, requireMention: true };
+    expect(route({ authorId: 'owner-1' }, config)).toMatchObject({ accept: false });
+    expect(route({ authorId: 'owner-1', mentionedBot: true, content: '<@bot1> hello' }, config)).toMatchObject({
       accept: true,
       trigger: 'mention',
       content: 'hello',
@@ -189,6 +182,7 @@ describe('shouldAcceptMessage', () => {
     };
 
     expect(route({
+      authorId: '111111111111111111', // Boss
       channelId: 'new-channel',
       guildId: 'g1',
       mentionedBot: true,

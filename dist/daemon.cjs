@@ -184,6 +184,7 @@ var init_config_vars = __esm({
       DISCORD_ALLOWED_CHANNEL_IDS: "DISCORD_ALLOWED_CHANNEL_IDS",
       DISCORD_ALLOWED_USER_IDS: "DISCORD_ALLOWED_USER_IDS",
       DISCORD_ALLOWED_AGENT_IDS: "DISCORD_ALLOWED_AGENT_IDS",
+      DISCORD_ENABLE_GUESTS: "DISCORD_ENABLE_GUESTS",
       DAEMON_API_TOKEN: "DAEMON_API_TOKEN",
       DISCORD_PREFIX: "DISCORD_PREFIX",
       DISCORD_RESET_CMD: "DISCORD_RESET_CMD",
@@ -217,6 +218,7 @@ var init_config_vars = __esm({
       ENV.DISCORD_ALLOWED_CHANNEL_IDS,
       ENV.DISCORD_ALLOWED_USER_IDS,
       ENV.DISCORD_ALLOWED_AGENT_IDS,
+      ENV.DISCORD_ENABLE_GUESTS,
       ENV.DAEMON_API_TOKEN,
       ENV.DISCORD_PREFIX,
       ENV.DISCORD_RESET_CMD,
@@ -244,7 +246,8 @@ var init_config_vars = __esm({
       ENV.DISCORD_BOT_TOKEN,
       ENV.DISCORD_BOSS_USER_ID,
       ENV.DISCORD_OWNER_IDS,
-      ENV.DISCORD_SERVER_ID
+      ENV.DISCORD_SERVER_ID,
+      ENV.DISCORD_ENABLE_GUESTS
     ];
     REQUIRED_DAEMON_ENV_KEYS = [
       ENV.DISCORD_BOT_TOKEN,
@@ -259,6 +262,7 @@ var init_config_vars = __esm({
       [ENV.ENABLE_DMS]: "true",
       [ENV.REQUIRE_MENTION]: "false",
       [ENV.AUTO_START_DAEMON]: "true",
+      [ENV.DISCORD_ENABLE_GUESTS]: "false",
       [ENV.MEMORY_SCOPE]: "channel",
       [ENV.GEMINI_SESSION_BINDING_SCOPE]: "channel",
       [ENV.SETUP_VALIDATION_PENDING]: "true"
@@ -424,6 +428,7 @@ function loadConfig(extensionDir2) {
     streaming: parseBoolean(get(ENV.STREAMING, "true"), true),
     queueMaxDepth: parseInt(get(ENV.QUEUE_MAX_DEPTH, "20"), 10),
     enableDMs: parseBoolean(get(ENV.ENABLE_DMS, "true"), true),
+    enableGuests: parseBoolean(get(ENV.DISCORD_ENABLE_GUESTS), false),
     requireMention: parseBoolean(get(ENV.REQUIRE_MENTION, "true"), true),
     respondToReplies: parseBoolean(get(ENV.RESPOND_TO_REPLIES, "true"), true),
     memoryScope: parseMemoryScope(get(ENV.MEMORY_SCOPE, "channel")),
@@ -87405,22 +87410,34 @@ var init_attachments = __esm({
 });
 
 // src/daemon/routing.ts
+function isAuthorAuthorized(authorId, config) {
+  if (isConfiguredBossDiscordId(config, authorId)) {
+    return true;
+  }
+  return Boolean(config.enableGuests && config.allowedUserIds.includes(authorId));
+}
 function isDirectMessageAuthorAllowed(authorId, config) {
-  return isConfiguredBossDiscordId(config, authorId) || config.ownerIds.includes(authorId) || config.allowedUserIds.includes(authorId);
+  return isAuthorAuthorized(authorId, config);
 }
 function shouldAcceptMessage(input, config) {
   if (input.authorId === input.botUserId && !input.content.startsWith("[CRON]")) {
     return reject();
   }
+  const isSelf = input.authorId === input.botUserId;
+  const isBoss2 = isConfiguredBossDiscordId(config, input.authorId);
   if (input.isDM) {
     if (!config.enableDMs) return reject();
-    if (!isDirectMessageAuthorAllowed(input.authorId, config)) return reject();
+    if (!isAuthorAuthorized(input.authorId, config)) return reject();
     return finalizeRoute(input, config, "dm");
   }
   if (!isAllowedGuildChannel(input, config)) {
     return reject();
   }
-  const isSelf = input.authorId === input.botUserId;
+  if (!isSelf && !input.isBot && !isBoss2) {
+    if (!config.enableGuests || !config.allowedUserIds.includes(input.authorId)) {
+      return reject();
+    }
+  }
   if (input.isBot && !isSelf && !config.allowedAgentIds.includes(input.authorId)) {
     return reject();
   }
@@ -89559,6 +89576,7 @@ function handleStatusRoutes(req, res, url, deps) {
       serverName: config.discordServerName || void 0,
       ownerIds: config.ownerIds,
       enableDMs: config.enableDMs,
+      enableGuests: config.enableGuests,
       sessionScope: config.memoryScope,
       geminiSessionBindingScope: config.geminiSessionBindingScope,
       useGeminiCliSessions: config.useGeminiCliSessions,
@@ -90087,9 +90105,41 @@ async function handleCronRoutes(req, res, pathname, parsed, deps) {
 
 // src/daemon/api/moderation.ts
 var import_discord3 = __toESM(require_src(), 1);
+init_config();
+init_config_vars();
 var DISCORD_SNOWFLAKE_RE3 = /^\d{15,25}$/;
 async function handleModerationRoutes(req, res, pathname, parsed, deps) {
-  const { config } = deps;
+  const { config, extensionDir: extensionDir2 } = deps;
+  if (pathname === "/allowlist") {
+    if (!authorizeApiAction(req, res, config, "moderation")) return true;
+    const action = String(parsed["action"] ?? "");
+    const userId = String(parsed["user_id"] ?? "").trim();
+    if (!["add", "remove"].includes(action)) {
+      respond(res, 400, { error: "action must be add or remove" });
+      return true;
+    }
+    if (!userId || !DISCORD_SNOWFLAKE_RE3.test(userId)) {
+      respond(res, 400, { error: "Valid user_id is required" });
+      return true;
+    }
+    const current = new Set(config.allowedUserIds);
+    if (action === "add") {
+      current.add(userId);
+    } else {
+      current.delete(userId);
+    }
+    const next = [...current];
+    config.allowedUserIds = next;
+    try {
+      persistConfigEnvUpdates(extensionDir2, {
+        [ENV.DISCORD_ALLOWED_USER_IDS]: next.join(",")
+      });
+      respond(res, 200, { ok: true, action, user_id: userId, count: next.length });
+    } catch (err) {
+      respond(res, 500, { error: `Failed to persist config: ${err instanceof Error ? err.message : String(err)}` });
+    }
+    return true;
+  }
   if (pathname === "/moderation") {
     if (!authorizeApiAction(req, res, config, "moderation")) return true;
     const action = String(parsed["action"] ?? "");

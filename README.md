@@ -99,7 +99,7 @@ Two roles: `BOSS` and `GUEST`.
 
 **Boss** authority is granted only by `DISCORD_BOSS_USER_ID` — never by username, display name, role, server owner status, or any other Discord metadata. If that value is missing or malformed, privileged actions fail closed.
 
-**Guests** can chat in allowed channels. When available, simple public Google Search may be allowed. They cannot use MCP tools, shell access, filesystem access, attachment processing, history, discovery, cron, admin, moderation, or outbound Discord actions.
+**Guests** are globally disabled by default. They can only chat in allowed channels if `DISCORD_ENABLE_GUESTS=true` and their stable Discord ID is explicitly in `DISCORD_ALLOWED_USER_IDS`. When available, simple public Google Search may be allowed for guests. They cannot use MCP tools, shell access, filesystem access, attachment processing, history, discovery, cron, admin, moderation, or outbound Discord actions.
 
 All message sends require an explicit target. If a target can't be proven, the action fails — there is no fallback channel.
 

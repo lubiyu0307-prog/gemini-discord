@@ -233,6 +233,7 @@ export function loadConfig(extensionDir: string): Config {
     streaming: parseBoolean(get(ENV.STREAMING, 'true'), true),
     queueMaxDepth: parseInt(get(ENV.QUEUE_MAX_DEPTH, '20'), 10),
     enableDMs: parseBoolean(get(ENV.ENABLE_DMS, 'true'), true),
+    enableGuests: parseBoolean(get(ENV.DISCORD_ENABLE_GUESTS), false),
     requireMention: parseBoolean(get(ENV.REQUIRE_MENTION, 'true'), true),
     respondToReplies: parseBoolean(get(ENV.RESPOND_TO_REPLIES, 'true'), true),
     memoryScope: parseMemoryScope(get(ENV.MEMORY_SCOPE, 'channel')),

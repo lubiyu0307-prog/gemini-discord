@@ -26,6 +26,12 @@
       "description": "ID of the server where the bot is installed.",
       "envVar": "DISCORD_SERVER_ID",
       "sensitive": false
+    },
+    {
+      "name": "Enable Guests",
+      "description": "Allow non-boss users to interact with the bot if they are explicitly allowlisted.",
+      "envVar": "DISCORD_ENABLE_GUESTS",
+      "sensitive": false
     }
   ],
   "mcpServers": {
@@ -37,7 +43,8 @@
         "DISCORD_BOT_TOKEN": "${DISCORD_BOT_TOKEN}",
         "DISCORD_BOSS_USER_ID": "${DISCORD_BOSS_USER_ID}",
         "DISCORD_OWNER_IDS": "${DISCORD_OWNER_IDS}",
-        "DISCORD_SERVER_ID": "${DISCORD_SERVER_ID}"
+        "DISCORD_SERVER_ID": "${DISCORD_SERVER_ID}",
+        "DISCORD_ENABLE_GUESTS": "${DISCORD_ENABLE_GUESTS}"
       }
     }
   }

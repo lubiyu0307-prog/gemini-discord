@@ -21153,6 +21153,7 @@ var ENV = {
   DISCORD_ALLOWED_CHANNEL_IDS: "DISCORD_ALLOWED_CHANNEL_IDS",
   DISCORD_ALLOWED_USER_IDS: "DISCORD_ALLOWED_USER_IDS",
   DISCORD_ALLOWED_AGENT_IDS: "DISCORD_ALLOWED_AGENT_IDS",
+  DISCORD_ENABLE_GUESTS: "DISCORD_ENABLE_GUESTS",
   DAEMON_API_TOKEN: "DAEMON_API_TOKEN",
   DISCORD_PREFIX: "DISCORD_PREFIX",
   DISCORD_RESET_CMD: "DISCORD_RESET_CMD",
@@ -21186,6 +21187,7 @@ var CONFIG_ENV_KEYS = [
   ENV.DISCORD_ALLOWED_CHANNEL_IDS,
   ENV.DISCORD_ALLOWED_USER_IDS,
   ENV.DISCORD_ALLOWED_AGENT_IDS,
+  ENV.DISCORD_ENABLE_GUESTS,
   ENV.DAEMON_API_TOKEN,
   ENV.DISCORD_PREFIX,
   ENV.DISCORD_RESET_CMD,
@@ -21213,7 +21215,8 @@ var INSTALL_SETTING_ENV_KEYS = [
   ENV.DISCORD_BOT_TOKEN,
   ENV.DISCORD_BOSS_USER_ID,
   ENV.DISCORD_OWNER_IDS,
-  ENV.DISCORD_SERVER_ID
+  ENV.DISCORD_SERVER_ID,
+  ENV.DISCORD_ENABLE_GUESTS
 ];
 var REQUIRED_DAEMON_ENV_KEYS = [
   ENV.DISCORD_BOT_TOKEN,
@@ -21228,6 +21231,7 @@ var SETUP_RUNTIME_DEFAULTS = {
   [ENV.ENABLE_DMS]: "true",
   [ENV.REQUIRE_MENTION]: "false",
   [ENV.AUTO_START_DAEMON]: "true",
+  [ENV.DISCORD_ENABLE_GUESTS]: "false",
   [ENV.MEMORY_SCOPE]: "channel",
   [ENV.GEMINI_SESSION_BINDING_SCOPE]: "channel",
   [ENV.SETUP_VALIDATION_PENDING]: "true"
@@ -21394,6 +21398,7 @@ function loadConfig(extensionDir2) {
     streaming: parseBoolean(get(ENV.STREAMING, "true"), true),
     queueMaxDepth: parseInt(get(ENV.QUEUE_MAX_DEPTH, "20"), 10),
     enableDMs: parseBoolean(get(ENV.ENABLE_DMS, "true"), true),
+    enableGuests: parseBoolean(get(ENV.DISCORD_ENABLE_GUESTS), false),
     requireMention: parseBoolean(get(ENV.REQUIRE_MENTION, "true"), true),
     respondToReplies: parseBoolean(get(ENV.RESPOND_TO_REPLIES, "true"), true),
     memoryScope: parseMemoryScope(get(ENV.MEMORY_SCOPE, "channel")),
@@ -21937,225 +21942,253 @@ function registerAdminTool(server2, config3) {
       '\u2022 "reset" \u2014 clear the current conversation and archive the session',
       '\u2022 "channels" \u2014 list discovered channels (optional query filter)',
       '\u2022 "users" \u2014 list discovered server users or resolve a user lookup hint',
+      '\u2022 "allowlist_add" \u2014 add a human user to the guest allowlist',
+      '\u2022 "allowlist_remove" \u2014 remove a human user from the guest allowlist',
       `\u2022 "set_presence" \u2014 change the bot's online status and activity`,
       '\u2022 "kick" \u2014 remove a member from the server',
       '\u2022 "timeout" \u2014 apply a communication timeout (up to 28 days)',
       '\u2022 "remove_timeout" \u2014 remove an active timeout from a member'
     ].join("\n"),
     {
-      action: external_exports.enum(["status", "restart", "reset", "channels", "users", "set_presence", "kick", "timeout", "remove_timeout"]).describe("The administrative action to perform."),
+      action: external_exports.enum(["status", "restart", "reset", "channels", "users", "allowlist_add", "allowlist_remove", "set_presence", "kick", "timeout", "remove_timeout"]).describe("The administrative action to perform."),
       query: external_exports.string().optional().describe("Optional channel/user name, mention, ID, or partial string to filter discovery actions."),
       channel_id: external_exports.string().optional().describe("Explicit Discord channel ID for reset actions."),
       status: external_exports.enum(["online", "idle", "dnd", "invisible"]).optional().describe("Bot online status (only for set_presence)."),
       activity_type: external_exports.enum(["playing", "watching", "listening", "competing"]).optional().describe("Activity type (only for set_presence)."),
       activity_name: external_exports.string().optional().describe('Activity name, e.g. "with fire" (only for set_presence).'),
-      user_id: external_exports.string().optional().describe("Stable numeric Discord user ID of the member to moderate (required for kick/timeout/remove_timeout). Use users discovery to resolve names or mentions first."),
+      user_id: external_exports.string().optional().describe("Stable numeric Discord user ID of the member to moderate or allowlist. Use users discovery to resolve names or mentions first."),
       guild_id: external_exports.string().optional().describe("Discord server/guild ID. Defaults to the configured server (only for kick/timeout/remove_timeout)."),
       reason: external_exports.string().optional().describe("Optional audit-log reason (only for kick/timeout/remove_timeout)."),
       duration_minutes: external_exports.number().optional().describe("Timeout duration in minutes. Required for timeout. Maximum 40320 (28 days).")
     },
     async ({ action, query, channel_id, status, activity_type, activity_name, user_id, guild_id, reason, duration_minutes }) => {
-      const permAction = action === "status" ? "status" : action === "users" ? "user_discovery" : ["kick", "timeout", "remove_timeout"].includes(action) ? "moderation" : "admin_command";
+      const permAction = action === "status" ? "status" : action === "users" ? "user_discovery" : ["kick", "timeout", "remove_timeout", "allowlist_add", "allowlist_remove"].includes(action) ? "moderation" : "admin_command";
       const gate = authorizeMcpToolAction(permAction, config3);
       if (gate.decision !== "allow") {
         return text(formatPermissionDenial(gate), true);
       }
-      if (action === "status") {
-        const res = await daemonRequest({ method: "GET", path: "/status", config: config3 });
-        if (res.data["error"] === "daemon_offline") {
-          return text("\u274C Daemon is offline. Reopen Gemini CLI or run `npm run setup` in the extension directory if setup is incomplete.", hasPendingDeliveries());
-        }
-        if (res.data["error"] === "daemon_timeout") {
-          return text("\u23F3 Daemon is not responding. It may be starting up. Try again in a few seconds.", hasPendingDeliveries());
-        }
-        if (!res.ok) {
-          return text(`\u274C Daemon error: ${JSON.stringify(res.data)}.`, hasPendingDeliveries());
-        }
-        const s = res.data;
-        const lines = [
-          `**Status:** ${statusEmoji(s.status)} ${s.status}`,
-          `**Bot:** ${s.botTag ?? "not connected"}`,
-          `**WebSocket Ping:** ${s.wsPing}ms`,
-          `**Gemini:** ${s.geminiReachable ? "\u2705 reachable" : "\u274C unreachable"} (${s.geminiVersion})`,
-          `**Streaming:** ${s.streaming ? "enabled" : "disabled"}`,
-          `**DMs:** ${s.enableDMs ? "enabled" : "disabled"}`,
-          `**Server:** ${s.serverName ?? s.serverId ?? "not yet pinned"}`,
-          `**Primary Channel:** ${s.channelId || "not yet pinned"}`,
-          `**Memory Scope:** ${s.sessionScope}`,
-          `**Gemini Session Binding Scope:** ${s.geminiSessionBindingScope}`,
-          `**Gemini Headless Mode:** ${s.headlessMode ?? "unknown"}`,
-          `**Require Mention:** ${s.requireMention ? "yes" : "no"}`,
-          `**Allowlisted Humans:** ${s.allowlistedUsers}`,
-          `**Allowlisted Agents:** ${s.allowlistedAgents}`,
-          `**Messages Handled:** ${s.messagesHandled}`,
-          `**Last Message:** ${s.lastMessageAt ?? "none"}`,
-          `**Queue Depth:** ${s.queueDepth}`,
-          `**Uptime Since:** ${s.startedAt}`
-        ];
-        if (s.channels && s.channels.length > 0) {
-          lines.push("", "### Discovered Channels");
-          s.channels.forEach((c) => lines.push(`- **#${c.name}**: \`${c.id}\``));
-        }
-        if (s.cronJobs && s.cronJobs.length > 0) {
-          lines.push("", "### Cron Jobs");
-          for (const job of s.cronJobs) {
-            lines.push(`- **${job.id}:** ${job.runOnce ? "one-time" : "recurring"} | next ${new Date(job.nextRun).toISOString()} | <#${job.channelId}> | ${job.message}`);
+      switch (action) {
+        case "status": {
+          const res = await daemonRequest({ method: "GET", path: "/status", config: config3 });
+          if (res.data["error"] === "daemon_offline") {
+            return text("\u274C Daemon is offline. Reopen Gemini CLI or run `npm run setup` in the extension directory if setup is incomplete.", hasPendingDeliveries());
           }
-        }
-        if (s.dmPairings && s.dmPairings.length > 0) {
-          lines.push("", "### DM Pairings");
-          for (const pairing of s.dmPairings) {
-            lines.push(`- **${pairing.userId}:** channel ${pairing.channelId} | last seen ${pairing.lastSeenAt}`);
+          if (res.data["error"] === "daemon_timeout") {
+            return text("\u23F3 Daemon is not responding. It may be starting up. Try again in a few seconds.", hasPendingDeliveries());
           }
-        }
-        if (s.bindings && s.bindings.length > 0) {
-          lines.push("", "### Gemini Bindings");
-          for (const binding of s.bindings) {
-            const sessionSummary = binding.hasSession ? `session ${binding.lastSessionId ?? "(unknown id)"}` : "no active session";
-            lines.push(`- **${binding.workspace}:** ${sessionSummary} | archived ${binding.archivedSessions} | last reset ${binding.lastResetAt ?? "never"}`);
+          if (!res.ok) {
+            return text(`\u274C Daemon error: ${JSON.stringify(res.data)}.`, hasPendingDeliveries());
           }
-        }
-        if (s.lastError) lines.push(`**Last Error:** ${s.lastError}`);
-        if (hasPendingDeliveries()) {
-          const retryResult = await retryPendingDeliveries(config3);
-          const retryMessage = formatPendingDeliveryRetryResult(retryResult);
-          if (retryMessage) {
-            lines.push("", "### Pending Delivery Retry", retryMessage);
-            return text(lines.join("\n"), retryResult.failed.length > 0);
+          const s = res.data;
+          const lines = [
+            `**Status:** ${statusEmoji(s.status)} ${s.status}`,
+            `**Bot:** ${s.botTag ?? "not connected"}`,
+            `**WebSocket Ping:** ${s.wsPing}ms`,
+            `**Gemini:** ${s.geminiReachable ? "\u2705 reachable" : "\u274C unreachable"} (${s.geminiVersion})`,
+            `**Streaming:** ${s.streaming ? "enabled" : "disabled"}`,
+            `**DMs:** ${s.enableDMs ? "enabled" : "disabled"}`,
+            `**Guests:** ${s.enableGuests ? "enabled" : "disabled"}`,
+            `**Server:** ${s.serverName ?? s.serverId ?? "not yet pinned"}`,
+            `**Primary Channel:** ${s.channelId || "not yet pinned"}`,
+            `**Memory Scope:** ${s.sessionScope}`,
+            `**Gemini Session Binding Scope:** ${s.geminiSessionBindingScope}`,
+            `**Gemini Headless Mode:** ${s.headlessMode ?? "unknown"}`,
+            `**Require Mention:** ${s.requireMention ? "yes" : "no"}`,
+            `**Allowlisted Humans:** ${s.allowlistedUsers}`,
+            `**Allowlisted Agents:** ${s.allowlistedAgents}`,
+            `**Messages Handled:** ${s.messagesHandled}`,
+            `**Last Message:** ${s.lastMessageAt ?? "none"}`,
+            `**Queue Depth:** ${s.queueDepth}`,
+            `**Uptime Since:** ${s.startedAt}`
+          ];
+          if (s.channels && s.channels.length > 0) {
+            lines.push("", "### Discovered Channels");
+            s.channels.forEach((c) => lines.push(`- **#${c.name}**: \`${c.id}\``));
           }
-        }
-        return text(lines.join("\n"));
-      }
-      if (action === "restart") {
-        try {
-          let tmpDir2 = process.cwd();
-          try {
-            tmpDir2 = __dirname;
-          } catch {
+          if (s.cronJobs && s.cronJobs.length > 0) {
+            lines.push("", "### Cron Jobs");
+            for (const job of s.cronJobs) {
+              lines.push(`- **${job.id}:** ${job.runOnce ? "one-time" : "recurring"} | next ${new Date(job.nextRun).toISOString()} | <#${job.channelId}> | ${job.message}`);
+            }
           }
-          const extensionDir2 = resolveExtensionDir(tmpDir2);
-          await restartDaemon(config3, extensionDir2);
+          if (s.dmPairings && s.dmPairings.length > 0) {
+            lines.push("", "### DM Pairings");
+            for (const pairing of s.dmPairings) {
+              lines.push(`- **${pairing.userId}:** channel ${pairing.channelId} | last seen ${pairing.lastSeenAt}`);
+            }
+          }
+          if (s.bindings && s.bindings.length > 0) {
+            lines.push("", "### Gemini Bindings");
+            for (const binding of s.bindings) {
+              const sessionSummary = binding.hasSession ? `session ${binding.lastSessionId ?? "(unknown id)"}` : "no active session";
+              lines.push(`- **${binding.workspace}:** ${sessionSummary} | archived ${binding.archivedSessions} | last reset ${binding.lastResetAt ?? "never"}`);
+            }
+          }
+          if (s.lastError) lines.push(`**Last Error:** ${s.lastError}`);
           if (hasPendingDeliveries()) {
             const retryResult = await retryPendingDeliveries(config3);
             const retryMessage = formatPendingDeliveryRetryResult(retryResult);
-            return {
-              isError: retryResult.failed.length > 0,
-              content: [{ type: "text", text: `\u2705 Discord daemon restarted successfully.${retryMessage ? `
+            if (retryMessage) {
+              lines.push("", "### Pending Delivery Retry", retryMessage);
+              return text(lines.join("\n"), retryResult.failed.length > 0);
+            }
+          }
+          return text(lines.join("\n"));
+        }
+        case "restart": {
+          try {
+            let tmpDir2 = process.cwd();
+            try {
+              tmpDir2 = __dirname;
+            } catch {
+            }
+            const extensionDir2 = resolveExtensionDir(tmpDir2);
+            await restartDaemon(config3, extensionDir2);
+            if (hasPendingDeliveries()) {
+              const retryResult = await retryPendingDeliveries(config3);
+              const retryMessage = formatPendingDeliveryRetryResult(retryResult);
+              return {
+                isError: retryResult.failed.length > 0,
+                content: [{ type: "text", text: `\u2705 Discord daemon restarted successfully.${retryMessage ? `
 
 ${retryMessage}` : ""}` }]
-            };
+              };
+            }
+            return text("\u2705 Discord daemon restarted successfully.");
+          } catch (err) {
+            return text(`\u274C Failed to restart Discord daemon: ${err instanceof Error ? err.message : String(err)}`, true);
           }
-          return text("\u2705 Discord daemon restarted successfully.");
-        } catch (err) {
-          return text(`\u274C Failed to restart Discord daemon: ${err instanceof Error ? err.message : String(err)}`, true);
         }
+        case "reset": {
+          if (!channel_id) {
+            return text("\u274C Error: channel_id is required for reset.", true);
+          }
+          const body = { channel_id };
+          if (guild_id) body["guild_id"] = guild_id;
+          const res = await daemonRequest({ method: "POST", path: "/reset", config: config3, body });
+          if (!res.ok) {
+            const error2 = String(res.data["error"] ?? "unknown error");
+            recordPendingDelivery("reset", body, error2);
+            return text(pendingActionFailureText("Reset", error2), true);
+          }
+          clearPendingDelivery("reset", body);
+          return text("\u2705 Started a fresh conversation. The active Discord transcript was archived and the bound Gemini CLI session was restarted for the current channel.");
+        }
+        case "channels": {
+          const res = await daemonRequest({ method: "GET", path: "/status", config: config3 });
+          if (res.data["error"] === "daemon_offline") {
+            return text("\u274C Daemon is offline. Reopen Gemini CLI or run `npm run setup` in the extension directory if setup is incomplete.");
+          }
+          if (!res.ok) {
+            return text(`\u274C Failed to fetch channels: ${JSON.stringify(res.data)}`);
+          }
+          const status2 = res.data;
+          const channels = status2.channels ?? [];
+          const needle = query?.trim().toLowerCase();
+          const filtered = needle ? channels.filter((c) => c.name.toLowerCase().includes(needle) || c.id.includes(needle)) : channels;
+          if (filtered.length === 0) {
+            return text(needle ? `No discovered channels matched "${query}".` : "No channels have been discovered yet.");
+          }
+          const lines = filtered.map((c) => `- #${c.name} \u2192 ${c.id}`);
+          return text(lines.join("\n"));
+        }
+        case "users": {
+          const params = new URLSearchParams();
+          if (query?.trim()) params.set("query", query.trim());
+          const res = await daemonRequest({
+            method: "GET",
+            path: params.size > 0 ? `/users?${params.toString()}` : "/users",
+            config: config3
+          });
+          if (!res.ok) {
+            return text(`\u274C Failed to fetch users: ${res.data["error"] ?? "unknown error"}`, true);
+          }
+          const users = res.data["users"] ?? [];
+          const resolved = res.data["resolved"];
+          if (users.length === 0) {
+            return text(query ? `No discovered users matched "${query}".` : "No users have been discovered yet.");
+          }
+          const lines = [];
+          if (resolved?.id) {
+            lines.push(`Resolved stable user ID: \`${resolved.id}\``, "");
+          }
+          for (const user of users) {
+            const label = user.displayName || user.globalName || user.username;
+            const bot = user.bot ? " bot" : "";
+            lines.push(`- **${label}**${bot}: \`${user.id}\`${user.tag ? ` (${user.tag})` : ""}`);
+          }
+          return text(lines.join("\n"));
+        }
+        case "set_presence": {
+          const body = {};
+          if (status) body["status"] = status;
+          if (activity_type) body["activity_type"] = activity_type;
+          if (activity_name) body["activity_name"] = activity_name;
+          const res = await daemonRequest({
+            method: "POST",
+            path: "/presence",
+            config: config3,
+            body
+          });
+          if (!res.ok) {
+            return text(`\u274C Failed to set presence: ${res.data["error"] ?? "unknown error"}`, true);
+          }
+          const parts = [];
+          if (status) parts.push(`Status: ${status}`);
+          if (activity_name) parts.push(`Activity: ${activity_type ?? "playing"} ${activity_name}`);
+          return text(`\u2705 Presence updated. ${parts.join(" | ")}`);
+        }
+        case "allowlist_add":
+        case "allowlist_remove": {
+          if (!user_id?.trim()) {
+            return text(`\u274C Error: user_id is required for ${action}.`, true);
+          }
+          const res = await daemonRequest({
+            method: "POST",
+            path: "/allowlist",
+            config: config3,
+            body: {
+              action: action === "allowlist_add" ? "add" : "remove",
+              user_id: user_id.trim()
+            }
+          });
+          if (!res.ok) {
+            return text(`\u274C Allowlist update failed: ${res.data["error"] ?? "unknown error"}`, true);
+          }
+          const verb = action === "allowlist_add" ? "added to" : "removed from";
+          return text(`\u2705 User \`${user_id}\` was ${verb} the guest allowlist. Total allowlisted: ${res.data["count"] ?? "?"}`);
+        }
+        case "kick":
+        case "timeout":
+        case "remove_timeout": {
+          if (!user_id?.trim()) {
+            return text("\u274C Error: user_id is required for moderation actions.", true);
+          }
+          if (action === "timeout" && (duration_minutes === void 0 || duration_minutes <= 0)) {
+            return text("\u274C Error: duration_minutes must be greater than 0 for timeout.", true);
+          }
+          const body = { action, user_id };
+          if (guild_id) body["guild_id"] = guild_id;
+          if (reason) body["reason"] = reason;
+          if (duration_minutes !== void 0) body["duration_minutes"] = duration_minutes;
+          const res = await daemonRequest({
+            method: "POST",
+            path: "/moderation",
+            config: config3,
+            body,
+            timeoutMs: 6e4
+          });
+          if (!res.ok) {
+            return text(`\u274C Moderation failed: ${res.data["error"] ?? "unknown error"}`, true);
+          }
+          const target = String(res.data["user_id"] ?? user_id);
+          if (action === "kick") return text(`\u2705 Kicked user ${target}.`);
+          if (action === "timeout") return text(`\u2705 Timed out user ${target} for ${duration_minutes} minute${duration_minutes === 1 ? "" : "s"}.`);
+          return text(`\u2705 Removed timeout for user ${target}.`);
+        }
+        default:
+          return text(`\u274C Error: Unknown action ${action}`, true);
       }
-      if (action === "reset") {
-        if (!channel_id) {
-          return text("\u274C Error: channel_id is required for reset.", true);
-        }
-        const body = { channel_id };
-        if (guild_id) body["guild_id"] = guild_id;
-        const res = await daemonRequest({ method: "POST", path: "/reset", config: config3, body });
-        if (!res.ok) {
-          const error2 = String(res.data["error"] ?? "unknown error");
-          recordPendingDelivery("reset", body, error2);
-          return text(pendingActionFailureText("Reset", error2), true);
-        }
-        clearPendingDelivery("reset", body);
-        return text("\u2705 Started a fresh conversation. The active Discord transcript was archived and the bound Gemini CLI session was restarted for the current channel.");
-      }
-      if (action === "channels") {
-        const res = await daemonRequest({ method: "GET", path: "/status", config: config3 });
-        if (res.data["error"] === "daemon_offline") {
-          return text("\u274C Daemon is offline. Reopen Gemini CLI or run `npm run setup` in the extension directory if setup is incomplete.");
-        }
-        if (!res.ok) {
-          return text(`\u274C Failed to fetch channels: ${JSON.stringify(res.data)}`);
-        }
-        const status2 = res.data;
-        const channels = status2.channels ?? [];
-        const needle = query?.trim().toLowerCase();
-        const filtered = needle ? channels.filter((c) => c.name.toLowerCase().includes(needle) || c.id.includes(needle)) : channels;
-        if (filtered.length === 0) {
-          return text(needle ? `No discovered channels matched "${query}".` : "No channels have been discovered yet.");
-        }
-        const lines = filtered.map((c) => `- #${c.name} \u2192 ${c.id}`);
-        return text(lines.join("\n"));
-      }
-      if (action === "users") {
-        const params = new URLSearchParams();
-        if (query?.trim()) params.set("query", query.trim());
-        const res = await daemonRequest({
-          method: "GET",
-          path: params.size > 0 ? `/users?${params.toString()}` : "/users",
-          config: config3
-        });
-        if (!res.ok) {
-          return text(`\u274C Failed to fetch users: ${res.data["error"] ?? "unknown error"}`, true);
-        }
-        const users = res.data["users"] ?? [];
-        const resolved = res.data["resolved"];
-        if (users.length === 0) {
-          return text(query ? `No discovered users matched "${query}".` : "No users have been discovered yet.");
-        }
-        const lines = [];
-        if (resolved?.id) {
-          lines.push(`Resolved stable user ID: \`${resolved.id}\``, "");
-        }
-        for (const user of users) {
-          const label = user.displayName || user.globalName || user.username;
-          const bot = user.bot ? " bot" : "";
-          lines.push(`- **${label}**${bot}: \`${user.id}\`${user.tag ? ` (${user.tag})` : ""}`);
-        }
-        return text(lines.join("\n"));
-      }
-      if (action === "set_presence") {
-        const body = {};
-        if (status) body["status"] = status;
-        if (activity_type) body["activity_type"] = activity_type;
-        if (activity_name) body["activity_name"] = activity_name;
-        const res = await daemonRequest({
-          method: "POST",
-          path: "/presence",
-          config: config3,
-          body
-        });
-        if (!res.ok) {
-          return text(`\u274C Failed to set presence: ${res.data["error"] ?? "unknown error"}`, true);
-        }
-        const parts = [];
-        if (status) parts.push(`Status: ${status}`);
-        if (activity_name) parts.push(`Activity: ${activity_type ?? "playing"} ${activity_name}`);
-        return text(`\u2705 Presence updated. ${parts.join(" | ")}`);
-      }
-      if (action === "kick" || action === "timeout" || action === "remove_timeout") {
-        if (!user_id?.trim()) {
-          return text("\u274C Error: user_id is required for moderation actions.", true);
-        }
-        if (action === "timeout" && (duration_minutes === void 0 || duration_minutes <= 0)) {
-          return text("\u274C Error: duration_minutes must be greater than 0 for timeout.", true);
-        }
-        const body = { action, user_id };
-        if (guild_id) body["guild_id"] = guild_id;
-        if (reason) body["reason"] = reason;
-        if (duration_minutes !== void 0) body["duration_minutes"] = duration_minutes;
-        const res = await daemonRequest({
-          method: "POST",
-          path: "/moderation",
-          config: config3,
-          body,
-          timeoutMs: 6e4
-        });
-        if (!res.ok) {
-          return text(`\u274C Moderation failed: ${res.data["error"] ?? "unknown error"}`, true);
-        }
-        const target = String(res.data["user_id"] ?? user_id);
-        if (action === "kick") return text(`\u2705 Kicked user ${target}.`);
-        if (action === "timeout") return text(`\u2705 Timed out user ${target} for ${duration_minutes} minute${duration_minutes === 1 ? "" : "s"}.`);
-        return text(`\u2705 Removed timeout for user ${target}.`);
-      }
-      return text(`\u274C Error: Unknown action ${action}`, true);
     }
   );
 }

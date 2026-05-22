@@ -6,6 +6,8 @@ import {
   parseOptionalNumber,
   type ApiDependencies,
 } from '../api-utils.js';
+import { persistConfigEnvUpdates } from '../../shared/config.js';
+import { ENV } from '../../shared/config-vars.js';
 
 const DISCORD_SNOWFLAKE_RE = /^\d{15,25}$/;
 
@@ -16,7 +18,42 @@ export async function handleModerationRoutes(
   parsed: Record<string, unknown>,
   deps: ApiDependencies,
 ): Promise<boolean> {
-  const { config } = deps;
+  const { config, extensionDir } = deps;
+
+  if (pathname === '/allowlist') {
+    if (!authorizeApiAction(req, res, config, 'moderation')) return true;
+    const action = String(parsed['action'] ?? '');
+    const userId = String(parsed['user_id'] ?? '').trim();
+
+    if (!['add', 'remove'].includes(action)) {
+      respond(res, 400, { error: 'action must be add or remove' });
+      return true;
+    }
+    if (!userId || !DISCORD_SNOWFLAKE_RE.test(userId)) {
+      respond(res, 400, { error: 'Valid user_id is required' });
+      return true;
+    }
+
+    const current = new Set(config.allowedUserIds);
+    if (action === 'add') {
+      current.add(userId);
+    } else {
+      current.delete(userId);
+    }
+
+    const next = [...current];
+    config.allowedUserIds = next;
+
+    try {
+      persistConfigEnvUpdates(extensionDir, {
+        [ENV.DISCORD_ALLOWED_USER_IDS]: next.join(','),
+      });
+      respond(res, 200, { ok: true, action, user_id: userId, count: next.length });
+    } catch (err) {
+      respond(res, 500, { error: `Failed to persist config: ${err instanceof Error ? err.message : String(err)}` });
+    }
+    return true;
+  }
 
   if (pathname === '/moderation') {
     if (!authorizeApiAction(req, res, config, 'moderation')) return true;

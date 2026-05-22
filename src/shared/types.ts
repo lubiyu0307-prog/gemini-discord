@@ -72,6 +72,7 @@ export interface Config {
   streaming: boolean;
   queueMaxDepth: number;
   enableDMs: boolean;
+  enableGuests: boolean;
   requireMention: boolean;
   respondToReplies: boolean;
   memoryScope: MemoryScope;
@@ -154,6 +155,7 @@ export interface DaemonStatus {
   serverName?: string;
   ownerIds: string[];
   enableDMs: boolean;
+  enableGuests: boolean;
   sessionScope: MemoryScope;
   geminiSessionBindingScope: GeminiSessionBindingScope;
   useGeminiCliSessions: boolean;

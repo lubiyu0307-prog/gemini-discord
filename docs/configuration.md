@@ -15,7 +15,8 @@ Most users only need to configure the core values during installation. For advan
 | `DISCORD_CHANNEL_ID` | - | Optional. Primary channel for daemon startup notifications. |
 | `DISCORD_ADMIN_ID` | - | Optional. ID for admin-specific notifications. |
 | `DISCORD_ALLOWED_CHANNEL_IDS`| - | Comma-separated list of channel IDs where the bot is allowed to respond. Leave blank to allow all in the server. |
-| `DISCORD_ALLOWED_USER_IDS` | - | Comma-separated list of user IDs allowed to interact with the bot. Defaults to owners if blank. |
+| `DISCORD_ENABLE_GUESTS` | `false` | **New.** Set to `true` to allow non-boss users who are in `DISCORD_ALLOWED_USER_IDS` to interact with the bot. |
+| `DISCORD_ALLOWED_USER_IDS` | - | Comma-separated list of user IDs allowed to interact with the bot (as guests). Defaults to owners if blank. Only used if `DISCORD_ENABLE_GUESTS=true`. |
 | `DISCORD_ALLOWED_AGENT_IDS` | - | Comma-separated list of peer bot IDs allowed to trigger this agent. |
 | `DAEMON_PORT` | `18790` | Localhost port for the daemon control API. |
 | `GEMINI_PATH` | `gemini` | Command or path to the Gemini CLI executable. |
