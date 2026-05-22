@@ -13,6 +13,8 @@
 secrets/
 
 # Managed runtime state
+dist-runtime/
+.openclaw-plugin-*/
 .gemini-discord/
 .gemini-extension-install.json
 .daemon.pid
