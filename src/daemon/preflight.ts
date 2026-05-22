@@ -50,7 +50,11 @@ export async function runPreflight(extensionDir: string): Promise<PreflightResul
   }
 
   if (!envVars[ENV.DISCORD_OWNER_IDS]?.trim()) {
-    log.info('Discord owners not configured yet; the daemon will try to infer the application owner automatically.');
+    if (envVars[ENV.DISCORD_BOSS_USER_ID]?.trim()) {
+      log.info('DISCORD_OWNER_IDS not set; deriving from DISCORD_BOSS_USER_ID for legacy routing.');
+    } else {
+      log.info('Discord owners not configured yet; the daemon will try to infer the application owner automatically.');
+    }
   }
 
   const bossConfig = validateBossConfig(envVars[ENV.DISCORD_BOSS_USER_ID]);

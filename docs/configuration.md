@@ -2,26 +2,38 @@
 
 This document provides a full reference for all environment variables supported by `gemini-discord`.
 
-Most users only need to configure the core values during installation. For advanced tuning, you can update your `.env` file or use `gemini extensions config gemini-discord`.
+Most users only need to configure the three core values during installation. For advanced tuning, you can update your `.env` file or use `gemini extensions config gemini-discord`.
 
-## Environment Variables
+## Core Settings (Set During Install)
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `DISCORD_BOT_TOKEN` | - | **Required.** Your Discord bot application token. |
 | `DISCORD_BOSS_USER_ID` | - | **Required.** Your numeric Discord User ID. This is the only user with full authority over the bridge. |
-| `DISCORD_OWNER_IDS` | - | Comma-separated list of Discord User IDs for legacy routing. Does not grant Boss authority. |
 | `DISCORD_SERVER_ID` | - | **Required.** The ID of the Discord server where the bot operates. |
-| `DISCORD_CHANNEL_ID` | - | Optional. Primary channel for daemon startup notifications. |
-| `DISCORD_ADMIN_ID` | - | Optional. ID for admin-specific notifications. |
-| `DISCORD_ALLOWED_CHANNEL_IDS`| - | Comma-separated list of channel IDs where the bot is allowed to respond. Leave blank to allow all in the server. |
+
+## Advanced Identity & Access
+
+These are auto-derived from the core settings above unless explicitly overridden.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `DISCORD_OWNER_IDS` | *(derived from `DISCORD_BOSS_USER_ID`)* | Comma-separated list of Discord User IDs for legacy routing. Auto-derived from Boss User ID when absent. **Does not grant Boss authority.** |
+| `DISCORD_ADMIN_ID` | *(derived from owner IDs)* | ID for admin-specific notifications. Defaults to the first owner ID (i.e. Boss User ID). |
 | `DISCORD_ENABLE_GUESTS` | `false` | Set to `true` to allow non-boss, non-allowlisted human users to interact with the bot. |
+| `DISCORD_CHANNEL_ID` | - | Optional. Primary channel for daemon startup notifications. Auto-discovered on first connect. |
+| `DISCORD_ALLOWED_CHANNEL_IDS`| - | Comma-separated list of channel IDs where the bot is allowed to respond. Leave blank to allow all in the server. |
 | `DISCORD_ALLOWED_USER_IDS` | - | Comma-separated list of human user IDs allowed to interact with the bot even when `DISCORD_ENABLE_GUESTS=false`. Empty means no allowlisted humans. |
 | `DISCORD_ALLOWED_AGENT_IDS` | - | Comma-separated list of peer bot IDs allowed to trigger this agent. |
+
+## Engine Defaults
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
 | `DAEMON_PORT` | `18790` | Localhost port for the daemon control API. |
 | `GEMINI_PATH` | `gemini` | Command or path to the Gemini CLI executable. |
 | `GEMINI_MODEL` | `gemini-3.1-flash-lite-preview` | The Gemini model to use for conversations. |
-| `GEMINI_TIMEOUT_MS` | `300000` | Network timeout for Gemini CLI calls. |
+| `GEMINI_TIMEOUT_MS` | `900000` | Network timeout (ms) for Gemini CLI calls. |
 | `GEMINI_MAX_CONCURRENT` | `3` | Maximum number of concurrent warm Gemini CLI processes in the pool. |
 | `CONVERSATION_HISTORY_LENGTH` | `30` | Number of messages to keep in the short-term conversation buffer. |
 | `PROMPT_HISTORY_MAX_MESSAGES` | `12` | Max messages from history to include in the context prompt. |
@@ -36,6 +48,11 @@ Most users only need to configure the core values during installation. For advan
 | `AUTO_START_DAEMON` | `true` | Automatically start the Discord daemon when the MCP server is initialized. |
 | `USE_GEMINI_CLI_SESSIONS` | `true` | Use native Gemini CLI session management. |
 | `GEMINI_SESSION_BINDING_SCOPE`| `channel` | Isolation level for Gemini CLI sessions (`channel` or `user`). |
+
+## Internal
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
 | `DAEMON_API_TOKEN` | - | Internal token for daemon/server communication (auto-generated). |
 
 ## Updating Configuration

@@ -35,14 +35,15 @@ Requires [Gemini CLI](https://github.com/google-gemini/gemini-cli) installed and
 gemini extensions install https://github.com/Yamato-main/gemini-discord
 ```
 
-The installer prompts for four values. Restart Gemini CLI and the bot should come online.
+The installer prompts for three values. Restart Gemini CLI and the bot should come online.
 
 | Prompt | What it is |
 | --- | --- |
 | Discord Bot Token | From the Discord Developer Portal |
 | Boss User ID | Your stable numeric Discord user ID — the only ID with full authority |
-| Owner User IDs | Legacy routing IDs; no additional authority |
 | Server ID | The server where the bot is installed |
+
+Legacy owner and admin routing IDs are auto-derived from Boss User ID unless overridden in [advanced configuration](docs/configuration.md).
 
 ---
 
@@ -115,7 +116,6 @@ Most users only need the install prompts. Full reference via [docs/configuration
 | --- | --- |
 | Discord Bot Token | Lets the bridge connect to Discord |
 | Boss User ID | The only Discord user ID with full authority |
-| Owner User IDs | Legacy routing IDs; does not grant boss authority |
 | Server ID | Server where the bot is installed |
 
 Update these later with:

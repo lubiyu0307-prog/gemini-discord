@@ -2,7 +2,7 @@
   "name": "gemini-discord",
   "version": "0.1.0",
   "type": "module",
-  "description": "Supervise your Gemini CLI agent from Discord, chat with it, and let it help moderate your server.",
+  "description": "Bring your local Gemini CLI agent into Discord as a persistent operational control surface.",
   "files": [
     "dist",
     "src",
@@ -52,5 +52,10 @@
   "engines": {
     "node": ">=22.0.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Yamato-main/gemini-discord.git"
+  },
+  "homepage": "https://github.com/Yamato-main/gemini-discord#readme"
 }

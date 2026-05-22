@@ -1,7 +1,7 @@
 {
   "name": "gemini-discord",
   "version": "0.1.0",
-  "description": "Supervise your Gemini CLI agent from Discord, chat with it, and let it help moderate your server.",
+  "description": "Bring your local Gemini CLI agent into Discord as a persistent operational control surface.",
   "settings": [
     {
       "name": "Discord Bot Token",
@@ -16,21 +16,9 @@
       "sensitive": false
     },
     {
-      "name": "Owner Discord User IDs",
-      "description": "Discord user IDs allowed by legacy setup. Does not grant Boss authority.",
-      "envVar": "DISCORD_OWNER_IDS",
-      "sensitive": false
-    },
-    {
       "name": "Discord Server ID",
       "description": "ID of the server where the bot is installed.",
       "envVar": "DISCORD_SERVER_ID",
-      "sensitive": false
-    },
-    {
-      "name": "Enable Guests",
-      "description": "Allow non-boss users to interact with the bot if they are explicitly allowlisted.",
-      "envVar": "DISCORD_ENABLE_GUESTS",
       "sensitive": false
     }
   ],
@@ -42,9 +30,7 @@
       "env": {
         "DISCORD_BOT_TOKEN": "${DISCORD_BOT_TOKEN}",
         "DISCORD_BOSS_USER_ID": "${DISCORD_BOSS_USER_ID}",
-        "DISCORD_OWNER_IDS": "${DISCORD_OWNER_IDS}",
-        "DISCORD_SERVER_ID": "${DISCORD_SERVER_ID}",
-        "DISCORD_ENABLE_GUESTS": "${DISCORD_ENABLE_GUESTS}"
+        "DISCORD_SERVER_ID": "${DISCORD_SERVER_ID}"
       }
     }
   }

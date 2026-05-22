@@ -21214,13 +21214,10 @@ var CONFIG_ENV_KEYS = [
 var INSTALL_SETTING_ENV_KEYS = [
   ENV.DISCORD_BOT_TOKEN,
   ENV.DISCORD_BOSS_USER_ID,
-  ENV.DISCORD_OWNER_IDS,
-  ENV.DISCORD_SERVER_ID,
-  ENV.DISCORD_ENABLE_GUESTS
+  ENV.DISCORD_SERVER_ID
 ];
 var REQUIRED_DAEMON_ENV_KEYS = [
   ENV.DISCORD_BOT_TOKEN,
-  ENV.DISCORD_OWNER_IDS,
   ENV.DISCORD_SERVER_ID
 ];
 var SETUP_ENV_KEYS_TO_CLEAR = [
@@ -21352,23 +21349,25 @@ function loadConfig(extensionDir2) {
     const envValue = envVars[key];
     return envValue === void 0 ? fallback : envValue;
   };
-  const ownerIds = splitIds(get(ENV.DISCORD_OWNER_IDS));
+  const bossUserId = get(ENV.DISCORD_BOSS_USER_ID).trim();
+  const explicitOwnerIds = splitIds(get(ENV.DISCORD_OWNER_IDS));
+  const ownerIds = explicitOwnerIds.length > 0 ? explicitOwnerIds : bossUserId ? [bossUserId] : [];
   const primaryChannelId = get(ENV.DISCORD_CHANNEL_ID);
   const configuredServerId = get(ENV.DISCORD_SERVER_ID);
   const configuredAllowedChannelIds = splitIds(get(ENV.DISCORD_ALLOWED_CHANNEL_IDS));
   const allowedUserIds = splitIds(get(ENV.DISCORD_ALLOWED_USER_IDS));
   const hasInstallSettings = Boolean(
-    get(ENV.DISCORD_BOT_TOKEN).trim() && get(ENV.DISCORD_OWNER_IDS).trim() && get(ENV.DISCORD_SERVER_ID).trim()
+    get(ENV.DISCORD_BOT_TOKEN).trim() && bossUserId && get(ENV.DISCORD_SERVER_ID).trim()
   );
   const config3 = {
     discordBotToken: get(ENV.DISCORD_BOT_TOKEN),
     discordChannelId: primaryChannelId,
     discordServerId: configuredServerId || managedConfig.discord.primaryGuildId || "",
     discordServerName: managedConfig.discord.primaryGuildName ?? "",
-    discordBossUserId: get(ENV.DISCORD_BOSS_USER_ID).trim(),
+    discordBossUserId: bossUserId,
     ownerIds,
     discordAdminId: resolveAdminId(get(ENV.DISCORD_ADMIN_ID), ownerIds),
-    allowedChannelIds: configuredAllowedChannelIds.length > 0 ? configuredAllowedChannelIds : primaryChannelId ? [primaryChannelId] : [],
+    allowedChannelIds: configuredAllowedChannelIds,
     allowedUserIds,
     allowedAgentIds: splitIds(get(ENV.DISCORD_ALLOWED_AGENT_IDS)),
     daemonApiToken: (() => {

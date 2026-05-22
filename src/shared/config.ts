@@ -177,14 +177,18 @@ export function loadConfig(extensionDir: string): Config {
     return envValue === undefined ? fallback : envValue;
   };
 
-  const ownerIds = splitIds(get(ENV.DISCORD_OWNER_IDS));
+  const bossUserId = get(ENV.DISCORD_BOSS_USER_ID).trim();
+  const explicitOwnerIds = splitIds(get(ENV.DISCORD_OWNER_IDS));
+  const ownerIds = explicitOwnerIds.length > 0
+    ? explicitOwnerIds
+    : bossUserId ? [bossUserId] : [];
   const primaryChannelId = get(ENV.DISCORD_CHANNEL_ID);
   const configuredServerId = get(ENV.DISCORD_SERVER_ID);
   const configuredAllowedChannelIds = splitIds(get(ENV.DISCORD_ALLOWED_CHANNEL_IDS));
   const allowedUserIds = splitIds(get(ENV.DISCORD_ALLOWED_USER_IDS));
   const hasInstallSettings = Boolean(
     get(ENV.DISCORD_BOT_TOKEN).trim()
-    && get(ENV.DISCORD_OWNER_IDS).trim()
+    && bossUserId
     && get(ENV.DISCORD_SERVER_ID).trim(),
   );
 
@@ -193,12 +197,10 @@ export function loadConfig(extensionDir: string): Config {
     discordChannelId: primaryChannelId,
     discordServerId: configuredServerId || managedConfig.discord.primaryGuildId || '',
     discordServerName: managedConfig.discord.primaryGuildName ?? '',
-    discordBossUserId: get(ENV.DISCORD_BOSS_USER_ID).trim(),
+    discordBossUserId: bossUserId,
     ownerIds,
     discordAdminId: resolveAdminId(get(ENV.DISCORD_ADMIN_ID), ownerIds),
-    allowedChannelIds: configuredAllowedChannelIds.length > 0
-      ? configuredAllowedChannelIds
-      : (primaryChannelId ? [primaryChannelId] : []),
+    allowedChannelIds: configuredAllowedChannelIds,
 
     allowedUserIds,
     allowedAgentIds: splitIds(get(ENV.DISCORD_ALLOWED_AGENT_IDS)),

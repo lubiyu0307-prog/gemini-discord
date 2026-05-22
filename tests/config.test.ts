@@ -137,7 +137,7 @@ describe('loadConfig', () => {
     try {
       fs.writeFileSync(path.join(tmpDir, '.env'), [
         'DISCORD_BOT_TOKEN=test-token',
-        'DISCORD_OWNER_IDS=owner-1',
+        'DISCORD_BOSS_USER_ID=111111111111111111',
         'DISCORD_SERVER_ID=server-1',
       ].join('\n'));
 
@@ -264,6 +264,57 @@ describe('loadConfig', () => {
       fs.rmSync(path.join(tmpDir, '.gemini-discord'), { recursive: true, force: true });
       fs.writeFileSync(path.join(tmpDir, '.env'), 'DISCORD_ENABLE_GUESTS=1\n');
       expect(loadConfig(tmpDir).enableGuests).toBe(false);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('derives ownerIds from DISCORD_BOSS_USER_ID when DISCORD_OWNER_IDS is absent', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-derive-'));
+    try {
+      fs.writeFileSync(path.join(tmpDir, '.env'), [
+        'DISCORD_BOT_TOKEN=test-token',
+        'DISCORD_BOSS_USER_ID=999999999999999999',
+        'DISCORD_SERVER_ID=888888888888888888',
+      ].join('\n'));
+
+      const config = loadConfig(tmpDir);
+      expect(config.ownerIds).toEqual(['999999999999999999']);
+      expect(config.discordAdminId).toBe('999999999999999999');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('prefers explicit DISCORD_OWNER_IDS over boss-derived fallback', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-explicit-'));
+    try {
+      fs.writeFileSync(path.join(tmpDir, '.env'), [
+        'DISCORD_BOT_TOKEN=test-token',
+        'DISCORD_BOSS_USER_ID=999999999999999999',
+        'DISCORD_OWNER_IDS=111111111111111111,222222222222222222',
+        'DISCORD_SERVER_ID=888888888888888888',
+      ].join('\n'));
+
+      const config = loadConfig(tmpDir);
+      expect(config.ownerIds).toEqual(['111111111111111111', '222222222222222222']);
+      expect(config.discordBossUserId).toBe('999999999999999999');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('resolves adminId to boss when neither explicit admin nor owner IDs are configured', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-admin-'));
+    try {
+      fs.writeFileSync(path.join(tmpDir, '.env'), [
+        'DISCORD_BOT_TOKEN=test-token',
+        'DISCORD_BOSS_USER_ID=555555555555555555',
+        'DISCORD_SERVER_ID=666666666666666666',
+      ].join('\n'));
+
+      const config = loadConfig(tmpDir);
+      expect(config.discordAdminId).toBe('555555555555555555');
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
