@@ -1,7 +1,7 @@
 {
   "name": "gemini-discord",
   "version": "0.1.0",
-  "description": "Secure Discord bridge for your local Gemini CLI agent.",
+  "description": "Supervise your Gemini CLI agent from Discord, chat with it, and let it help moderate your server with tools.",
   "settings": [
     {
       "name": "Discord Bot Token",
