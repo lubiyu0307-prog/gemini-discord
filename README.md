@@ -1,8 +1,8 @@
 # gemini-discord
 
-Use your local Gemini CLI agent from Discord.
+This extension lets you use your local Gemini CLI agent from Discord.
 
-This is not a hosted bot. It is not a second agent. It is a bridge between Discord and the Gemini CLI setup already running on your machine.
+This is not a hosted chatbot. It is not a second agent. It is a bridge between Discord and the Gemini CLI setup already running on your machine.
 
 You keep the agent local. Discord becomes another interface.
 
