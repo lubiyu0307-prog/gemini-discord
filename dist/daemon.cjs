@@ -185,6 +185,7 @@ var init_config_vars = __esm({
       DISCORD_ALLOWED_USER_IDS: "DISCORD_ALLOWED_USER_IDS",
       DISCORD_ALLOWED_AGENT_IDS: "DISCORD_ALLOWED_AGENT_IDS",
       DISCORD_ENABLE_GUESTS: "DISCORD_ENABLE_GUESTS",
+      DISCORD_ENABLE_SERVER_MEMBERS_INTENT: "DISCORD_ENABLE_SERVER_MEMBERS_INTENT",
       DAEMON_API_TOKEN: "DAEMON_API_TOKEN",
       DISCORD_PREFIX: "DISCORD_PREFIX",
       DISCORD_RESET_CMD: "DISCORD_RESET_CMD",
@@ -219,6 +220,7 @@ var init_config_vars = __esm({
       ENV.DISCORD_ALLOWED_USER_IDS,
       ENV.DISCORD_ALLOWED_AGENT_IDS,
       ENV.DISCORD_ENABLE_GUESTS,
+      ENV.DISCORD_ENABLE_SERVER_MEMBERS_INTENT,
       ENV.DAEMON_API_TOKEN,
       ENV.DISCORD_PREFIX,
       ENV.DISCORD_RESET_CMD,
@@ -428,6 +430,7 @@ function loadConfig(extensionDir2) {
     queueMaxDepth: parseInt(get(ENV.QUEUE_MAX_DEPTH, "20"), 10),
     enableDMs: parseBoolean(get(ENV.ENABLE_DMS, "true"), true),
     enableGuests: parseBoolean(get(ENV.DISCORD_ENABLE_GUESTS), false),
+    enableServerMembersIntent: parseBoolean(get(ENV.DISCORD_ENABLE_SERVER_MEMBERS_INTENT, "true"), true),
     requireMention: parseBoolean(get(ENV.REQUIRE_MENTION, "true"), true),
     respondToReplies: parseBoolean(get(ENV.RESPOND_TO_REPLIES, "true"), true),
     memoryScope: parseMemoryScope(get(ENV.MEMORY_SCOPE, "channel")),
@@ -87530,11 +87533,13 @@ function createClient(config) {
   log.info("Client creating", { enableDMs: config.enableDMs, bossConfigured: Boolean(config.discordBossUserId) });
   const intents = [
     import_discord4.GatewayIntentBits.Guilds,
-    import_discord4.GatewayIntentBits.GuildMembers,
     import_discord4.GatewayIntentBits.GuildMessages,
     import_discord4.GatewayIntentBits.GuildIntegrations,
     import_discord4.GatewayIntentBits.MessageContent
   ];
+  if (config.enableServerMembersIntent !== false) {
+    intents.push(import_discord4.GatewayIntentBits.GuildMembers);
+  }
   if (config.enableDMs) {
     intents.push(import_discord4.GatewayIntentBits.DirectMessages);
     intents.push(import_discord4.GatewayIntentBits.DirectMessageTyping);
@@ -87560,6 +87565,13 @@ function setupReconnectHandlers(client, config, setState) {
     const fatal = [4004, 4010, 4011, 4012, 4013, 4014];
     if (fatal.includes(event.code)) {
       log.error("Fatal disconnect", { code: event.code });
+      if (event.code === 4014) {
+        log.error("Fatal disconnect: Disallowed Intents (code 4014).");
+        log.error("This means the bot requested Privileged Gateway Intents that are not authorized in the Discord Developer Portal.");
+        log.error('Please visit the Discord Developer Portal at https://discord.com/developers/applications, select your application, navigate to the "Bot" tab, scroll down to "Privileged Gateway Intents", and ensure the following are enabled:');
+        log.error(" - Message Content Intent (MANDATORY)");
+        log.error(" - Server Members Intent (required unless DISCORD_ENABLE_SERVER_MEMBERS_INTENT is set to false)");
+      }
       notifyOwner(client, config, `Bot disconnected fatally (code ${event.code}). Check token and intents.`);
       process.exit(1);
     }
@@ -91123,9 +91135,9 @@ async function probeDiscordGateway(token) {
     });
     if (!userRes.ok) {
       if (userRes.status === 401) {
-        return { ok: false, botId: null, botTag: null, hasMessageContent: false, error: "Invalid or missing bot token" };
+        return { ok: false, botId: null, botTag: null, hasMessageContent: false, hasGuildMembers: false, error: "Invalid or missing bot token" };
       }
-      return { ok: false, botId: null, botTag: null, hasMessageContent: false, error: `Failed to fetch bot user: HTTP ${userRes.status}` };
+      return { ok: false, botId: null, botTag: null, hasMessageContent: false, hasGuildMembers: false, error: `Failed to fetch bot user: HTTP ${userRes.status}` };
     }
     const userBody = await userRes.json();
     const botId = userBody.id;
@@ -91134,26 +91146,32 @@ async function probeDiscordGateway(token) {
       headers: { Authorization: `Bot ${token}` }
     });
     let hasMessageContent = false;
+    let hasGuildMembers = false;
     if (appRes.ok) {
       const appBody = await appRes.json();
       const flags = appBody.flags || 0;
-      const GATEWAY_MESSAGE_CONTENT = 1 << 15;
+      const GATEWAY_GUILD_MEMBERS = 1 << 14;
+      const GATEWAY_GUILD_MEMBERS_LIMITED = 1 << 15;
+      const GATEWAY_MESSAGE_CONTENT = 1 << 18;
       const GATEWAY_MESSAGE_CONTENT_LIMITED = 1 << 19;
       hasMessageContent = (flags & GATEWAY_MESSAGE_CONTENT) !== 0 || (flags & GATEWAY_MESSAGE_CONTENT_LIMITED) !== 0;
+      hasGuildMembers = (flags & GATEWAY_GUILD_MEMBERS) !== 0 || (flags & GATEWAY_GUILD_MEMBERS_LIMITED) !== 0;
     } else {
       log.warn("Failed to fetch bot application intents. Proceeding without explicit verification.");
       hasMessageContent = true;
+      hasGuildMembers = true;
     }
     return {
       ok: true,
       botId,
       botTag,
       hasMessageContent,
+      hasGuildMembers,
       error: null
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, botId: null, botTag: null, hasMessageContent: false, error: message };
+    return { ok: false, botId: null, botTag: null, hasMessageContent: false, hasGuildMembers: false, error: message };
   }
 }
 
@@ -91329,7 +91347,13 @@ async function main() {
     process.exit(1);
   }
   if (!probe.hasMessageContent) {
-    log.warn("Message Content Intent appears to be missing or disabled. The bot may not receive message text.");
+    log.warn("Message Content Intent appears to be missing or disabled in the Discord Developer Portal. The bot will not be able to read message content!");
+  }
+  if (config.enableServerMembersIntent !== false && !probe.hasGuildMembers) {
+    log.warn("Server Members Intent is not enabled in the Discord Developer Portal, but the bot is configured to request it.");
+    log.warn("To prevent a fatal 4014 (Disallowed Intents) disconnect, we are automatically disabling the Guild Members intent for this connection.");
+    log.warn('Note: User discovery and some role-based features will be limited. Enable the "Server Members Intent" in the Developer Portal to restore them.');
+    config.enableServerMembersIntent = false;
   }
   log.info("Discord Gateway probe succeeded", { botTag: probe.botTag });
   const { initGateway: initGateway2 } = await Promise.resolve().then(() => (init_gateway(), gateway_exports));
