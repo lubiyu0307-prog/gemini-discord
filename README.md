@@ -1,136 +1,265 @@
 # gemini-discord
 
-A secure, transport-agnostic Discord bridge for your local [Gemini CLI](https://github.com/google/gemini-cli) agent.
+Use your local Gemini CLI agent from Discord.
 
-**This is not a hosted bot, a standalone application, or a separate Discord persona.** It is an extension that connects your existing local Gemini CLI agent to Discord, allowing you to interact with the same agent you use on your machine through a Discord interface.
+This is not a hosted bot. It is not a second agent. It is a bridge between Discord and the Gemini CLI setup already running on your machine.
 
-### Why this exists
-Local agents are powerful but often trapped in a single terminal session. This bridge lets you carry your agent's context, tools, and identity into Discord while maintaining strict local control and security.
+You keep the agent local. Discord becomes another interface.
 
-### What it is not
-- It is not a multi-tenant bot service.
-- It is not a replacement for Gemini CLI.
-- It is not a cloud-hosted solution.
+## What it gives you
 
----
+- Talk to your Gemini CLI agent from Discord channels, threads, or DMs.
+- Keep the same local Gemini identity, context, and tools.
+- Send replies, files, reactions, pins, reminders, and moderation actions through MCP tools.
+- Keep privileged actions locked to one configured Discord user ID.
+- Keep runtime state local.
 
-## Installation
+The design goal is simple: your local agent should be reachable from Discord without turning it into a public bot service.
 
-### 1. Create a Discord Bot
+## Install
+
+Requirements:
+
+- Node.js 22+
+- Gemini CLI installed and authenticated
+- A Discord bot token
+- Discord Developer Mode enabled
+
+Create a Discord bot:
+
 1. Open the [Discord Developer Portal](https://discord.com/developers/applications).
-2. Create a New Application and name it.
-3. Navigate to the **Bot** tab and add a bot.
-4. **Token:** Reset and copy your bot token. This is your `DISCORD_BOT_TOKEN`.
-5. **Privileged Gateway Intents:** Enable **Message Content Intent** (to read messages) and **Server Members Intent** (for user discovery).
-6. **OAuth2 URL Generator:** 
-   - Select the `bot` scope.
-   - Grant permissions: `Read Messages/View Channels`, `Send Messages`, `Use Slash Commands`, `Attach Files`.
-   - For moderation features: Grant `Kick Members` and `Moderate Members`. (Note: The bot's role must be higher than target users).
-7. Invite the bot to your server using the generated URL.
+2. Create an application.
+3. Add a bot under **Bot**.
+4. Copy the bot token.
+5. Enable **Message Content Intent**.
+6. Enable **Server Members Intent** if you want user discovery.
+7. Use **OAuth2 > URL Generator** to invite the bot.
 
-### 2. Install the Extension
-Install directly via Gemini CLI:
+Recommended bot permissions:
+
+- View Channels
+- Read Message History
+- Send Messages
+- Use Slash Commands
+- Attach Files
+- Add Reactions
+- Manage Messages, if using pin/edit/delete flows
+- Kick Members / Moderate Members, only if using moderation
+
+Install the extension:
 
 ```bash
 gemini extensions install https://github.com/Yamato-main/gemini-discord
 ```
 
-The CLI will securely prompt you for:
-- **Discord Bot Token**
-- **Boss Discord User ID**: Your stable numeric Discord user ID (e.g., `853141321774006282`).
-- **Discord Server ID**: The ID of the server where the bot was invited.
+Gemini CLI will ask for:
 
-The bridge will start automatically the next time Gemini CLI loads it and send you a Discord DM once it is online.
-
----
-
-## Identity & Architecture
-
-The bridge inherits your **Gemini CLI persona and context** exactly. It does not ship with separate instructions or a `GEMINI.md` file to avoid identity drift. Your agent remains defined by your global config at `~/.gemini/GEMINI.md`.
-
-Discord serves only as a **transport layer**. The bridge adds:
-- A runtime header for Discord-compatible Markdown formatting.
-- Rich context for replies, attachments, and server metadata.
-- Secure routing for MCP tools and administration.
-
----
-
-## Permissions & Security
-
-This bridge operates on a strict **BOSS/GUEST** invariant.
-
-### The Boss (`DISCORD_BOSS_USER_ID`)
-Full bridge authority is granted **exclusively** to the user ID configured as the Boss.
-- **Resolution:** Resolved only by stable numeric Discord user ID.
-- **No Fallback:** Authority is *never* granted based on usernames, roles, server ownership, or admin status.
-- **Capabilities:** Full access to all tools (shell, files, repo, MCP), administration, cron, and moderation.
-- **Safety:** If the Boss ID is missing or malformed, the bridge fails closed for all privileged actions.
-
-### Guests
-Any user not explicitly configured as the Boss is treated as a Guest.
-- **Capabilities:** Guests can chat and use public Google Search only.
-- **Restrictions:** Guests **cannot** use MCP tools, shell, files, repo state, attachments, local media, outbound Discord actions, history, status, user discovery, cron, or admin features.
-
-### Channel Safety
-The bridge enforces a **no-fallback channel safety rule**:
-- **Explicit Targets:** Sends, history reads, session resets, and scheduled messages require an explicit `channel_id` or `channel_name`.
-- **No Defaults:** The bridge will never fall back to a "primary" or "default" channel if a target cannot be proven.
-- **Isolation:** Memory and Gemini sessions are isolated by channel, thread, or DM user.
-
----
-
-## Usage & Tools
-
-Talk to the bot in DMs or allowed channels. It supports native Discord attachments (images, video, audio, PDF, text, source code). Large files are handled via local links, while small media is sent directly to the Gemini session.
-
-### Core Commands
-- `/new`: Start a fresh conversation session.
-- `/status`: Check daemon health and system stats.
-- `/ping`: Check bot and API latency.
-- `/model`: Switch the active Gemini model.
-
-### MCP Tools (Boss Only)
-| Tool | Scope |
+| Setting | Purpose |
 | --- | --- |
-| `discord_message` | `send`, `reply`, `edit`, `delete`, `react`, `unreact`, `fetch_reactions`, `pin`, `unpin`, `list_pins` |
-| `discord_history` | Read recent exchanges, conversation buffer, and archives. |
-| `discord_admin` | `status`, `restart`, `reset`, `channels`, `users`, `set_presence`, `kick`, `timeout` |
-| `discord_cron` | `schedule_reminder`, `schedule_cron`, `list`, `delete` |
-| `discord_find_media` | Search and upload local media files from the host machine. |
+| Discord Bot Token | Token from the Discord Developer Portal |
+| Boss Discord User ID | Stable numeric Discord user ID with full authority |
+| Owner Discord User IDs | Legacy/setup routing IDs; not boss authority |
+| Discord Server ID | Server where the bot is installed |
 
----
+After install, Gemini CLI loads the MCP server. If daemon auto-start is enabled, the Discord daemon starts automatically.
 
-## Development & Release
+## Local development
 
-### Workflow
 ```bash
-npm install        # Install dependencies
-npm run typecheck  # Verify type safety
-npm test           # Run full suite (160+ tests)
-npm run build      # Generate dist/ output
+git clone https://github.com/Yamato-main/gemini-discord
+cd gemini-discord
+npm install
+npm run setup
+npm run build
 ```
 
-### Before Release Checklist
-1. Verify `gemini-extension.json` is at the repo root.
-2. **Crucial:** Build and commit all `dist/` files.
-3. Ensure `.env`, `.gemini-discord/`, and logs remain untracked.
-4. Tag the repo with `gemini-cli-extension`.
+Then install the local path:
 
----
+```bash
+gemini extensions install /absolute/path/to/gemini-discord
+```
 
-## Permission Smoke Table
+Runtime files are stored under:
 
-| Sender | Intent | Result |
-| --- | --- | --- |
-| GUEST | `Who is the CEO of OpenAI?` | **ALLOWED** (Public Search) |
-| GUEST | `Search the repo for secrets` | **DENIED** (Files/Repo Tool) |
-| GUEST | `Send this message to #general` | **DENIED** (Outbound Discord) |
-| GUEST | `Summarize this attachment` | **DENIED** (Attachment Access) |
-| GUEST | `Schedule a reminder` | **DENIED** (Cron) |
-| BOSS | Full tool/system request | **ALLOWED** |
-| Malformed Boss ID | Any privileged request | **DENIED** (Fails Closed) |
+```text
+.gemini-discord/
+```
 
----
+Keep that directory out of git.
+
+## Identity
+
+The Discord bot uses your normal Gemini CLI identity.
+
+This extension does not ship its own `GEMINI.md`. Put agent instructions in your global Gemini config instead:
+
+```text
+~/.gemini/GEMINI.md
+```
+
+The bridge adds transport context only:
+
+- Discord message metadata
+- reply context
+- channel/thread/DM context
+- attachment references
+- MCP tool descriptions
+- permission metadata
+
+Discord is the interface. Gemini CLI remains the agent.
+
+## Usage
+
+Talk to the bot in an allowed server channel, thread, or DM.
+
+Supported attachment types include:
+
+- images
+- videos such as `.mp4` and `.webm`
+- audio
+- PDFs
+- text files
+- Markdown, JSON, and source files
+
+Small supported media is passed into the warm Gemini CLI session. Larger files are handled through local file references. Temporary attachment files are cleaned automatically.
+
+## Slash commands
+
+| Command | Purpose |
+| --- | --- |
+| `/new` | Start a fresh Gemini conversation for the current channel |
+| `/status` | Show daemon health and runtime status |
+| `/ping` | Check Discord/API latency |
+| `/model` | Switch the active Gemini model |
+| `/pool` | Show Gemini CLI process pool state |
+| `/kill` | Kill a pooled Gemini CLI process |
+
+Privileged commands are checked against the bridge permission model.
+
+## MCP tools
+
+| Tool | Purpose |
+| --- | --- |
+| `discord_message` | Send, reply, edit, delete, react, unreact, fetch reactions, pin, unpin, list pins |
+| `discord_admin` | Status, restart, reset, channel discovery, user discovery, presence, kick, timeout, remove timeout |
+| `discord_history` | Read recent exchanges, conversation buffers, and archives |
+| `discord_cron` | Schedule reminders, schedule cron jobs, list jobs, delete jobs |
+| `discord_find_media` | Search local media files on the host machine |
+
+Message actions require explicit targets:
+
+- `send` requires `channel_id` or `channel_name`
+- `reply` requires `channel_id` and `message_id`
+- `edit` and `delete` only apply to bot-owned messages
+- reaction and pin actions require `channel_id` and `message_id`
+- `send` and `reply` support `files`
+- `send` and `reply` support `silent: true`
+
+## Permission model
+
+The bridge uses two runtime roles:
+
+```text
+BOSS
+GUEST
+```
+
+Only `DISCORD_BOSS_USER_ID` grants boss authority.
+
+Boss authority is resolved only from the stable numeric Discord user ID configured at runtime. It is never granted by:
+
+- username
+- display name
+- nickname
+- mention text
+- Discord role
+- server owner status
+- Discord administrator permission
+- allowlist membership
+- discovered user metadata
+- legacy owner/admin settings
+
+If `DISCORD_BOSS_USER_ID` is missing or malformed, privileged actions fail closed.
+
+Guests may chat normally where the bot is allowed to respond. Guests may also use simple public Google Search through Gemini CLI when available.
+
+Guests may not use MCP tools, shell access, filesystem access, repo access, local media, attachment processing, authenticated browsing, outbound Discord actions, history, status, discovery, cron, admin, moderation, boss memory, or boss sessions.
+
+## Channel safety
+
+The bridge does not post to unproven targets.
+
+These actions require explicit target information:
+
+- sending messages
+- replies through tools
+- history reads
+- session resets
+- scheduled messages
+- reaction operations
+- pin operations
+
+If the target cannot be proven, the action fails.
+
+The bridge does not fall back to a primary/default channel.
+
+Normal conversational replies stay in the origin channel, thread, or DM. Gemini sessions and Discord memory are isolated by channel/thread or DM user, depending on configuration.
+
+## Configuration
+
+Most users configure the extension during install.
+
+For local development, start from:
+
+```text
+.env.example
+```
+
+Core settings:
+
+| Variable | Purpose |
+| --- | --- |
+| `DISCORD_BOT_TOKEN` | Discord bot token |
+| `DISCORD_BOSS_USER_ID` | Stable numeric Discord user ID with full authority |
+| `DISCORD_OWNER_IDS` | Legacy/setup routing IDs; not boss authority |
+| `DISCORD_SERVER_ID` | Server used for setup and discovery |
+| `DISCORD_CHANNEL_ID` | Optional remembered channel value; not an unsafe fallback |
+| `DISCORD_ALLOWED_CHANNEL_IDS` | Optional channel allowlist |
+| `DISCORD_ALLOWED_USER_IDS` | Optional human user allowlist |
+| `DISCORD_ALLOWED_AGENT_IDS` | Optional peer bot allowlist |
+| `ENABLE_DMS` | Enables DM handling |
+| `REQUIRE_MENTION` | Requires mention in server channels |
+| `MEMORY_SCOPE` | Controls Discord memory isolation |
+| `GEMINI_SESSION_BINDING_SCOPE` | Controls Gemini CLI session binding |
+| `GEMINI_MAX_CONCURRENT` | Maximum warm Gemini CLI processes |
+| `CLI_IDLE_TIMEOUT_MS` | Idle timeout for pooled Gemini CLI processes |
+
+Do not commit real tokens, real IDs, `.env`, `.gemini-discord/`, logs, databases, or local runtime files.
+
+## Performance
+
+The daemon keeps Gemini CLI ACP processes warm per conversation/tool tier. Normal text turns avoid cold starts. Attachment turns use the same warm path instead of spawning a separate headless process.
+
+When streaming is enabled, the bot starts with Discord typing indicators, sends visible text early, and edits at a safe cadence. If all Gemini slots are busy, the bot posts a queue notice and removes it once the turn starts.
+
+## Development
+
+```bash
+npm install
+npm run typecheck
+npm test
+npm run build
+```
+
+Before release:
+
+1. Keep `gemini-extension.json` at the repository root.
+2. Run typecheck, tests, and build.
+3. Commit built `dist/` files.
+4. Keep `.env`, `.gemini-discord/`, logs, databases, and local runtime files untracked.
+5. Use placeholder IDs in committed examples.
+6. Add the GitHub topic `gemini-cli-extension`.
 
 ## License
-MIT License. Copyright (c) 2026 Yamato-main.
+
+MIT License. See [LICENSE](./LICENSE).
