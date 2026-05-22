@@ -215,6 +215,24 @@ describe('loadConfig', () => {
     }
   });
 
+  it('does not inherit owner ids into an empty allowed user allowlist', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-allowlist-'));
+    try {
+      fs.writeFileSync(path.join(tmpDir, '.env'), [
+        'DISCORD_BOT_TOKEN=token',
+        'DISCORD_OWNER_IDS=111111111111111111,222222222222222222',
+        'DISCORD_ALLOWED_USER_IDS=',
+      ].join('\n'));
+
+      const config = loadConfig(tmpDir);
+
+      expect(config.ownerIds).toEqual(['111111111111111111', '222222222222222222']);
+      expect(config.allowedUserIds).toEqual([]);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('prioritizes process.env over .env for enableGuests', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-env-'));
     try {

@@ -5,6 +5,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { resolveSendChannelId, startControlApi, type DaemonState } from '../src/daemon/api.js';
+import { readManagedConfigFile } from '../src/shared/managed-config.js';
+import { resolveRuntimePaths } from '../src/shared/runtime-paths.js';
 import { createConfig } from './test-utils/factories.js';
 
 describe('resolveSendChannelId', () => {
@@ -118,7 +120,154 @@ describe('control API Discord role gates', () => {
   });
 });
 
+describe('control API user discovery', () => {
+  it('denies user discovery for guests', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-api-users-'));
+    const client = createDiscoveryClient();
+    const config = createConfig({
+      daemonPort: 0,
+      discordServerId: 'guild-1',
+      discordBossUserId: '111111111111111111',
+    });
+    const server = startControlApi({
+      config,
+      state: createState(),
+      memory: {} as any,
+      queue: { depth: () => 0 } as any,
+      extensionDir: tmpDir,
+      client: client as any,
+      isShuttingDown: () => false,
+      shutdown: async () => {},
+    });
+
+    try {
+      await once(server, 'listening');
+      const port = (server.address() as AddressInfo).port;
+      const response = await fetch(`http://127.0.0.1:${port}/users`, {
+        headers: guestHeaders(config.daemonApiToken),
+      });
+
+      expect(response.status).toBe(403);
+      expect(client.guilds.fetch).not.toHaveBeenCalled();
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('allows user discovery for the boss and exposes human and bot users distinctly', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-api-users-'));
+    const client = createDiscoveryClient();
+    const config = createConfig({
+      daemonPort: 0,
+      discordServerId: 'guild-1',
+      discordBossUserId: '111111111111111111',
+    });
+    const server = startControlApi({
+      config,
+      state: createState(),
+      memory: {} as any,
+      queue: { depth: () => 0 } as any,
+      extensionDir: tmpDir,
+      client: client as any,
+      isShuttingDown: () => false,
+      shutdown: async () => {},
+    });
+
+    try {
+      await once(server, 'listening');
+      const port = (server.address() as AddressInfo).port;
+      const response = await fetch(`http://127.0.0.1:${port}/users`, {
+        headers: bossHeaders(config.daemonApiToken),
+      });
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.users).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: '222222222222222222', username: 'human-user', bot: false }),
+        expect.objectContaining({ id: '333333333333333333', username: 'peer-bot', bot: true }),
+      ]));
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('control API moderation', () => {
+  it('denies guest allowlist updates', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-api-allowlist-'));
+    const config = createConfig({
+      daemonPort: 0,
+      discordBossUserId: '111111111111111111',
+      allowedUserIds: [],
+    });
+    const server = startControlApi({
+      config,
+      state: createState(),
+      memory: {} as any,
+      queue: { depth: () => 0 } as any,
+      extensionDir: tmpDir,
+      client: null,
+      isShuttingDown: () => false,
+      shutdown: async () => {},
+    });
+
+    try {
+      await once(server, 'listening');
+      const port = (server.address() as AddressInfo).port;
+      const response = await fetch(`http://127.0.0.1:${port}/allowlist`, {
+        method: 'POST',
+        headers: guestHeaders(config.daemonApiToken),
+        body: JSON.stringify({ action: 'add', user_id: '222222222222222222' }),
+      });
+
+      expect(response.status).toBe(403);
+      expect(config.allowedUserIds).toEqual([]);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('allows the boss to update the allowlist', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-api-allowlist-'));
+    const config = createConfig({
+      daemonPort: 0,
+      discordBossUserId: '111111111111111111',
+      allowedUserIds: [],
+    });
+    const server = startControlApi({
+      config,
+      state: createState(),
+      memory: {} as any,
+      queue: { depth: () => 0 } as any,
+      extensionDir: tmpDir,
+      client: null,
+      isShuttingDown: () => false,
+      shutdown: async () => {},
+    });
+
+    try {
+      await once(server, 'listening');
+      const port = (server.address() as AddressInfo).port;
+      const response = await fetch(`http://127.0.0.1:${port}/allowlist`, {
+        method: 'POST',
+        headers: bossHeaders(config.daemonApiToken),
+        body: JSON.stringify({ action: 'add', user_id: '222222222222222222' }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ ok: true, action: 'add', user_id: '222222222222222222', count: 1 });
+      expect(config.allowedUserIds).toEqual(['222222222222222222']);
+      expect(readManagedConfigFile(resolveRuntimePaths(tmpDir).managedConfigFile).env.DISCORD_ALLOWED_USER_IDS)
+        .toBe('222222222222222222');
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('times out a guild member for an authorized Discord request', async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-api-moderation-'));
     const timeout = vi.fn().mockResolvedValue({});
@@ -353,6 +502,58 @@ function createModerationClient({ member }: { member: { timeout: ReturnType<type
           fetch: vi.fn().mockResolvedValue(member),
         },
       }),
+    },
+  };
+}
+
+function createDiscoveryClient() {
+  const guild = {
+    id: 'guild-1',
+    name: 'Test Guild',
+    members: {
+      fetch: vi.fn().mockResolvedValue(new Map([
+        ['222222222222222222', createMember({
+          id: '222222222222222222',
+          username: 'human-user',
+          displayName: 'Human User',
+          tag: 'human-user#0001',
+          bot: false,
+        })],
+        ['333333333333333333', createMember({
+          id: '333333333333333333',
+          username: 'peer-bot',
+          displayName: 'Peer Bot',
+          tag: 'peer-bot#0001',
+          bot: true,
+        })],
+      ])),
+    },
+  };
+
+  return {
+    user: { id: 'bot-user', tag: 'Bot#0001' },
+    ws: { ping: 0 },
+    guilds: {
+      fetch: vi.fn().mockResolvedValue(guild),
+    },
+  };
+}
+
+function createMember(input: {
+  id: string;
+  username: string;
+  displayName: string;
+  tag: string;
+  bot: boolean;
+}) {
+  return {
+    displayName: input.displayName,
+    user: {
+      id: input.id,
+      username: input.username,
+      globalName: input.displayName,
+      tag: input.tag,
+      bot: input.bot,
     },
   };
 }

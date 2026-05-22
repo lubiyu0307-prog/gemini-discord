@@ -398,7 +398,7 @@ function loadConfig(extensionDir) {
     ownerIds,
     discordAdminId: resolveAdminId(get(ENV.DISCORD_ADMIN_ID), ownerIds),
     allowedChannelIds: configuredAllowedChannelIds.length > 0 ? configuredAllowedChannelIds : primaryChannelId ? [primaryChannelId] : [],
-    allowedUserIds: allowedUserIds.length > 0 ? allowedUserIds : ownerIds,
+    allowedUserIds,
     allowedAgentIds: splitIds(get(ENV.DISCORD_ALLOWED_AGENT_IDS)),
     daemonApiToken: (() => {
       let token = get(ENV.DAEMON_API_TOKEN);
@@ -687,7 +687,6 @@ function buildSetupEnv(input2) {
     [ENV.DISCORD_BOSS_USER_ID]: input2.userId,
     [ENV.DISCORD_OWNER_IDS]: input2.userId,
     [ENV.DISCORD_ADMIN_ID]: input2.userId,
-    [ENV.DISCORD_ALLOWED_USER_IDS]: input2.userId,
     ...SETUP_RUNTIME_DEFAULTS
   };
 }

@@ -44,10 +44,10 @@ describe('setup script helpers', () => {
       [ENV.DISCORD_BOSS_USER_ID]: '123456789012345',
       [ENV.DISCORD_OWNER_IDS]: '123456789012345',
       [ENV.DISCORD_ADMIN_ID]: '123456789012345',
-      [ENV.DISCORD_ALLOWED_USER_IDS]: '123456789012345',
       [ENV.DISCORD_SERVER_ID]: '234567890123456',
       [ENV.SETUP_VALIDATION_PENDING]: 'true',
     });
+    expect(env).not.toHaveProperty(ENV.DISCORD_ALLOWED_USER_IDS);
     expect(env).not.toHaveProperty(ENV.DISCORD_CHANNEL_ID);
   });
 

@@ -200,7 +200,7 @@ export function loadConfig(extensionDir: string): Config {
       ? configuredAllowedChannelIds
       : (primaryChannelId ? [primaryChannelId] : []),
 
-    allowedUserIds: allowedUserIds.length > 0 ? allowedUserIds : ownerIds,
+    allowedUserIds,
     allowedAgentIds: splitIds(get(ENV.DISCORD_ALLOWED_AGENT_IDS)),
 
     daemonApiToken: (() => {

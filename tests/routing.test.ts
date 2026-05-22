@@ -66,14 +66,13 @@ describe('shouldAcceptMessage', () => {
     });
   });
 
-  it('rejects allowlisted humans when guests are globally disabled', () => {
-    // owner-1 is allowlisted in baseConfig, but enableGuests is false
-    expect(route({ authorId: 'owner-1' })).toMatchObject({ accept: false });
+  it('rejects fresh-install non-boss humans by default', () => {
+    const config: Config = { ...baseConfig, allowedUserIds: [], enableGuests: false };
+    expect(route({ authorId: '222222222222222222' }, config)).toMatchObject({ accept: false });
   });
 
-  it('accepts allowlisted humans only when guests are enabled', () => {
-    const config: Config = { ...baseConfig, enableGuests: true };
-    expect(route({ authorId: 'owner-1' }, config)).toMatchObject({
+  it('accepts allowlisted humans when guests are globally disabled', () => {
+    expect(route({ authorId: 'owner-1' })).toMatchObject({
       accept: true,
       speakerKind: 'human',
       trigger: 'channel',
@@ -90,9 +89,29 @@ describe('shouldAcceptMessage', () => {
     });
   });
 
-  it('rejects non-allowlisted humans even if guests are enabled', () => {
+  it('rejects non-allowlisted humans when guests are disabled', () => {
+    expect(route({ authorId: '222222222222222222' })).toMatchObject({ accept: false });
+  });
+
+  it('accepts non-allowlisted humans when guests are enabled', () => {
     const config: Config = { ...baseConfig, enableGuests: true };
-    expect(route({ authorId: 'stranger' }, config)).toMatchObject({ accept: false });
+    expect(route({ authorId: '222222222222222222' }, config)).toMatchObject({
+      accept: true,
+      speakerKind: 'human',
+      trigger: 'channel',
+      content: 'hello',
+    });
+  });
+
+  it('does not treat bot users as human guests when guests are enabled', () => {
+    const config: Config = { ...baseConfig, allowedAgentIds: [], enableGuests: true };
+    expect(route({
+      authorId: '333333333333333333',
+      authorTag: 'PeerBot#9999',
+      isBot: true,
+      mentionedBot: true,
+      content: '<@bot1> hello',
+    }, config)).toMatchObject({ accept: false });
   });
 
   it('requires explicit triggers for peer agents even if they are allowlisted', () => {
@@ -135,7 +154,7 @@ describe('shouldAcceptMessage', () => {
     });
 
     expect(route({
-      authorId: 'owner-1',
+      authorId: '222222222222222222',
       isDM: true,
       guildId: null,
       guildName: null,
@@ -148,9 +167,9 @@ describe('shouldAcceptMessage', () => {
   it('matches the shared authorization helper', () => {
     const enabledConfig = { ...baseConfig, enableGuests: true };
     expect(isDirectMessageAuthorAllowed('111111111111111111', baseConfig)).toBe(true);
-    expect(isDirectMessageAuthorAllowed('owner-1', baseConfig)).toBe(false); // disabled
-    expect(isDirectMessageAuthorAllowed('owner-1', enabledConfig)).toBe(true); // enabled + allowlisted
-    expect(isDirectMessageAuthorAllowed('stranger', enabledConfig)).toBe(false); // enabled + not allowlisted
+    expect(isDirectMessageAuthorAllowed('owner-1', baseConfig)).toBe(true); // allowlisted
+    expect(isDirectMessageAuthorAllowed('222222222222222222', baseConfig)).toBe(false); // disabled + not allowlisted
+    expect(isDirectMessageAuthorAllowed('222222222222222222', enabledConfig)).toBe(true); // enabled guest
   });
 
   it('accepts attachment-only messages from authorized users', () => {

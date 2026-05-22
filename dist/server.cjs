@@ -21369,7 +21369,7 @@ function loadConfig(extensionDir2) {
     ownerIds,
     discordAdminId: resolveAdminId(get(ENV.DISCORD_ADMIN_ID), ownerIds),
     allowedChannelIds: configuredAllowedChannelIds.length > 0 ? configuredAllowedChannelIds : primaryChannelId ? [primaryChannelId] : [],
-    allowedUserIds: allowedUserIds.length > 0 ? allowedUserIds : ownerIds,
+    allowedUserIds,
     allowedAgentIds: splitIds(get(ENV.DISCORD_ALLOWED_AGENT_IDS)),
     daemonApiToken: (() => {
       let token = get(ENV.DAEMON_API_TOKEN);

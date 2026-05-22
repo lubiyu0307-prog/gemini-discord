@@ -399,7 +399,7 @@ function loadConfig(extensionDir2) {
     ownerIds,
     discordAdminId: resolveAdminId(get(ENV.DISCORD_ADMIN_ID), ownerIds),
     allowedChannelIds: configuredAllowedChannelIds.length > 0 ? configuredAllowedChannelIds : primaryChannelId ? [primaryChannelId] : [],
-    allowedUserIds: allowedUserIds.length > 0 ? allowedUserIds : ownerIds,
+    allowedUserIds,
     allowedAgentIds: splitIds(get(ENV.DISCORD_ALLOWED_AGENT_IDS)),
     daemonApiToken: (() => {
       let token = get(ENV.DAEMON_API_TOKEN);
@@ -87414,7 +87414,10 @@ function isAuthorAuthorized(authorId, config) {
   if (isConfiguredBossDiscordId(config, authorId)) {
     return true;
   }
-  return Boolean(config.enableGuests && config.allowedUserIds.includes(authorId));
+  if (config.allowedUserIds.includes(authorId)) {
+    return true;
+  }
+  return config.enableGuests;
 }
 function isDirectMessageAuthorAllowed(authorId, config) {
   return isAuthorAuthorized(authorId, config);
@@ -87424,7 +87427,6 @@ function shouldAcceptMessage(input, config) {
     return reject();
   }
   const isSelf = input.authorId === input.botUserId;
-  const isBoss2 = isConfiguredBossDiscordId(config, input.authorId);
   if (input.isDM) {
     if (!config.enableDMs) return reject();
     if (!isAuthorAuthorized(input.authorId, config)) return reject();
@@ -87433,10 +87435,8 @@ function shouldAcceptMessage(input, config) {
   if (!isAllowedGuildChannel(input, config)) {
     return reject();
   }
-  if (!isSelf && !input.isBot && !isBoss2) {
-    if (!config.enableGuests || !config.allowedUserIds.includes(input.authorId)) {
-      return reject();
-    }
+  if (!isSelf && !input.isBot && !isAuthorAuthorized(input.authorId, config)) {
+    return reject();
   }
   if (input.isBot && !isSelf && !config.allowedAgentIds.includes(input.authorId)) {
     return reject();
@@ -88726,10 +88726,6 @@ async function bootstrapManagedDiscordConfig(client, config, extensionDir2) {
     if (!config.discordAdminId) {
       config.discordAdminId = ownerDiscovery.ids[0];
       envUpdates[ENV.DISCORD_ADMIN_ID] = ownerDiscovery.ids[0];
-    }
-    if (config.allowedUserIds.length === 0) {
-      config.allowedUserIds = [...ownerDiscovery.ids];
-      envUpdates[ENV.DISCORD_ALLOWED_USER_IDS] = ownerDiscovery.ids.join(",");
     }
   }
   if (ownerDiscovery.ids[0]) {

@@ -34,10 +34,6 @@ export async function bootstrapManagedDiscordConfig(
       envUpdates[ENV.DISCORD_ADMIN_ID] = ownerDiscovery.ids[0];
     }
 
-    if (config.allowedUserIds.length === 0) {
-      config.allowedUserIds = [...ownerDiscovery.ids];
-      envUpdates[ENV.DISCORD_ALLOWED_USER_IDS] = ownerDiscovery.ids.join(',');
-    }
   }
 
   if (ownerDiscovery.ids[0]) {

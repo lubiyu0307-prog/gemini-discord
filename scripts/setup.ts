@@ -70,7 +70,6 @@ export function buildSetupEnv(input: SetupInput): Record<string, string> {
     [ENV.DISCORD_BOSS_USER_ID]: input.userId,
     [ENV.DISCORD_OWNER_IDS]: input.userId,
     [ENV.DISCORD_ADMIN_ID]: input.userId,
-    [ENV.DISCORD_ALLOWED_USER_IDS]: input.userId,
     ...SETUP_RUNTIME_DEFAULTS,
   };
 }

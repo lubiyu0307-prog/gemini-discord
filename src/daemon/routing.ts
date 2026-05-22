@@ -30,7 +30,10 @@ export function isAuthorAuthorized(authorId: string, config: Config): boolean {
   if (isConfiguredBossDiscordId(config, authorId)) {
     return true;
   }
-  return Boolean(config.enableGuests && config.allowedUserIds.includes(authorId));
+  if (config.allowedUserIds.includes(authorId)) {
+    return true;
+  }
+  return config.enableGuests;
 }
 
 export function isDirectMessageAuthorAllowed(authorId: string, config: Config): boolean {
@@ -43,8 +46,6 @@ export function shouldAcceptMessage(input: RoutingInput, config: Config): Routin
   }
 
   const isSelf = input.authorId === input.botUserId;
-  const isBoss = isConfiguredBossDiscordId(config, input.authorId);
-
   if (input.isDM) {
     if (!config.enableDMs) return reject();
     if (!isAuthorAuthorized(input.authorId, config)) return reject();
@@ -55,11 +56,9 @@ export function shouldAcceptMessage(input: RoutingInput, config: Config): Routin
     return reject();
   }
 
-  // Authorization check: BOSS always allowed, GUESTS only if enabled and allowlisted.
-  if (!isSelf && !input.isBot && !isBoss) {
-    if (!config.enableGuests || !config.allowedUserIds.includes(input.authorId)) {
-      return reject();
-    }
+  // Human authorization: BOSS, explicit allowlist, then general guest setting.
+  if (!isSelf && !input.isBot && !isAuthorAuthorized(input.authorId, config)) {
+    return reject();
   }
 
   // Agents are strictly blocked unless they are the bot itself (CRON) or in allowed list.
