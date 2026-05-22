@@ -8,7 +8,7 @@ Your local Gemini CLI agent, reachable from Discord.
 [![Discord.js](https://img.shields.io/badge/discord.js-14.x-5865F2.svg)](https://discord.js.org)
 [![Node.js](https://img.shields.io/badge/node-22%2B-green.svg)](https://nodejs.org)
 
-`gemini-discord` connects your Discord app to the [Gemini CLI](https://github.com/google-gemini/gemini-cli), providing a chat interface for your agent. Using the CLI's native **Agent Client Protocol (ACP)** mode, it lets you manage sessions, automate tasks, and interact with your agent via Discord DMs or server channels.
+`gemini-discord` connects your Discord app to [Gemini CLI](https://github.com/google-gemini/gemini-cli), providing a chat interface for your agent. Using the CLI's native **Agent Client Protocol (ACP)** mode, it lets you manage sessions, automate tasks, and interact with your agent via Discord DMs or server channels.
 
 Send a task from your phone. Your agent picks it up, works in the same workspace, and replies in the same channel. Sessions stay warm. Credentials stay local. Authority stays with one Discord user ID you control.
 
