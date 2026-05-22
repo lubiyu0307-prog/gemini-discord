@@ -74,6 +74,26 @@ describe('loadConfig', () => {
     }
   });
 
+  it('does not derive allowed channels from the primary notification channel', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-'));
+
+    try {
+      fs.writeFileSync(path.join(tmpDir, '.env'), [
+        'DISCORD_BOT_TOKEN=test-token',
+        'DISCORD_SERVER_ID=server-1',
+        'DISCORD_CHANNEL_ID=channel-1',
+        'DISCORD_OWNER_IDS=owner-1',
+      ].join('\n'));
+
+      const config = loadConfig(tmpDir);
+
+      expect(config.discordChannelId).toBe('channel-1');
+      expect(config.allowedChannelIds).toEqual([]);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('loads discovered Discord server metadata from the managed config file', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-'));
 

@@ -22,7 +22,7 @@ These are auto-derived from the core settings above unless explicitly overridden
 | `DISCORD_ADMIN_ID` | *(derived from owner IDs)* | ID for admin-specific notifications. Defaults to the first owner ID (i.e. Boss User ID). |
 | `DISCORD_ENABLE_GUESTS` | `false` | Set to `true` to allow non-boss, non-allowlisted human users to interact with the bot. |
 | `DISCORD_CHANNEL_ID` | - | Optional. Primary channel for daemon startup notifications. Auto-discovered on first connect. |
-| `DISCORD_ALLOWED_CHANNEL_IDS`| - | Comma-separated list of channel IDs where the bot is allowed to respond. Leave blank to allow all in the server. |
+| `DISCORD_ALLOWED_CHANNEL_IDS`| - | Comma-separated list of channel IDs where the bot is allowed to respond. Leave blank to allow all channels in `DISCORD_SERVER_ID`; this is not derived from `DISCORD_CHANNEL_ID`. |
 | `DISCORD_ALLOWED_USER_IDS` | - | Comma-separated list of human user IDs allowed to interact with the bot even when `DISCORD_ENABLE_GUESTS=false`. Empty means no allowlisted humans. |
 | `DISCORD_ALLOWED_AGENT_IDS` | - | Comma-separated list of peer bot IDs allowed to trigger this agent. |
 
@@ -44,10 +44,10 @@ These are auto-derived from the core settings above unless explicitly overridden
 | `ENABLE_DMS` | `true` | Whether the bot should respond to Direct Messages. |
 | `REQUIRE_MENTION` | `false` | If true, the bot only responds in servers when explicitly mentioned. |
 | `RESPOND_TO_REPLIES` | `true` | Whether the bot should respond to direct replies to its messages. |
-| `MEMORY_SCOPE` | `channel` | Isolation level for Discord memory (`channel` or `user`). |
+| `MEMORY_SCOPE` | `channel` | Isolation level for Discord memory (`channel` or `global`). |
 | `AUTO_START_DAEMON` | `true` | Automatically start the Discord daemon when the MCP server is initialized. |
 | `USE_GEMINI_CLI_SESSIONS` | `true` | Use native Gemini CLI session management. |
-| `GEMINI_SESSION_BINDING_SCOPE`| `channel` | Isolation level for Gemini CLI sessions (`channel` or `user`). |
+| `GEMINI_SESSION_BINDING_SCOPE`| `channel` | Isolation level for Gemini CLI sessions (`channel`, `server`, or `global`). |
 
 ## Internal
 
