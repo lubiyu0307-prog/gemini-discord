@@ -1,7 +1,7 @@
 {
   "name": "gemini-discord",
   "version": "0.1.0",
-  "description": "Supervise your Gemini CLI agent from Discord, chat with it, and let it help moderate your server with tools.",
+  "description": "Supervise your Gemini CLI agent from Discord, chat with it, and let it help moderate your server.",
   "settings": [
     {
       "name": "Discord Bot Token",
