@@ -4,6 +4,7 @@
  */
 
 import * as http from 'node:http';
+import * as fs from 'node:fs';
 import type {
   Config,
 } from '../shared/types.js';
@@ -23,6 +24,7 @@ import { handleDiscoveryRoutes } from './api/discovery.js';
 import { handleMessageRoutes } from './api/messages.js';
 import { handleCronRoutes } from './api/cron.js';
 import { handleModerationRoutes } from './api/moderation.js';
+import { ensureRuntimePaths } from '../shared/runtime-paths.js';
 
 export {
   respond,
@@ -47,7 +49,9 @@ export function startControlApi(deps: ApiDependencies): http.Server {
         return;
       }
 
-      const url = new URL(req.url ?? '/', `http://localhost:${config.daemonPort}`);
+      const address = server.address();
+      const currentPort = typeof address === 'string' ? config.daemonPort : (address?.port ?? config.daemonPort);
+      const url = new URL(req.url ?? '/', `http://localhost:${currentPort}`);
       const pathname = url.pathname;
 
       if (req.method === 'GET' && pathname === '/health') {
@@ -69,6 +73,7 @@ export function startControlApi(deps: ApiDependencies): http.Server {
 
       if (handleStatusRoutes(req, res, url, deps)) return;
       if (await handleDiscoveryRoutes(req, res, url, deps)) return;
+      if (await handleCronRoutes(req, res, pathname, null, deps)) return;
 
       if (req.method === 'POST') {
         if (!requireAuth(req, config)) {
@@ -119,9 +124,39 @@ export function startControlApi(deps: ApiDependencies): http.Server {
     }
   });
 
-  server.listen(config.daemonPort, '127.0.0.1', () => {
-    log.info('Control API listening', { port: config.daemonPort, host: '127.0.0.1' });
-  });
+  const tryListen = (port: number, retryCount = 0): void => {
+    server.listen(port, '127.0.0.1', () => {
+      const addr = server.address();
+      const actualPort = typeof addr === 'string' ? port : (addr?.port ?? port);
+      
+      log.info('Control API listening', { port: actualPort, host: '127.0.0.1' });
+      
+      config.daemonPort = actualPort;
+
+      try {
+        const portPath = ensureRuntimePaths(extensionDir).daemonPortFile;
+        fs.writeFileSync(portPath, String(actualPort), 'utf-8');
+      } catch (e) {
+        log.warn('Failed to write daemon port discovery file', { error: String(e) });
+      }
+    });
+
+    server.once('error', (err: any) => {
+      if (err.code === 'EADDRINUSE') {
+        if (retryCount < 10) {
+          log.info(`Port ${port} in use, trying next...`);
+          tryListen(port + 1, retryCount + 1);
+        } else {
+          log.info('Many ports in use, falling back to system-assigned random port');
+          tryListen(0);
+        }
+      } else {
+        log.error('Control API listen error', { error: err.message });
+      }
+    });
+  };
+
+  tryListen(config.daemonPort);
 
   return server;
 }
