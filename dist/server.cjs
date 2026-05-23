@@ -21708,7 +21708,7 @@ function formatPermissionDenial(_decision) {
     case "status":
     case "bot_introspection":
     case "user_discovery":
-      return "I cannot expose bridge internals, history, or server metadata to guests.";
+      return _decision.reason === "guest_requires_boss" ? "Guest allowlist users can chat here but cannot list server members or run bridge admin tools. Those require the configured boss account (DISCORD_BOSS_USER_ID), not the bot and not the guest allowlist." : "I cannot expose bridge internals, history, or server metadata to guests.";
     case "cron":
       return "I cannot schedule reminders or background Discord actions for guests.";
     case "moderation":
@@ -21741,8 +21741,34 @@ function resolveMcpRoleContextFromEnv(env = process.env, config3) {
     bossConfigReason: "missing"
   };
 }
+function resolveLocalMcpBossContext(config3) {
+  if (!config3) {
+    return null;
+  }
+  const validation = validateBossConfig(config3);
+  if (!validation.valid) {
+    return null;
+  }
+  return resolveDiscordRole(config3, {
+    discordUserId: validation.bossUserId,
+    displayLabel: "local-mcp"
+  });
+}
+function resolveMcpToolRoleContext(config3) {
+  return resolveLocalMcpBossContext(config3) ?? resolveMcpRoleContextFromEnv(process.env, config3);
+}
+var DISCORD_ROLE_ENV_KEYS = [
+  "GEMINI_DISCORD_ROLE",
+  "GEMINI_DISCORD_SENDER_ID",
+  "GEMINI_DISCORD_SENDER_LABEL"
+];
+function clearInheritedDiscordRoleEnv(env = process.env) {
+  for (const key of DISCORD_ROLE_ENV_KEYS) {
+    delete env[key];
+  }
+}
 function authorizeMcpToolAction(action, config3) {
-  const roleContext = resolveMcpRoleContextFromEnv(process.env, config3);
+  const roleContext = resolveMcpToolRoleContext(config3);
   if (!roleContext) {
     return { decision: "deny", action, reason: "missing_discord_role_context" };
   }
@@ -21789,7 +21815,7 @@ async function requestOnce(opts) {
         headers: {
           "Content-Type": "application/json",
           ...discordRoleHeaders(config3),
-          ...method === "POST" && config3.daemonApiToken ? { Authorization: `Bearer ${config3.daemonApiToken}` } : {},
+          ...config3.daemonApiToken ? { Authorization: `Bearer ${config3.daemonApiToken}` } : {},
           ...payload ? { "Content-Length": Buffer.byteLength(payload) } : {}
         },
         timeout: timeoutMs ?? 5e3
@@ -21820,7 +21846,7 @@ async function requestOnce(opts) {
   });
 }
 function discordRoleHeaders(config3) {
-  const roleContext = resolveMcpRoleContextFromEnv(process.env, config3);
+  const roleContext = resolveMcpToolRoleContext(config3);
   if (!roleContext) {
     return {};
   }
@@ -21978,8 +22004,8 @@ function registerAdminTool(server2, config3) {
       '\u2022 "restart" \u2014 restart the daemon process',
       '\u2022 "reset" \u2014 clear the current conversation and archive the session',
       '\u2022 "channels" \u2014 list discovered channels (optional query filter)',
-      '\u2022 "users" \u2014 list discovered server users or resolve a user lookup hint',
-      '\u2022 "allowlist_add" \u2014 add a human user to the guest allowlist',
+      '\u2022 "users" \u2014 list discovered server users or resolve a user lookup hint (use when [Mentions] has no matching human, or the target is ambiguous)',
+      '\u2022 "allowlist_add" \u2014 add a human user to the guest allowlist (never the bot itself; resolve with users discovery first)',
       '\u2022 "allowlist_remove" \u2014 remove a human user from the guest allowlist',
       `\u2022 "set_presence" \u2014 change the bot's online status and activity`,
       '\u2022 "kick" \u2014 remove a member from the server',
@@ -21993,7 +22019,7 @@ function registerAdminTool(server2, config3) {
       status: external_exports.enum(["online", "idle", "dnd", "invisible"]).optional().describe("Bot online status (only for set_presence)."),
       activity_type: external_exports.enum(["playing", "watching", "listening", "competing"]).optional().describe("Activity type (only for set_presence)."),
       activity_name: external_exports.string().optional().describe('Activity name, e.g. "with fire" (only for set_presence).'),
-      user_id: external_exports.string().optional().describe("Stable numeric Discord user ID of the member to moderate or allowlist. Use users discovery to resolve names or mentions first."),
+      user_id: external_exports.string().optional().describe('Stable numeric Discord user ID of the human member to moderate or allowlist. Required for allowlist/moderation. Run action "users" first when the request mentions another person, "the other user", a display name, or @mention.'),
       guild_id: external_exports.string().optional().describe("Discord server/guild ID. Defaults to the configured server (only for kick/timeout/remove_timeout)."),
       reason: external_exports.string().optional().describe("Optional audit-log reason (only for kick/timeout/remove_timeout)."),
       duration_minutes: external_exports.number().optional().describe("Timeout duration in minutes. Required for timeout. Maximum 40320 (28 days).")
@@ -22019,7 +22045,7 @@ function registerAdminTool(server2, config3) {
           const s = res.data;
           const lines = [
             `**Status:** ${statusEmoji(s.status)} ${s.status}`,
-            `**Bot:** ${s.botTag ?? "not connected"}`,
+            `**Bot:** ${s.botTag ?? "not connected"}${s.botId ? ` (\`${s.botId}\`)` : ""}`,
             `**WebSocket Ping:** ${s.wsPing}ms`,
             `**Gemini:** ${s.geminiReachable ? "\u2705 reachable" : "\u274C unreachable"} (${s.geminiVersion})`,
             `**Streaming:** ${s.streaming ? "enabled" : "disabled"}`,
@@ -22031,8 +22057,9 @@ function registerAdminTool(server2, config3) {
             `**Gemini Session Binding Scope:** ${s.geminiSessionBindingScope}`,
             `**Gemini Headless Mode:** ${s.headlessMode ?? "unknown"}`,
             `**Require Mention:** ${s.requireMention ? "yes" : "no"}`,
-            `**Allowlisted Humans:** ${s.allowlistedUsers}`,
+            `**Allowlisted Humans:** ${s.allowlistedUsers} (chat-only guests; not bridge admins)`,
             `**Allowlisted Agents:** ${s.allowlistedAgents}`,
+            ...s.configWarnings && s.configWarnings.length > 0 ? ["", "### Config warnings", ...s.configWarnings.map((warning) => `- ${warning}`)] : [],
             `**Messages Handled:** ${s.messagesHandled}`,
             `**Last Message:** ${s.lastMessageAt ?? "none"}`,
             `**Queue Depth:** ${s.queueDepth}`,
@@ -22145,14 +22172,34 @@ ${retryMessage}` : ""}` }]
           if (users.length === 0) {
             return text(query ? `No discovered users matched "${query}".` : "No users have been discovered yet.");
           }
+          const humans = users.filter((user) => !user.bot);
+          const bots = users.filter((user) => user.bot);
           const lines = [];
           if (resolved?.id) {
-            lines.push(`Resolved stable user ID: \`${resolved.id}\``, "");
+            const resolvedUser = users.find((user) => user.id === resolved.id);
+            if (resolvedUser?.bot) {
+              lines.push(`Resolved ID \`${resolved.id}\` is a bot account \u2014 pick a human user for allowlist actions.`, "");
+            } else {
+              lines.push(`Resolved stable human user ID: \`${resolved.id}\``, "");
+            }
           }
-          for (const user of users) {
-            const label = user.displayName || user.globalName || user.username;
-            const bot = user.bot ? " bot" : "";
-            lines.push(`- **${label}**${bot}: \`${user.id}\`${user.tag ? ` (${user.tag})` : ""}`);
+          if (humans.length > 0) {
+            lines.push("### Humans");
+            for (const user of humans) {
+              const label = user.displayName || user.globalName || user.username;
+              lines.push(`- **${label}**: \`${user.id}\`${user.tag ? ` (${user.tag})` : ""}`);
+            }
+          }
+          if (bots.length > 0) {
+            if (lines.length > 0) lines.push("");
+            lines.push("### Bots (not valid guest allowlist targets)");
+            for (const user of bots) {
+              const label = user.displayName || user.globalName || user.username;
+              lines.push(`- **${label}**: \`${user.id}\`${user.tag ? ` (${user.tag})` : ""}`);
+            }
+          }
+          if (humans.length === 0 && bots.length === 0) {
+            return text(query ? `No discovered users matched "${query}".` : "No users have been discovered yet.");
           }
           return text(lines.join("\n"));
         }
@@ -22722,6 +22769,7 @@ function registerCronTools(server2, config3) {
 }
 
 // src/server.ts
+clearInheritedDiscordRoleEnv();
 var tmpDir = process.cwd();
 try {
   tmpDir = __dirname;

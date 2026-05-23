@@ -30,6 +30,7 @@ import {
   bootstrapManagedDiscordConfig,
   rememberPrimaryChannelFromMessage,
 } from './onboarding.js';
+import { sanitizeAllowedUserIds } from '../shared/config-sanitize.js';
 
 const MAX_AGENT_EXCHANGES = 6;
 
@@ -54,6 +55,28 @@ export async function initGateway(
     log.info('Discord bot connected', { tag: client.user?.tag });
 
     await bootstrapManagedDiscordConfig(client, config, extensionDir);
+
+    const identitySanitize = sanitizeAllowedUserIds(config, client.user?.id ?? null);
+    if (identitySanitize.changed) {
+      config.allowedUserIds = identitySanitize.allowedUserIds;
+      try {
+        persistConfigEnvUpdates(extensionDir, {
+          [ENV.DISCORD_ALLOWED_USER_IDS]: identitySanitize.allowedUserIds.join(','),
+        });
+        log.info('Sanitized DISCORD_ALLOWED_USER_IDS on disk', { allowedUserIds: config.allowedUserIds });
+      } catch (err) {
+        log.warn('Failed to persist sanitized allowlist', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    for (const warning of identitySanitize.warnings) {
+      log.warn('Bridge identity configuration warning', { warning });
+    }
+    if (identitySanitize.warnings.some((warning) => warning.includes('DISCORD_BOSS_USER_ID matches the bot'))) {
+      state.status = 'degraded';
+      state.lastError = identitySanitize.warnings.join(' ');
+    }
 
     if (config.discordChannelId) {
       try {
@@ -187,6 +210,7 @@ export async function initGateway(
         replyToAuthorName: trackOnlyContext.replyToAuthorName,
         replyToContent: trackOnlyContext.replyToContent,
         replyToAttachments: isBoss(roleContext) ? trackOnlyContext.replyToAttachments : [],
+        mentionContext: trackOnlyContext.mentionContext,
         trigger: 'tracked',
         createdAt: new Date().toISOString(),
       });
@@ -357,6 +381,7 @@ async function processMessage(
         replyToAuthorName: accepted.replyToAuthorName,
         replyToContent: accepted.replyToContent,
         replyToAttachments: accepted.replyToAttachments,
+        mentionContext: accepted.mentionContext,
         trigger: `${accepted.trigger}:${processingContext.sessionKey}`,
         createdAt: now,
       });

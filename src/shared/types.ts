@@ -39,6 +39,27 @@ export interface ConversationAttachment {
   url?: string;
 }
 
+/** Resolved Discord mention metadata attached to an incoming message. */
+export interface DiscordMentionContext {
+  bot: {
+    id: string;
+    username: string;
+    tag: string;
+    displayName: string;
+  };
+  pingedBot: boolean;
+  everyoneOrHere: boolean;
+  users: Array<{
+    id: string;
+    username: string;
+    displayName: string;
+    bot: boolean;
+    isSelf: boolean;
+  }>;
+  roles: Array<{ id: string; name: string }>;
+  channels: Array<{ id: string; name: string }>;
+}
+
 /** Frozen config object parsed from .env */
 export interface Config {
   // Required
@@ -103,6 +124,7 @@ export interface ConversationMessage {
   replyToAuthorName?: string | null;
   replyToContent?: string | null;
   replyToAttachments?: ConversationAttachment[];
+  mentionContext?: DiscordMentionContext | null;
   trigger?: string;
   createdAt?: string;
 }
@@ -150,6 +172,7 @@ export interface DaemonStatus {
   queueDepth: number;
   streaming: boolean;
   botTag: string | null;
+  botId: string | null;
   wsPing: number;
   channelId: string;
   serverId?: string;
@@ -162,6 +185,7 @@ export interface DaemonStatus {
   useGeminiCliSessions: boolean;
   allowlistedUsers: number;
   allowlistedAgents: number;
+  configWarnings?: string[];
   requireMention: boolean;
   channels?: Array<{ name: string; id: string }>;
   cronJobs?: CronJobSnapshot[];

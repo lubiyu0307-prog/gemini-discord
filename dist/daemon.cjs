@@ -665,7 +665,7 @@ function formatPermissionDenial(_decision) {
     case "status":
     case "bot_introspection":
     case "user_discovery":
-      return "I cannot expose bridge internals, history, or server metadata to guests.";
+      return _decision.reason === "guest_requires_boss" ? "Guest allowlist users can chat here but cannot list server members or run bridge admin tools. Those require the configured boss account (DISCORD_BOSS_USER_ID), not the bot and not the guest allowlist." : "I cannot expose bridge internals, history, or server metadata to guests.";
     case "cron":
       return "I cannot schedule reminders or background Discord actions for guests.";
     case "moderation":
@@ -76453,6 +76453,115 @@ var init_channels = __esm({
   }
 });
 
+// src/daemon/mentions.ts
+function extractMentionContext(message, botUser) {
+  if (!botUser) {
+    return null;
+  }
+  const botTag = botUser.tag ?? botUser.username;
+  const botDisplayName = botUser.globalName?.trim() || botUser.username;
+  const users = [];
+  for (const user of message.mentions.users.values()) {
+    const displayName = user.globalName?.trim() || user.displayName?.trim() || user.username;
+    users.push({
+      id: user.id,
+      username: user.username,
+      displayName,
+      bot: user.bot,
+      isSelf: user.id === botUser.id
+    });
+  }
+  const roles = [];
+  for (const role of message.mentions.roles.values()) {
+    roles.push({ id: role.id, name: role.name });
+  }
+  const channels = [];
+  for (const channel of message.mentions.channels.values()) {
+    const name = "name" in channel && typeof channel.name === "string" ? channel.name : channel.id;
+    channels.push({ id: channel.id, name });
+  }
+  const pingedBot = message.mentions.has(botUser.id);
+  const everyoneOrHere = message.mentions.everyone;
+  return {
+    bot: { id: botUser.id, username: botUser.username, tag: botTag, displayName: botDisplayName },
+    pingedBot,
+    everyoneOrHere,
+    users,
+    roles,
+    channels
+  };
+}
+function formatMentionContextBlock(context, mode = "full") {
+  if (!context) {
+    return "";
+  }
+  if (mode === "compact") {
+    const parts = [];
+    if (context.pingedBot) {
+      parts.push("pingedBot");
+    }
+    if (context.everyoneOrHere) {
+      parts.push("@everyone/@here");
+    }
+    if (context.users.length > 0) {
+      parts.push(`users: ${context.users.map((u) => `${u.displayName} (${u.id})`).join(", ")}`);
+    }
+    if (context.roles.length > 0) {
+      parts.push(`roles: ${context.roles.map((r) => `@${r.name}`).join(", ")}`);
+    }
+    if (context.channels.length > 0) {
+      parts.push(`channels: ${context.channels.map((c) => `#${c.name}`).join(", ")}`);
+    }
+    if (parts.length === 0) {
+      return "";
+    }
+    return `[Mentions: ${parts.join(" | ")}]`;
+  }
+  const lines = [
+    "[Mentions]",
+    `- This bridge bot: **${context.bot.displayName}** (@${context.bot.username}) \u2014 id \`${context.bot.id}\` \u2014 tag ${context.bot.tag}`
+  ];
+  if (context.pingedBot) {
+    lines.push("- The incoming message **pinged this bot** (`<@\u2026>` user mention). Respond to the user.");
+  } else {
+    lines.push("- The incoming message did **not** ping this bot.");
+  }
+  if (context.everyoneOrHere) {
+    lines.push("- Contains **@everyone or @here** (broadcast mention, not a specific user).");
+  }
+  if (context.users.length > 0) {
+    lines.push("- **User pings** (real `<@userId>` mentions \u2014 not plain @text):");
+    for (const user of context.users) {
+      const kind = user.isSelf ? "this bot" : user.bot ? "bot account" : "human";
+      lines.push(`  - ${user.displayName} (@${user.username}, ${kind}): \`${user.id}\``);
+    }
+  } else {
+    lines.push("- No **user** pings in this message.");
+  }
+  if (context.roles.length > 0) {
+    lines.push("- **Role pings** (`<@&roleId>` \u2014 not users):");
+    for (const role of context.roles) {
+      lines.push(`  - @${role.name}: \`${role.id}\``);
+    }
+  }
+  if (context.channels.length > 0) {
+    lines.push("- **Channel references** (`<#channelId>`):");
+    for (const channel of context.channels) {
+      lines.push(`  - #${channel.name}: \`${channel.id}\``);
+    }
+  }
+  lines.push(
+    "- Plain `@Name` text without a resolved user ping above is **not** a Discord mention. Use `discord_admin` action `users` to resolve people by name.",
+    "- Do not treat role pings, channel refs, @everyone/@here, or this bot's username as a human user target unless the user clearly means that."
+  );
+  return lines.join("\n");
+}
+var init_mentions = __esm({
+  "src/daemon/mentions.ts"() {
+    "use strict";
+  }
+});
+
 // src/daemon/memory.ts
 function resolveSessionKey(memoryScope, channelId, dmUserId) {
   if (memoryScope !== "channel") {
@@ -76507,6 +76616,11 @@ ${options.backgroundContext}` : "";
     "- Do not call Discord send/reply tools for an ordinary response to the current message.",
     '- If the user asks you to send or attach something "here", use the incoming message channel ID shown below as an explicit channel_id. Never omit channel_id for Discord send tools.',
     "- Use Discord tools only when the user asks for Discord actions such as sending elsewhere, reading history, resetting, scheduling, checking status, or discovering server users/channels.",
+    "- The bot's own Discord user ID is exposed in discord_admin status as Bot (...). Never add that ID to the human guest allowlist.",
+    "- DISCORD_BOSS_USER_ID is the human operator with full bridge admin tools. DISCORD_ALLOWED_USER_IDS is chat-only guest access and does not grant user discovery, allowlist edits, or server management.",
+    '- When a user asks to allowlist, moderate, or otherwise target "the other user", another person, or someone besides themselves, run discord_admin action "users" (with query if helpful) before allowlist_add, kick, or timeout. Do not guess IDs and do not allowlist the bot account.',
+    "- Read the [Mentions] block on each message. Only listed user pings are real `<@userId>` mentions. Role pings (`<@&\u2026>`), channel refs (`<#\u2026>`), @everyone/@here, and plain @text are different \u2014 never confuse them with a human user target.",
+    '- Your own bot identity (name, username, id) is listed under [Mentions]. Do not treat a ping of yourself as "the other user", and do not allowlist your own bot id.',
     "- For any requested Discord action, completion means the user-visible outcome happened in Discord or explicitly failed with the reason.",
     "- Finding a file/media item, checking status, restarting, or troubleshooting is not completion. If any requested send, reply, media post, reset, schedule, deletion, or other Discord action fails, keep the original action pending.",
     "- After fixing a bridge, tool, permission, or environment issue, automatically retry the original pending action before finalizing."
@@ -76529,9 +76643,12 @@ function formatIncomingDiscordMessage(input, options = {}) {
     header += ` (Reply to ${input.replyToAuthorName})`;
   }
   const replyContext = formatReplyContextBlock(input);
-  return `${header}${replyContext ? `
-${replyContext}` : ""}
-${content}`;
+  const mentionBlock = formatMentionContextBlock(input.mentionContext);
+  const blocks = [header];
+  if (mentionBlock) blocks.push(mentionBlock);
+  if (replyContext) blocks.push(replyContext);
+  blocks.push(content);
+  return blocks.join("\n");
 }
 function buildActiveParticipantRoster(history, incoming, options = {}) {
   const recentMessages = [...history.slice(-12)];
@@ -76551,7 +76668,8 @@ function buildActiveParticipantRoster(history, incoming, options = {}) {
     replyToAuthorId: incoming.replyToAuthorId,
     replyToAuthorName: incoming.replyToAuthorName,
     replyToContent: incoming.replyToContent,
-    replyToAttachments: incoming.replyToAttachments
+    replyToAttachments: incoming.replyToAttachments,
+    mentionContext: incoming.mentionContext ?? null
   });
   const seen = /* @__PURE__ */ new Set();
   const participants = [];
@@ -76580,7 +76698,13 @@ function formatConversationMessageForContext(entry, options = {}) {
   const imageRefs = formatImageRefsBlock(entry.attachments);
   const content = truncateText(entry.content || (attachments ? "" : "(no text)"), TRANSCRIPT_ENTRY_CHAR_LIMIT);
   const timestamp = entry.createdAt ? ` [${new Date(entry.createdAt).toLocaleTimeString()}]` : "";
-  let result = `[${location} | ${speaker} (${label})]${attachments}${timestamp}
+  const mentionBlock = formatMentionContextBlock(entry.mentionContext, "compact");
+  let result = `[${location} | ${speaker} (${label})]${attachments}${timestamp}`;
+  if (mentionBlock) {
+    result += `
+${mentionBlock}`;
+  }
+  result += `
 ${content}`;
   const replyContext = formatReplyContextBlock(entry);
   if (replyContext) {
@@ -76735,8 +76859,56 @@ function coerceMessage(entry) {
     replyToAuthorName: optionalNullableString(entry.replyToAuthorName),
     replyToContent: optionalNullableString(entry.replyToContent),
     replyToAttachments: coerceAttachments(entry.replyToAttachments),
+    mentionContext: coerceMentionContext(entry.mentionContext),
     trigger: optionalString(entry.trigger),
     createdAt: optionalString(entry.createdAt)
+  };
+}
+function coerceMentionContext(value) {
+  if (value == null) {
+    return value === null ? null : void 0;
+  }
+  if (typeof value !== "object") {
+    return void 0;
+  }
+  const record = value;
+  const bot = record.bot;
+  if (typeof bot !== "object" || bot === null) {
+    return void 0;
+  }
+  const botRecord = bot;
+  const botId = optionalString(botRecord.id);
+  const botUsername = optionalString(botRecord.username);
+  if (!botId || !botUsername) {
+    return void 0;
+  }
+  const users = Array.isArray(record.users) ? record.users.filter((entry) => typeof entry === "object" && entry !== null).map((entry) => ({
+    id: optionalString(entry.id) ?? "",
+    username: optionalString(entry.username) ?? "",
+    displayName: optionalString(entry.displayName) ?? optionalString(entry.username) ?? "",
+    bot: entry.bot === true,
+    isSelf: entry.isSelf === true
+  })).filter((entry) => entry.id) : [];
+  const roles = Array.isArray(record.roles) ? record.roles.filter((entry) => typeof entry === "object" && entry !== null).map((entry) => ({
+    id: optionalString(entry.id) ?? "",
+    name: optionalString(entry.name) ?? ""
+  })).filter((entry) => entry.id) : [];
+  const channels = Array.isArray(record.channels) ? record.channels.filter((entry) => typeof entry === "object" && entry !== null).map((entry) => ({
+    id: optionalString(entry.id) ?? "",
+    name: optionalString(entry.name) ?? ""
+  })).filter((entry) => entry.id) : [];
+  return {
+    bot: {
+      id: botId,
+      username: botUsername,
+      tag: optionalString(botRecord.tag) ?? botUsername,
+      displayName: optionalString(botRecord.displayName) ?? botUsername
+    },
+    pingedBot: record.pingedBot === true,
+    everyoneOrHere: record.everyoneOrHere === true,
+    users,
+    roles,
+    channels
   };
 }
 function coerceArchive(entry) {
@@ -76857,6 +77029,7 @@ var init_memory = __esm({
     init_runtime_paths();
     init_log();
     init_channels();
+    init_mentions();
     init_permissions();
     MEMORY_FILE_VERSION = 4;
     SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1e3;
@@ -87042,6 +87215,58 @@ var init_cron = __esm({
   }
 });
 
+// src/shared/config-sanitize.ts
+function sanitizeAllowedUserIds(config, botUserId) {
+  const warnings = [];
+  const drop = /* @__PURE__ */ new Set();
+  if (botUserId?.trim()) {
+    drop.add(botUserId.trim());
+  }
+  const boss = validateBossConfig(config);
+  if (boss.valid) {
+    drop.add(boss.bossUserId);
+  }
+  for (const id of config.allowedAgentIds) {
+    drop.add(id);
+  }
+  const before = config.allowedUserIds;
+  const allowedUserIds = before.filter((id) => {
+    if (!drop.has(id)) {
+      return true;
+    }
+    if (botUserId && id === botUserId) {
+      warnings.push(
+        `Removed bot user ${id} from DISCORD_ALLOWED_USER_IDS. The guest allowlist is for humans only; the bot must never be allowlisted.`
+      );
+    } else if (boss.valid && id === boss.bossUserId) {
+      warnings.push(
+        `Removed boss user ${id} from DISCORD_ALLOWED_USER_IDS. Boss authority comes from DISCORD_BOSS_USER_ID, not the guest allowlist.`
+      );
+    } else if (config.allowedAgentIds.includes(id)) {
+      warnings.push(
+        `Removed agent/bot user ${id} from DISCORD_ALLOWED_USER_IDS. Agent identities belong in DISCORD_ALLOWED_AGENT_IDS, not the human guest allowlist.`
+      );
+    }
+    return false;
+  });
+  if (boss.valid && botUserId && boss.bossUserId === botUserId) {
+    warnings.push(
+      "DISCORD_BOSS_USER_ID matches the bot account. Set it to the human operator's numeric Discord user ID or privileged actions will fail."
+    );
+  }
+  return {
+    allowedUserIds,
+    changed: allowedUserIds.length !== before.length,
+    warnings
+  };
+}
+var init_config_sanitize = __esm({
+  "src/shared/config-sanitize.ts"() {
+    "use strict";
+    init_permissions();
+  }
+});
+
 // src/daemon/users.ts
 async function buildGuildUserMap(client, config, options = {}) {
   userAliasMap.clear();
@@ -87635,6 +87860,7 @@ function setupMessageHandler(client, config, callbacks, isShuttingDown) {
         discordUserId: message.author.id,
         displayLabel: message.author.tag
       });
+      const mentionContext = extractMentionContext(message, client.user);
       const decision = shouldAcceptMessage({
         authorId: message.author.id,
         authorTag: message.author.tag,
@@ -87663,7 +87889,8 @@ function setupMessageHandler(client, config, callbacks, isShuttingDown) {
             replyToAuthorId: replyContext?.authorId ?? null,
             replyToAuthorName: replyContext?.authorName ?? null,
             replyToContent: replyContext?.content ?? null,
-            replyToAttachments: isBoss(roleContext) ? replyContext?.attachments ?? [] : []
+            replyToAttachments: isBoss(roleContext) ? replyContext?.attachments ?? [] : [],
+            mentionContext
           });
         }
         return;
@@ -87693,6 +87920,7 @@ function setupMessageHandler(client, config, callbacks, isShuttingDown) {
           replyToAuthorName: replyContext?.authorName ?? null,
           replyToContent: replyContext?.content ?? null,
           replyToAttachments: isBoss(roleContext) ? replyContext?.attachments ?? [] : [],
+          mentionContext,
           roleContext
         });
       }
@@ -87775,6 +88003,7 @@ var init_bot = __esm({
     init_attachments();
     init_routing();
     init_permissions();
+    init_mentions();
   }
 });
 
@@ -88359,6 +88588,7 @@ async function processViaCli(message, accepted, config, memory, processingContex
     replyToContent: accepted.replyToContent,
     replyToAttachments: accepted.replyToAttachments,
     trigger: accepted.trigger,
+    mentionContext: accepted.mentionContext,
     roleContext: accepted.roleContext
   };
   let prompt;
@@ -88913,6 +89143,27 @@ async function initGateway(config, state2, memory, queue, apiServer, extensionDi
   client.once("clientReady", async () => {
     log.info("Discord bot connected", { tag: client.user?.tag });
     await bootstrapManagedDiscordConfig(client, config, extensionDir2);
+    const identitySanitize = sanitizeAllowedUserIds(config, client.user?.id ?? null);
+    if (identitySanitize.changed) {
+      config.allowedUserIds = identitySanitize.allowedUserIds;
+      try {
+        persistConfigEnvUpdates(extensionDir2, {
+          [ENV.DISCORD_ALLOWED_USER_IDS]: identitySanitize.allowedUserIds.join(",")
+        });
+        log.info("Sanitized DISCORD_ALLOWED_USER_IDS on disk", { allowedUserIds: config.allowedUserIds });
+      } catch (err) {
+        log.warn("Failed to persist sanitized allowlist", {
+          error: err instanceof Error ? err.message : String(err)
+        });
+      }
+    }
+    for (const warning of identitySanitize.warnings) {
+      log.warn("Bridge identity configuration warning", { warning });
+    }
+    if (identitySanitize.warnings.some((warning) => warning.includes("DISCORD_BOSS_USER_ID matches the bot"))) {
+      state2.status = "degraded";
+      state2.lastError = identitySanitize.warnings.join(" ");
+    }
     if (config.discordChannelId) {
       try {
         const channel = await client.channels.fetch(config.discordChannelId);
@@ -89034,6 +89285,7 @@ async function initGateway(config, state2, memory, queue, apiServer, extensionDi
         replyToAuthorName: trackOnlyContext.replyToAuthorName,
         replyToContent: trackOnlyContext.replyToContent,
         replyToAttachments: isBoss(roleContext) ? trackOnlyContext.replyToAttachments : [],
+        mentionContext: trackOnlyContext.mentionContext,
         trigger: "tracked",
         createdAt: (/* @__PURE__ */ new Date()).toISOString()
       });
@@ -89174,6 +89426,7 @@ async function processMessage(message, accepted, config, memory, state2, process
         replyToAuthorName: accepted.replyToAuthorName,
         replyToContent: accepted.replyToContent,
         replyToAttachments: accepted.replyToAttachments,
+        mentionContext: accepted.mentionContext,
         trigger: `${accepted.trigger}:${processingContext.sessionKey}`,
         createdAt: now
       });
@@ -89255,6 +89508,7 @@ var init_gateway = __esm({
     init_dm_pairing();
     init_permissions();
     init_onboarding();
+    init_config_sanitize();
     MAX_AGENT_EXCHANGES = 6;
   }
 });
@@ -89477,10 +89731,31 @@ function roleContextFromRequest(req, config) {
   const senderDisplayLabel = (Array.isArray(rawSenderLabel) ? rawSenderLabel[0] : rawSenderLabel)?.trim() || senderDiscordId;
   return resolveDiscordRole(config, { discordUserId: senderDiscordId, displayLabel: senderDisplayLabel });
 }
+function roleContextFromLocalControlToken(req, config) {
+  const rawAuth = req.headers.authorization;
+  const header = Array.isArray(rawAuth) ? rawAuth[0] : rawAuth;
+  if (!header?.startsWith("Bearer ") || !config.daemonApiToken) {
+    return null;
+  }
+  const token = header.slice("Bearer ".length).trim();
+  if (!token || token !== config.daemonApiToken) {
+    return null;
+  }
+  const boss = validateBossConfig(config);
+  if (!boss.valid) {
+    return null;
+  }
+  return resolveDiscordRole(config, {
+    discordUserId: boss.bossUserId,
+    displayLabel: "local-control-api"
+  });
+}
 function authorizeApiAction(req, res, config, action) {
-  const roleContext = roleContextFromRequest(req, config);
+  const roleContext = roleContextFromLocalControlToken(req, config) ?? roleContextFromRequest(req, config);
   if (!roleContext) {
-    respond(res, 403, { error: GUEST_PERMISSION_REFUSAL });
+    respond(res, 403, {
+      error: "Missing Discord role context. Use the bridge from an authorized boss message in Discord, or call the local MCP server with a valid daemon token."
+    });
     return false;
   }
   const decision = authorizeAction(action, roleContext);
@@ -89536,6 +89811,7 @@ init_channels();
 init_cron();
 init_binding();
 init_dm_pairing();
+init_config_sanitize();
 function handleStatusRoutes(req, res, url, deps) {
   const pathname = url.pathname;
   const { config, state: state2, memory, queue, extensionDir: extensionDir2 } = deps;
@@ -89553,6 +89829,7 @@ function handleStatusRoutes(req, res, url, deps) {
       queueDepth: queue.depth(queueKey),
       streaming: config.streaming,
       botTag: deps.client?.user?.tag ?? null,
+      botId: deps.client?.user?.id ?? null,
       wsPing: deps.client?.ws?.ping ?? -1,
       channelId: config.discordChannelId,
       serverId: config.discordServerId || void 0,
@@ -89565,6 +89842,7 @@ function handleStatusRoutes(req, res, url, deps) {
       useGeminiCliSessions: config.useGeminiCliSessions,
       allowlistedUsers: config.allowedUserIds.length,
       allowlistedAgents: config.allowedAgentIds.length,
+      configWarnings: sanitizeAllowedUserIds(config, deps.client?.user?.id ?? null).warnings,
       requireMention: config.requireMention,
       channels: getChannelMapEntries().map(([name, { id }]) => ({ name, id })),
       cronJobs: listJobs(),
@@ -89619,7 +89897,12 @@ async function handleDiscoveryRoutes(req, res, url, deps) {
       const needle = query.trim().toLowerCase();
       return entry.id.includes(needle) || entry.username.toLowerCase().includes(needle) || (entry.displayName ?? "").toLowerCase().includes(needle) || (entry.globalName ?? "").toLowerCase().includes(needle) || (entry.tag ?? "").toLowerCase().includes(needle);
     }).slice(0, 50);
-    respond(res, 200, { ok: true, users, resolved });
+    respond(res, 200, {
+      ok: true,
+      users,
+      resolved,
+      bot_id: deps.client.user?.id ?? null
+    });
     return true;
   }
   if (req.method === "GET" && pathname === "/reactions") {
@@ -90110,8 +90393,29 @@ async function handleModerationRoutes(req, res, pathname, parsed, deps) {
       return true;
     }
     if (!userId || !DISCORD_SNOWFLAKE_RE3.test(userId)) {
-      respond(res, 400, { error: "Valid user_id is required" });
+      respond(res, 400, {
+        error: "user_id must be a stable numeric Discord user ID. Use user discovery to resolve names or mentions first."
+      });
       return true;
+    }
+    if (action === "add" && userId === deps.client?.user?.id) {
+      respond(res, 400, { error: "Refusing to allowlist the bot user. Use user discovery to find a human member instead." });
+      return true;
+    }
+    if (action === "add" && config.allowedAgentIds.includes(userId)) {
+      respond(res, 400, { error: "Refusing to allowlist an agent/bot user ID in the human guest allowlist." });
+      return true;
+    }
+    if (action === "add" && deps.client && config.discordServerId) {
+      try {
+        const guild = await deps.client.guilds.fetch(config.discordServerId);
+        const member = await guild.members.fetch(userId);
+        if (member.user.bot) {
+          respond(res, 400, { error: "Refusing to allowlist a bot account. Use user discovery to find a human member instead." });
+          return true;
+        }
+      } catch {
+      }
     }
     const current = new Set(config.allowedUserIds);
     if (action === "add") {

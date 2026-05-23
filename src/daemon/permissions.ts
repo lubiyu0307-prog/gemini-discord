@@ -254,7 +254,9 @@ export function formatPermissionDenial(_decision: PermissionDecision): string {
     case 'status':
     case 'bot_introspection':
     case 'user_discovery':
-      return 'I cannot expose bridge internals, history, or server metadata to guests.';
+      return _decision.reason === 'guest_requires_boss'
+        ? 'Guest allowlist users can chat here but cannot list server members or run bridge admin tools. Those require the configured boss account (DISCORD_BOSS_USER_ID), not the bot and not the guest allowlist.'
+        : 'I cannot expose bridge internals, history, or server metadata to guests.';
     case 'cron':
       return 'I cannot schedule reminders or background Discord actions for guests.';
     case 'moderation':
@@ -323,8 +325,50 @@ export function resolveMcpRoleContextFromEnv(
   };
 }
 
+export function resolveLocalMcpBossContext(config?: Config): RoleContext | null {
+  if (!config) {
+    return null;
+  }
+
+  const validation = validateBossConfig(config);
+  if (!validation.valid) {
+    return null;
+  }
+
+  return resolveDiscordRole(config, {
+    discordUserId: validation.bossUserId,
+    displayLabel: 'local-mcp',
+  });
+}
+
+/**
+ * Role context for the local MCP control plane.
+ *
+ * The MCP server runs on the operator's machine and acts on the configured boss's
+ * behalf. Stale GEMINI_DISCORD_ROLE=GUEST markers from an active guest Discord
+ * CLI session must not downgrade local admin tools.
+ */
+export function resolveMcpToolRoleContext(config?: Config): RoleContext | null {
+  return resolveLocalMcpBossContext(config)
+    ?? resolveMcpRoleContextFromEnv(process.env, config);
+}
+
+export const DISCORD_ROLE_ENV_KEYS = [
+  'GEMINI_DISCORD_ROLE',
+  'GEMINI_DISCORD_SENDER_ID',
+  'GEMINI_DISCORD_SENDER_LABEL',
+] as const;
+
+export function clearInheritedDiscordRoleEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  for (const key of DISCORD_ROLE_ENV_KEYS) {
+    delete env[key];
+  }
+}
+
 export function authorizeMcpToolAction(action: PermissionAction, config?: Config): PermissionDecision {
-  const roleContext = resolveMcpRoleContextFromEnv(process.env, config);
+  const roleContext = resolveMcpToolRoleContext(config);
   if (!roleContext) {
     return { decision: 'deny', action, reason: 'missing_discord_role_context' };
   }
