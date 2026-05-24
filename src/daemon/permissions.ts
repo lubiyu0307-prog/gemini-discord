@@ -106,6 +106,8 @@ const OUTBOUND_DISCORD_PATTERNS = [
   /\b(?:send|post|reply|edit|delete|pin|unpin|react|unreact) (?:a |the |this |that )?(?:discord )?(?:message|reply|update)\b/i,
   /\b(?:send|post|reply) .*\b(?:to|in) #?[\w-]+\b/i,
   /\b(?:send|post|forward|share) .*\b(?:another|other|different) (?:discord )?channel\b/i,
+  /\b(?:create|start|make|open) (?:a )?(?:new )?(?:discord )?thread\b/i,
+  /\bthread (?:called|named)\b/i,
   /\bcross-channel\b/i,
 ];
 

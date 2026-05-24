@@ -5,6 +5,7 @@
 
 export type MemoryScope = 'global' | 'channel';
 export type SpeakerKind = 'human' | 'agent' | 'assistant';
+export type ConversationAuthorBridgeRole = 'BOSS' | 'GUEST' | 'allowed_agent' | 'self_bot';
 export type GeminiSessionBindingScope = 'global' | 'server' | 'channel';
 
 export interface CronJobSnapshot {
@@ -111,6 +112,7 @@ export interface ConversationMessage {
   content: string;
   attachments?: ConversationAttachment[];
   speakerKind?: SpeakerKind;
+  authorBridgeRole?: ConversationAuthorBridgeRole;
   authorId?: string;
   authorName?: string;
   channelId?: string;
@@ -231,5 +233,12 @@ export interface ReplyResponse {
 /** POST /reset response */
 export interface ResetResponse {
   ok: boolean;
+  error?: string;
+}
+
+/** POST /thread response */
+export interface ThreadResponse {
+  ok: boolean;
+  threadId?: string;
   error?: string;
 }

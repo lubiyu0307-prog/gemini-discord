@@ -17,6 +17,8 @@ describe('resolveToolMode', () => {
   it('enables discord action mode for channel operations', () => {
     expect(resolveToolMode('post a reminder to #general in 10 minutes')).toBe('discord');
     expect(resolveToolMode('reply to that message on Discord')).toBe('discord');
+    expect(resolveToolMode('start a new thread here called GO')).toBe('discord');
+    expect(resolveToolMode('make a thread named GO')).toBe('discord');
   });
 
   it('enables discord action mode for local media delivery requests', () => {

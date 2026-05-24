@@ -1,7 +1,12 @@
 import { type Message, type TextChannel, type DMChannel, type NewsChannel } from 'discord.js';
 import { createClient, setupReconnectHandlers, setupMessageHandler, type AcceptedDiscordMessage } from './bot.js';
 import { type DaemonState } from './api.js';
-import { type ConversationMemory, resolveSessionKey } from './memory.js';
+import {
+  type ConversationMemory,
+  resolveSessionKey,
+  selectImmediateMentionContext,
+  shouldUseImmediateMentionContext,
+} from './memory.js';
 import { type ChannelQueue } from './queue.js';
 import { log } from './log.js';
 import { registerGuildCommands, setupInteractionHandler } from './commands.js';
@@ -16,6 +21,7 @@ import { ENV } from '../shared/config-vars.js';
 import { runtimeStore } from './runtime.js';
 import { type Semaphore } from './semaphore.js';
 import type { ExchangeLog } from '../shared/types.js';
+import type { ConversationAuthorBridgeRole } from '../shared/types.js';
 import { initCron } from './cron.js';
 import { resetConversationSession } from './session-reset.js';
 import { ensureOwnerDmPairings, touchDmPairing } from './dm-pairing.js';
@@ -26,6 +32,7 @@ import {
   isBoss,
   resolveDiscordRole,
   resolveEffectiveToolMode,
+  type RoleContext,
 } from './permissions.js';
 import {
   bootstrapManagedDiscordConfig,
@@ -198,6 +205,7 @@ export async function initGateway(
         content: trackOnlyContext.content,
         attachments: attachmentMetadata,
         speakerKind: trackOnlyContext.speakerKind,
+        authorBridgeRole: resolveConversationAuthorBridgeRole(message.author.id, trackOnlyContext.speakerKind, roleContext, config, message.client.user?.id ?? null),
         authorId: message.author.id,
         authorName: message.author.tag,
         channelId: message.channelId,
@@ -226,6 +234,28 @@ export async function initGateway(
 
   await client.login(config.discordBotToken);
   log.info('Discord login initiated');
+}
+
+function resolveConversationAuthorBridgeRole(
+  authorId: string,
+  speakerKind: 'human' | 'agent' | 'assistant',
+  roleContext: RoleContext,
+  config: ReturnType<typeof loadConfig>,
+  botUserId: string | null,
+): ConversationAuthorBridgeRole {
+  if (botUserId && authorId === botUserId) {
+    return 'self_bot';
+  }
+
+  if (speakerKind === 'assistant') {
+    return 'self_bot';
+  }
+
+  if (speakerKind === 'agent' || config.allowedAgentIds.includes(authorId)) {
+    return 'allowed_agent';
+  }
+
+  return isBoss(roleContext) ? 'BOSS' : 'GUEST';
 }
 
 async function sendSetupValidationMessage(
@@ -295,7 +325,18 @@ async function processMessage(
 ): Promise<void> {
   const channel = message.channel as TextChannel | DMChannel | NewsChannel;
   const startTime = Date.now();
-  const requestedToolMode = accepted.trigger === 'cron' ? 'discord' : resolveToolMode(accepted.content);
+  let requestedToolMode = accepted.trigger === 'cron' ? 'discord' : resolveToolMode(accepted.content);
+  if (requestedToolMode === 'chat' && shouldUseImmediateMentionContext(accepted.trigger, accepted.content)) {
+    const immediateContext = selectImmediateMentionContext(memory.snapshot(processingContext.sessionKey), {
+      channelId: message.channelId,
+      threadId: accepted.origin.threadId,
+      messageId: message.id,
+    });
+    const contextToolMode = resolveToolMode(immediateContext.map((entry) => entry.content).join('\n'));
+    if (contextToolMode !== 'chat') {
+      requestedToolMode = contextToolMode;
+    }
+  }
   const turnDecision = authorizeGuestRequest({
     content: accepted.content,
     attachmentCount: message.attachments.size,
@@ -367,6 +408,7 @@ async function processMessage(
         content: accepted.content,
         attachments: effectiveAttachmentMetadata,
         speakerKind: accepted.speakerKind,
+        authorBridgeRole: resolveConversationAuthorBridgeRole(message.author.id, accepted.speakerKind, accepted.roleContext, config, message.client.user?.id ?? null),
         authorId: message.author.id,
         authorName: message.author.tag,
         channelId: message.channelId,
@@ -389,6 +431,7 @@ async function processMessage(
         role: 'assistant',
         content: response,
         speakerKind: 'assistant',
+        authorBridgeRole: 'self_bot',
         authorId: message.client.user?.id,
         authorName: message.client.user?.tag ?? 'Assistant',
         channelId: message.channelId,
