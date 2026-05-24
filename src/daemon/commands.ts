@@ -5,7 +5,9 @@ import {
   REST, 
   Routes, 
   PermissionFlagsBits,
-  AutocompleteInteraction
+  AutocompleteInteraction,
+  ApplicationIntegrationType,
+  InteractionContextType
 } from 'discord.js';
 import { log } from './log.js';
 import type { Config } from '../shared/types.js';
@@ -27,7 +29,7 @@ import {
 /**
  * Slash command definitions.
  */
-const COMMANDS = [
+export const COMMANDS = [
   new SlashCommandBuilder()
     .setName('new')
     .setDescription('Start a fresh Gemini conversation for this channel.')
@@ -68,6 +70,47 @@ const COMMANDS = [
     ),
 ];
 
+export type CommandBuilder = (typeof COMMANDS)[number];
+
+const DM_COMMAND_NAMES = new Set([
+  'new',
+  'model',
+  'status',
+  'ping',
+  'pool',
+  'kill',
+]);
+
+export function buildGuildCommandPayloads(
+  commands: readonly CommandBuilder[] = COMMANDS
+) {
+  return commands.map(cmd => {
+    const { contexts, integration_types, ...guildCommand } = cmd.toJSON() as any;
+    return guildCommand;
+  });
+}
+
+export function buildDmOnlyGlobalCommandPayloads(
+  commands: readonly CommandBuilder[] = COMMANDS
+) {
+  return commands
+    .map((cmd) => cmd.toJSON() as any)
+    .filter((command) => DM_COMMAND_NAMES.has(command.name))
+    .map((command) => {
+      const {
+        contexts,
+        integration_types,
+        ...baseCommand
+      } = command;
+
+      return {
+        ...baseCommand,
+        contexts: [InteractionContextType.BotDM],
+        integration_types: [ApplicationIntegrationType.GuildInstall],
+      };
+    });
+}
+
 const AVAILABLE_MODELS = [
   'gemini-3.1-pro-preview',
   'gemini-3-flash-preview',
@@ -81,12 +124,13 @@ const AVAILABLE_MODELS = [
  */
 export async function registerGuildCommands(client: Client, config: Config): Promise<void> {
   const rest = new REST({ version: '10' }).setToken(config.discordBotToken);
-  
-  // 1. Global registration (Required for DMs)
+
+  // 1. Global registration (DM scoped only)
   try {
+    const globalPayloads = buildDmOnlyGlobalCommandPayloads();
     await rest.put(
       Routes.applicationCommands(client.user!.id),
-      { body: COMMANDS.map(cmd => cmd.toJSON()) },
+      { body: globalPayloads },
     );
     log.info('Registered global slash commands (for DMs)');
   } catch (error) {
@@ -97,9 +141,10 @@ export async function registerGuildCommands(client: Client, config: Config): Pro
   const guilds = await client.guilds.fetch();
   for (const [guildId] of guilds) {
     try {
+      const guildPayloads = buildGuildCommandPayloads();
       await rest.put(
         Routes.applicationGuildCommands(client.user!.id, guildId),
-        { body: COMMANDS.map(cmd => cmd.toJSON()) },
+        { body: guildPayloads },
       );
       log.info(`Registered slash commands for guild: ${guildId}`);
     } catch (error) {
@@ -107,7 +152,6 @@ export async function registerGuildCommands(client: Client, config: Config): Pro
     }
   }
 }
-
 /**
  * Set up the interaction handler for slash commands and autocomplete.
  */
@@ -131,9 +175,19 @@ export function setupInteractionHandler(
       displayLabel: interaction.user.tag,
     });
 
+    const isBossUser = isBoss(roleContext);
+
+    // Hard gate: DM commands are strictly for Boss management.
+    if (!interaction.guildId && !isBossUser) {
+      await interaction.reply({
+        content: 'You do not have permission to use DM bot management commands.',
+        ephemeral: true,
+      });
+      return;
+    }
+
     // Routing check: existing allowlists may permit command interaction, but
     // only DISCORD_BOSS_USER_ID can authorize privileged commands.
-    const isBossUser = isBoss(roleContext);
     const isAllowed = config.allowedUserIds.includes(interaction.user.id);
     const isOwner = config.ownerIds.includes(interaction.user.id);
     if (!isBossUser && !isOwner && !isAllowed) {

@@ -20968,17 +20968,17 @@ var require_applicationCommands = __commonJS({
       ApplicationCommandType2[ApplicationCommandType2["Message"] = 3] = "Message";
       ApplicationCommandType2[ApplicationCommandType2["PrimaryEntryPoint"] = 4] = "PrimaryEntryPoint";
     })(ApplicationCommandType || (exports2.ApplicationCommandType = ApplicationCommandType = {}));
-    var ApplicationIntegrationType;
-    (function(ApplicationIntegrationType2) {
-      ApplicationIntegrationType2[ApplicationIntegrationType2["GuildInstall"] = 0] = "GuildInstall";
-      ApplicationIntegrationType2[ApplicationIntegrationType2["UserInstall"] = 1] = "UserInstall";
-    })(ApplicationIntegrationType || (exports2.ApplicationIntegrationType = ApplicationIntegrationType = {}));
-    var InteractionContextType;
-    (function(InteractionContextType2) {
-      InteractionContextType2[InteractionContextType2["Guild"] = 0] = "Guild";
-      InteractionContextType2[InteractionContextType2["BotDM"] = 1] = "BotDM";
-      InteractionContextType2[InteractionContextType2["PrivateChannel"] = 2] = "PrivateChannel";
-    })(InteractionContextType || (exports2.InteractionContextType = InteractionContextType = {}));
+    var ApplicationIntegrationType2;
+    (function(ApplicationIntegrationType3) {
+      ApplicationIntegrationType3[ApplicationIntegrationType3["GuildInstall"] = 0] = "GuildInstall";
+      ApplicationIntegrationType3[ApplicationIntegrationType3["UserInstall"] = 1] = "UserInstall";
+    })(ApplicationIntegrationType2 || (exports2.ApplicationIntegrationType = ApplicationIntegrationType2 = {}));
+    var InteractionContextType2;
+    (function(InteractionContextType3) {
+      InteractionContextType3[InteractionContextType3["Guild"] = 0] = "Guild";
+      InteractionContextType3[InteractionContextType3["BotDM"] = 1] = "BotDM";
+      InteractionContextType3[InteractionContextType3["PrivateChannel"] = 2] = "PrivateChannel";
+    })(InteractionContextType2 || (exports2.InteractionContextType = InteractionContextType2 = {}));
     var EntryPointCommandHandlerType;
     (function(EntryPointCommandHandlerType2) {
       EntryPointCommandHandlerType2[EntryPointCommandHandlerType2["AppHandler"] = 1] = "AppHandler";
@@ -88099,12 +88099,33 @@ var init_bot = __esm({
 });
 
 // src/daemon/commands.ts
+function buildGuildCommandPayloads(commands = COMMANDS) {
+  return commands.map((cmd) => {
+    const { contexts, integration_types, ...guildCommand } = cmd.toJSON();
+    return guildCommand;
+  });
+}
+function buildDmOnlyGlobalCommandPayloads(commands = COMMANDS) {
+  return commands.map((cmd) => cmd.toJSON()).filter((command) => DM_COMMAND_NAMES.has(command.name)).map((command) => {
+    const {
+      contexts,
+      integration_types,
+      ...baseCommand
+    } = command;
+    return {
+      ...baseCommand,
+      contexts: [import_discord5.InteractionContextType.BotDM],
+      integration_types: [import_discord5.ApplicationIntegrationType.GuildInstall]
+    };
+  });
+}
 async function registerGuildCommands(client, config) {
   const rest = new import_discord5.REST({ version: "10" }).setToken(config.discordBotToken);
   try {
+    const globalPayloads = buildDmOnlyGlobalCommandPayloads();
     await rest.put(
       import_discord5.Routes.applicationCommands(client.user.id),
-      { body: COMMANDS.map((cmd) => cmd.toJSON()) }
+      { body: globalPayloads }
     );
     log.info("Registered global slash commands (for DMs)");
   } catch (error) {
@@ -88113,9 +88134,10 @@ async function registerGuildCommands(client, config) {
   const guilds = await client.guilds.fetch();
   for (const [guildId] of guilds) {
     try {
+      const guildPayloads = buildGuildCommandPayloads();
       await rest.put(
         import_discord5.Routes.applicationGuildCommands(client.user.id, guildId),
-        { body: COMMANDS.map((cmd) => cmd.toJSON()) }
+        { body: guildPayloads }
       );
       log.info(`Registered slash commands for guild: ${guildId}`);
     } catch (error) {
@@ -88135,6 +88157,13 @@ function setupInteractionHandler(client, config, state2, memory, extensionDir2) 
       displayLabel: interaction.user.tag
     });
     const isBossUser = isBoss(roleContext);
+    if (!interaction.guildId && !isBossUser) {
+      await interaction.reply({
+        content: "You do not have permission to use DM bot management commands.",
+        ephemeral: true
+      });
+      return;
+    }
     const isAllowed = config.allowedUserIds.includes(interaction.user.id);
     const isOwner = config.ownerIds.includes(interaction.user.id);
     if (!isBossUser && !isOwner && !isAllowed) {
@@ -88271,7 +88300,7 @@ async function validateModel(geminiPath, model) {
     });
   });
 }
-var import_discord5, import_node_child_process3, COMMANDS, AVAILABLE_MODELS;
+var import_discord5, import_node_child_process3, COMMANDS, DM_COMMAND_NAMES, AVAILABLE_MODELS;
 var init_commands = __esm({
   "src/daemon/commands.ts"() {
     "use strict";
@@ -88294,6 +88323,14 @@ var init_commands = __esm({
         (option) => option.setName("session").setDescription("Pool key to kill").setRequired(true)
       )
     ];
+    DM_COMMAND_NAMES = /* @__PURE__ */ new Set([
+      "new",
+      "model",
+      "status",
+      "ping",
+      "pool",
+      "kill"
+    ]);
     AVAILABLE_MODELS = [
       "gemini-3.1-pro-preview",
       "gemini-3-flash-preview",
