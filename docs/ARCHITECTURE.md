@@ -7,6 +7,7 @@ Monitored workflow threads mirror the Gemini CLI's tool-call trace experience di
 1. **Opt-In Triggers**:
    - Slash Command: `/workflow <task>`
    - Text Command: `!thread <task>` or `!workflow <task>` (restricted to the Boss user).
+   - After the thread manifest is saved, the initiating request is adapted into a thread-scoped turn and enqueued through the normal message processor. The trace renderer only runs from observed CLI/ACP events from that turn.
 2. **DM Overflow**:
    - Direct Messages (DMs) cannot host native threads directly.
    - If a workflow thread is requested via a DM or a DM-based command, it overflows to a configured channel specified by `WORKFLOW_PARENT_CHANNEL_ID` in the server.
@@ -23,6 +24,7 @@ Monitored workflow threads mirror the Gemini CLI's tool-call trace experience di
 2. **Seed Context Feed**:
    - To make the thread useful, it is initialized with a *Seed Context*.
    - If a source message is provided (e.g., when a user promotes a message to a thread), the content of the source message is injected as the initial user prompt.
+   - The first text or slash workflow request uses the same thread-scoped session keys as later messages in the workflow thread.
 
 ## Trace Event Pipeline
 

@@ -2,12 +2,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import type { Message } from 'discord.js';
+import type { CommandInteraction, Message, ThreadChannel } from 'discord.js';
 import type { Config } from '../src/shared/types.js';
 import { resolveProcessingContext } from '../src/daemon/engine-cli.js';
 import { saveThreadManifest, type ThreadManifest } from '../src/daemon/workflow/thread-manifest.js';
 import { resetConversationSession } from '../src/daemon/session-reset.js';
 import { runtimeStore } from '../src/daemon/runtime.js';
+import {
+  buildWorkflowInteractionRunAccepted,
+  buildWorkflowInteractionRunMessage,
+  buildWorkflowRunAccepted,
+  buildWorkflowRunMessage,
+} from '../src/daemon/gateway.js';
 
 let tmpDir: string;
 
@@ -61,6 +67,100 @@ afterEach(() => {
 });
 
 describe('workflow session resolution', () => {
+  it('adapts the initial text command turn into the created workflow thread', () => {
+    const message = {
+      id: 'msg-100',
+      content: '!workflow inspect routing',
+      channelId: 'ch1',
+      guildId: 'g1',
+      guild: { name: 'Test Guild' },
+      author: { id: 'owner-1', tag: 'Boss#0001' },
+    } as unknown as Message;
+    const thread = {
+      id: 'thread-1',
+      name: 'gemini-workflow-inspect-routing',
+      guildId: 'g1',
+    } as unknown as ThreadChannel;
+    const accepted = {
+      content: 'workflow inspect routing',
+      channelName: 'general',
+      guildName: 'Test Guild',
+      trigger: 'prefix',
+      origin: {
+        guildId: 'g1',
+        channelId: 'ch1',
+        threadId: null,
+        targetChannelId: 'ch1',
+        messageId: 'msg-100',
+        userId: 'owner-1',
+      },
+      roleContext: {
+        role: 'BOSS',
+        senderDiscordId: 'owner-1',
+        senderDisplayLabel: 'Boss#0001',
+        bossLabel: 'the boss',
+        bossConfigValid: true,
+      },
+      replyToMessageId: 'reply-1',
+      replyToAuthorId: 'owner-2',
+      replyToAuthorName: 'Other#0001',
+      replyToContent: 'old reply',
+      replyToAttachments: [],
+      mentionContext: null,
+    } as any;
+
+    const workflowMessage = buildWorkflowRunMessage(message, thread, 'inspect routing');
+    const workflowAccepted = buildWorkflowRunAccepted(accepted, message, thread, 'inspect routing');
+
+    expect(workflowMessage.content).toBe('inspect routing');
+    expect(workflowMessage.channelId).toBe('thread-1');
+    expect(workflowMessage.channel).toBe(thread);
+    expect(workflowAccepted.content).toBe('inspect routing');
+    expect(workflowAccepted.trigger).toBe('workflow');
+    expect(workflowAccepted.channelName).toBe('gemini-workflow-inspect-routing');
+    expect(workflowAccepted.origin.channelId).toBe('thread-1');
+    expect(workflowAccepted.origin.threadId).toBe('thread-1');
+    expect(workflowAccepted.origin.targetChannelId).toBe('thread-1');
+    expect(workflowAccepted.replyToMessageId).toBeNull();
+    expect(workflowAccepted.mentionContext).toBeNull();
+  });
+
+  it('adapts a slash workflow interaction into the created workflow thread', () => {
+    const thread = {
+      id: 'thread-2',
+      name: 'gemini-workflow-review-diff',
+      guildId: 'g1',
+    } as unknown as ThreadChannel;
+    const roleContext = {
+      role: 'BOSS',
+      senderDiscordId: 'owner-1',
+      senderDisplayLabel: 'Boss#0001',
+      bossLabel: 'the boss',
+      bossConfigValid: true,
+    } as const;
+    const interaction = {
+      id: 'interaction-1',
+      guildId: 'g1',
+      guild: { name: 'Test Guild' },
+      user: { id: 'owner-1', tag: 'Boss#0001' },
+      client: { user: { id: 'bot-1', tag: 'Bot#0001' } },
+    } as unknown as CommandInteraction;
+
+    const workflowMessage = buildWorkflowInteractionRunMessage(interaction, thread, 'review diff');
+    const workflowAccepted = buildWorkflowInteractionRunAccepted(interaction, thread, 'review diff', roleContext);
+
+    expect(workflowMessage.content).toBe('review diff');
+    expect(workflowMessage.channelId).toBe('thread-2');
+    expect(workflowMessage.channel).toBe(thread);
+    expect(workflowMessage.attachments.size).toBe(0);
+    expect([...workflowMessage.attachments.values()]).toEqual([]);
+    expect(workflowAccepted.content).toBe('review diff');
+    expect(workflowAccepted.trigger).toBe('workflow');
+    expect(workflowAccepted.origin.channelId).toBe('thread-2');
+    expect(workflowAccepted.origin.threadId).toBe('thread-2');
+    expect(workflowAccepted.roleContext).toBe(roleContext);
+  });
+
   it('resolves thread:threadId keys for Boss in a workflow thread', () => {
     // 1. Create a manifest for thread-1
     const manifest: ThreadManifest = {

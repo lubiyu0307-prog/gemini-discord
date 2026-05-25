@@ -95,7 +95,7 @@ npm run setup
 | `/model` | Switch Gemini model (boss only) |
 | `/pool` | Process pool state (boss only) |
 | `/kill` | Kill a pooled process (boss only) |
-| `/workflow` | Create a monitored workflow thread for a task (boss only) |
+| `/workflow` | Create and start a monitored workflow thread for a task (boss only) |
 | `/ping` | Round-trip latency |
 
 ---
@@ -112,7 +112,7 @@ All message sends require an explicit target. If a target can't be proven, the a
 
 Credentials and runtime state stay local. Do not commit `.env`, `.gemini-discord/`, logs, databases, tokens, or real Discord IDs.
 
-Workflow thread traces are generated only from observed Gemini CLI/ACP events. Simple reads and searches render as single compact rows; shell output, diffs, errors, MCP calls, and meaningful results render as small Discord embeds with long sanitized output attached instead of pasted inline. Discord's native typing indicator represents thinking state, so the bot does not post separate "thinking" trace cards.
+Workflow thread traces are generated only from observed Gemini CLI/ACP events. `/workflow`, `!workflow`, and `!thread` create the thread and immediately enqueue the first task inside that thread. Simple reads and searches render as single compact rows; shell output, diffs, errors, MCP calls, and meaningful results render as small Discord embeds with long sanitized output attached instead of pasted inline. Discord's native typing indicator represents thinking state, so the bot does not post separate "thinking" trace cards.
 
 ---
 

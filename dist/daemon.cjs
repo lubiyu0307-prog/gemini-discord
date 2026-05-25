@@ -88359,7 +88359,8 @@ async function createWorkflowThread(client, config, extensionDir2, opts) {
   saveThreadManifest(extensionDir2, manifest);
   return {
     threadId: thread.id,
-    manifest
+    manifest,
+    thread
   };
 }
 var init_thread_creator = __esm({
@@ -88418,7 +88419,7 @@ async function registerGuildCommands(client, config) {
     }
   }
 }
-function setupInteractionHandler(client, config, state2, memory, extensionDir2) {
+function setupInteractionHandler(client, config, state2, memory, extensionDir2, onWorkflowThreadCreated) {
   client.on("interactionCreate", async (interaction) => {
     if (interaction.isAutocomplete()) {
       await handleAutocomplete(interaction);
@@ -88548,7 +88549,7 @@ Action: Reverted to \`${oldModel}\`.`);
       const messageId = interaction.options.getString("message_id") ?? void 0;
       await interaction.deferReply();
       try {
-        const { threadId } = await createWorkflowThread(
+        const { threadId, thread } = await createWorkflowThread(
           client,
           config,
           extensionDir2,
@@ -88560,6 +88561,7 @@ Action: Reverted to \`${oldModel}\`.`);
           }
         );
         await interaction.editReply(`\u{1F9F9} **Monitored Workflow Thread Created:** <#${threadId}>`);
+        onWorkflowThreadCreated?.({ interaction, thread, task, roleContext });
       } catch (error) {
         log.error("Failed to create workflow thread from slash command", { error: error instanceof Error ? error.message : String(error) });
         await interaction.editReply(`\u274C **Failed to create workflow thread:** ${error instanceof Error ? error.message : String(error)}`);
@@ -90068,12 +90070,27 @@ ${TRACE_MARKER}`);
 // src/daemon/gateway.ts
 var gateway_exports = {};
 __export(gateway_exports, {
+  buildWorkflowInteractionRunAccepted: () => buildWorkflowInteractionRunAccepted,
+  buildWorkflowInteractionRunMessage: () => buildWorkflowInteractionRunMessage,
+  buildWorkflowRunAccepted: () => buildWorkflowRunAccepted,
+  buildWorkflowRunMessage: () => buildWorkflowRunMessage,
   initGateway: () => initGateway
 });
 async function initGateway(config, state2, memory, queue, apiServer, extensionDir2) {
   const client = createClient(config);
   runtimeStore.client = client;
-  setupInteractionHandler(client, config, state2, memory, extensionDir2);
+  setupInteractionHandler(client, config, state2, memory, extensionDir2, ({ interaction, thread, task, roleContext }) => {
+    enqueueInitialWorkflowInteractionRun({
+      interaction,
+      thread,
+      task,
+      roleContext,
+      config,
+      memory,
+      state: state2,
+      extensionDir: extensionDir2
+    });
+  });
   setupReconnectHandlers(client, config, (status) => {
     state2.status = status;
   });
@@ -90146,8 +90163,18 @@ async function initGateway(config, state2, memory, queue, apiServer, extensionDi
             creatorUserId: message.author.id,
             sourceChannelId: message.channelId,
             sourceMessageId: message.id
-          }).then(({ threadId }) => {
+          }).then(({ threadId, thread }) => {
             retrySend(() => message.reply(`\u{1F9F9} **Monitored Workflow Thread Created:** <#${threadId}>`)).catch(() => {
+            });
+            enqueueInitialWorkflowRun({
+              message,
+              accepted,
+              thread,
+              task,
+              config,
+              memory,
+              state: state2,
+              extensionDir: extensionDir2
             });
           }).catch((err) => {
             log.error("Failed to create workflow thread from text command", { error: String(err) });
@@ -90196,22 +90223,15 @@ async function initGateway(config, state2, memory, queue, apiServer, extensionDi
       } else {
         runtimeStore.agentExchangeCount.set(message.channelId, 0);
       }
-      const queueKeys = [
-        `binding:${processingContext.bindingKey}`,
-        `memory:${processingContext.sessionKey}`
-      ];
-      const enqueued = runtimeStore.queue?.enqueue(queueKeys, async () => {
-        await processMessage(
-          message,
-          accepted,
-          config,
-          memory,
-          state2,
-          processingContext,
-          runtimeStore.geminiSemaphore,
-          extensionDir2
-        );
-      }) ?? false;
+      const enqueued = enqueueProcessingTurn({
+        message,
+        accepted,
+        config,
+        memory,
+        state: state2,
+        processingContext,
+        extensionDir: extensionDir2
+      });
       if (!enqueued) {
         retrySend(() => chan.send("\u23F3 Too many pending messages for this conversation. Please wait a moment and retry.")).catch(() => {
         });
@@ -90259,6 +90279,154 @@ async function initGateway(config, state2, memory, queue, apiServer, extensionDi
   }, () => runtimeStore.isShuttingDown);
   await client.login(config.discordBotToken);
   log.info("Discord login initiated");
+}
+function enqueueInitialWorkflowRun(opts) {
+  const workflowMessage = buildWorkflowRunMessage(opts.message, opts.thread, opts.task);
+  const workflowAccepted = buildWorkflowRunAccepted(opts.accepted, opts.message, opts.thread, opts.task);
+  enqueueWorkflowRun({
+    message: workflowMessage,
+    accepted: workflowAccepted,
+    thread: opts.thread,
+    sourceMessageId: opts.message.id,
+    config: opts.config,
+    memory: opts.memory,
+    state: opts.state,
+    extensionDir: opts.extensionDir
+  });
+}
+function enqueueInitialWorkflowInteractionRun(opts) {
+  const workflowMessage = buildWorkflowInteractionRunMessage(opts.interaction, opts.thread, opts.task);
+  const workflowAccepted = buildWorkflowInteractionRunAccepted(opts.interaction, opts.thread, opts.task, opts.roleContext);
+  enqueueWorkflowRun({
+    message: workflowMessage,
+    accepted: workflowAccepted,
+    thread: opts.thread,
+    sourceMessageId: opts.interaction.id,
+    config: opts.config,
+    memory: opts.memory,
+    state: opts.state,
+    extensionDir: opts.extensionDir
+  });
+}
+function enqueueWorkflowRun(opts) {
+  const processingContext = resolveProcessingContext(opts.config, opts.message, opts.accepted, opts.extensionDir);
+  runtimeStore.agentExchangeCount.set(opts.thread.id, 0);
+  const enqueued = enqueueProcessingTurn({
+    message: opts.message,
+    accepted: opts.accepted,
+    config: opts.config,
+    memory: opts.memory,
+    state: opts.state,
+    processingContext,
+    extensionDir: opts.extensionDir
+  });
+  if (!enqueued) {
+    retrySend(() => opts.thread.send("\u23F3 Too many pending messages for this workflow. Please wait a moment and retry in the thread.")).catch(() => {
+    });
+    return;
+  }
+  log.info("Initial workflow task enqueued", {
+    sourceMessageId: opts.sourceMessageId,
+    threadId: opts.thread.id,
+    sessionKey: processingContext.sessionKey
+  });
+}
+function enqueueProcessingTurn(opts) {
+  const queueKeys = [
+    `binding:${opts.processingContext.bindingKey}`,
+    `memory:${opts.processingContext.sessionKey}`
+  ];
+  return runtimeStore.queue?.enqueue(queueKeys, async () => {
+    await processMessage(
+      opts.message,
+      opts.accepted,
+      opts.config,
+      opts.memory,
+      opts.state,
+      opts.processingContext,
+      runtimeStore.geminiSemaphore,
+      opts.extensionDir
+    );
+  }) ?? false;
+}
+function buildWorkflowRunMessage(message, thread, task) {
+  return new Proxy(message, {
+    get(target, prop, receiver) {
+      if (prop === "channel") return thread;
+      if (prop === "channelId") return thread.id;
+      if (prop === "content") return task;
+      if (prop === "guildId") return thread.guildId ?? target.guildId;
+      return Reflect.get(target, prop, receiver);
+    }
+  });
+}
+function buildWorkflowRunAccepted(accepted, message, thread, task) {
+  return {
+    ...accepted,
+    content: task,
+    trigger: "workflow",
+    origin: {
+      ...accepted.origin,
+      guildId: thread.guildId ?? message.guildId ?? null,
+      channelId: thread.id,
+      threadId: thread.id,
+      targetChannelId: thread.id,
+      messageId: message.id,
+      userId: message.author.id
+    },
+    channelName: thread.name,
+    guildName: message.guild?.name ?? accepted.guildName,
+    replyToMessageId: null,
+    replyToAuthorId: null,
+    replyToAuthorName: null,
+    replyToContent: null,
+    replyToAttachments: [],
+    mentionContext: null
+  };
+}
+function buildWorkflowInteractionRunMessage(interaction, thread, task) {
+  const emptyAttachments = {
+    size: 0,
+    values: function* values() {
+      return;
+    }
+  };
+  return {
+    id: interaction.id,
+    content: task,
+    channel: thread,
+    channelId: thread.id,
+    guildId: thread.guildId ?? interaction.guildId ?? null,
+    guild: interaction.guild ?? null,
+    author: interaction.user,
+    client: interaction.client,
+    attachments: emptyAttachments,
+    reference: null
+  };
+}
+function buildWorkflowInteractionRunAccepted(interaction, thread, task, roleContext) {
+  return {
+    content: task,
+    speakerKind: "human",
+    trigger: "workflow",
+    origin: {
+      guildId: thread.guildId ?? interaction.guildId ?? null,
+      channelId: thread.id,
+      threadId: thread.id,
+      targetChannelId: thread.id,
+      messageId: interaction.id,
+      userId: interaction.user.id
+    },
+    channelName: thread.name,
+    guildName: interaction.guild?.name ?? null,
+    replyToMessageId: null,
+    replyToAuthorId: null,
+    replyToAuthorName: null,
+    replyToContent: null,
+    replyToAttachments: [],
+    mentionContext: null,
+    roleContext
+  };
 }
 function resolveConversationAuthorBridgeRole(authorId, speakerKind, roleContext, config, botUserId) {
   if (botUserId && authorId === botUserId) {

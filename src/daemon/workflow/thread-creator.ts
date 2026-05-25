@@ -17,7 +17,7 @@ export async function createWorkflowThread(
   config: Config,
   extensionDir: string,
   opts: CreateThreadOptions
-): Promise<{ threadId: string; manifest: ThreadManifest }> {
+): Promise<{ threadId: string; manifest: ThreadManifest; thread: ThreadChannel }> {
   const { taskSummary, creatorUserId, sourceChannelId, sourceMessageId, traceMode = 'compact' } = opts;
 
   // 1. Resolve starting channel
@@ -107,5 +107,6 @@ export async function createWorkflowThread(
   return {
     threadId: thread.id,
     manifest,
+    thread,
   };
 }

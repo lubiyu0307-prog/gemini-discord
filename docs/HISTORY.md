@@ -1,5 +1,13 @@
 # Change History
 
+## [2026-05-25] Workflow Thread Auto-Start Fix
+
+Fixed workflow thread creation so a newly created monitored thread immediately starts the requested task instead of only posting the queued seed message.
+
+### Changed
+- **Initial Turn Enqueue**: `!workflow`, `!thread`, and `/workflow` now adapt the initiating request into a thread-scoped processing turn after the manifest is saved.
+- **Trace Visibility**: The first run now uses the same `thread:{threadId}` session and normal trace dispatcher path as follow-up messages sent inside the workflow thread.
+
 ## [2026-05-25] Workflow Thread Console Renderer
 
 Refined monitored workflow thread traces to match a compact Gemini CLI/Codex-style operator console inside Discord.

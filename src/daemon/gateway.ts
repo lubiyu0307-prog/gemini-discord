@@ -1,4 +1,11 @@
-import { type Message, type TextChannel, type DMChannel, type NewsChannel } from 'discord.js';
+import {
+  type CommandInteraction,
+  type Message,
+  type TextChannel,
+  type DMChannel,
+  type NewsChannel,
+  type ThreadChannel,
+} from 'discord.js';
 import { createClient, setupReconnectHandlers, setupMessageHandler, type AcceptedDiscordMessage } from './bot.js';
 import { type DaemonState } from './api.js';
 import {
@@ -58,7 +65,18 @@ export async function initGateway(
   const client = createClient(config);
   runtimeStore.client = client;
 
-  setupInteractionHandler(client, config, state, memory, extensionDir);
+  setupInteractionHandler(client, config, state, memory, extensionDir, ({ interaction, thread, task, roleContext }) => {
+    enqueueInitialWorkflowInteractionRun({
+      interaction,
+      thread,
+      task,
+      roleContext,
+      config,
+      memory,
+      state,
+      extensionDir,
+    });
+  });
 
   setupReconnectHandlers(client, config, (status) => {
     state.status = status;
@@ -142,8 +160,18 @@ export async function initGateway(
             creatorUserId: message.author.id,
             sourceChannelId: message.channelId,
             sourceMessageId: message.id,
-          }).then(({ threadId }) => {
+          }).then(({ threadId, thread }) => {
             retrySend(() => message.reply(`🧹 **Monitored Workflow Thread Created:** <#${threadId}>`)).catch(() => {});
+            enqueueInitialWorkflowRun({
+              message,
+              accepted,
+              thread,
+              task,
+              config,
+              memory,
+              state,
+              extensionDir,
+            });
           }).catch((err) => {
             log.error('Failed to create workflow thread from text command', { error: String(err) });
             retrySend(() => message.reply(`❌ **Failed to create workflow thread:** ${err instanceof Error ? err.message : String(err)}`)).catch(() => {});
@@ -191,22 +219,15 @@ export async function initGateway(
         runtimeStore.agentExchangeCount.set(message.channelId, 0);
       }
 
-      const queueKeys = [
-        `binding:${processingContext.bindingKey}`,
-        `memory:${processingContext.sessionKey}`,
-      ];
-      const enqueued = runtimeStore.queue?.enqueue(queueKeys, async () => {
-        await processMessage(
-          message,
-          accepted,
-          config,
-          memory,
-          state,
-          processingContext,
-          runtimeStore.geminiSemaphore!,
-          extensionDir,
-        );
-      }) ?? false;
+      const enqueued = enqueueProcessingTurn({
+        message,
+        accepted,
+        config,
+        memory,
+        state,
+        processingContext,
+        extensionDir,
+      });
 
       if (!enqueued) {
         retrySend(() => chan.send('⏳ Too many pending messages for this conversation. Please wait a moment and retry.'))
@@ -262,6 +283,217 @@ export async function initGateway(
 
   await client.login(config.discordBotToken);
   log.info('Discord login initiated');
+}
+
+function enqueueInitialWorkflowRun(opts: {
+  message: Message;
+  accepted: AcceptedDiscordMessage;
+  thread: ThreadChannel;
+  task: string;
+  config: ReturnType<typeof loadConfig>;
+  memory: ConversationMemory;
+  state: DaemonState;
+  extensionDir: string;
+}): void {
+  const workflowMessage = buildWorkflowRunMessage(opts.message, opts.thread, opts.task);
+  const workflowAccepted = buildWorkflowRunAccepted(opts.accepted, opts.message, opts.thread, opts.task);
+  enqueueWorkflowRun({
+    message: workflowMessage,
+    accepted: workflowAccepted,
+    thread: opts.thread,
+    sourceMessageId: opts.message.id,
+    config: opts.config,
+    memory: opts.memory,
+    state: opts.state,
+    extensionDir: opts.extensionDir,
+  });
+}
+
+function enqueueInitialWorkflowInteractionRun(opts: {
+  interaction: CommandInteraction;
+  thread: ThreadChannel;
+  task: string;
+  roleContext: RoleContext;
+  config: ReturnType<typeof loadConfig>;
+  memory: ConversationMemory;
+  state: DaemonState;
+  extensionDir: string;
+}): void {
+  const workflowMessage = buildWorkflowInteractionRunMessage(opts.interaction, opts.thread, opts.task);
+  const workflowAccepted = buildWorkflowInteractionRunAccepted(opts.interaction, opts.thread, opts.task, opts.roleContext);
+  enqueueWorkflowRun({
+    message: workflowMessage,
+    accepted: workflowAccepted,
+    thread: opts.thread,
+    sourceMessageId: opts.interaction.id,
+    config: opts.config,
+    memory: opts.memory,
+    state: opts.state,
+    extensionDir: opts.extensionDir,
+  });
+}
+
+function enqueueWorkflowRun(opts: {
+  message: Message;
+  accepted: AcceptedDiscordMessage;
+  thread: ThreadChannel;
+  sourceMessageId: string;
+  config: ReturnType<typeof loadConfig>;
+  memory: ConversationMemory;
+  state: DaemonState;
+  extensionDir: string;
+}): void {
+  const processingContext = resolveProcessingContext(opts.config, opts.message, opts.accepted, opts.extensionDir);
+
+  runtimeStore.agentExchangeCount.set(opts.thread.id, 0);
+
+  const enqueued = enqueueProcessingTurn({
+    message: opts.message,
+    accepted: opts.accepted,
+    config: opts.config,
+    memory: opts.memory,
+    state: opts.state,
+    processingContext,
+    extensionDir: opts.extensionDir,
+  });
+
+  if (!enqueued) {
+    retrySend(() => opts.thread.send('⏳ Too many pending messages for this workflow. Please wait a moment and retry in the thread.'))
+      .catch(() => {});
+    return;
+  }
+
+  log.info('Initial workflow task enqueued', {
+    sourceMessageId: opts.sourceMessageId,
+    threadId: opts.thread.id,
+    sessionKey: processingContext.sessionKey,
+  });
+}
+
+function enqueueProcessingTurn(opts: {
+  message: Message;
+  accepted: AcceptedDiscordMessage;
+  config: ReturnType<typeof loadConfig>;
+  memory: ConversationMemory;
+  state: DaemonState;
+  processingContext: ProcessingContext;
+  extensionDir: string;
+}): boolean {
+  const queueKeys = [
+    `binding:${opts.processingContext.bindingKey}`,
+    `memory:${opts.processingContext.sessionKey}`,
+  ];
+
+  return runtimeStore.queue?.enqueue(queueKeys, async () => {
+    await processMessage(
+      opts.message,
+      opts.accepted,
+      opts.config,
+      opts.memory,
+      opts.state,
+      opts.processingContext,
+      runtimeStore.geminiSemaphore!,
+      opts.extensionDir,
+    );
+  }) ?? false;
+}
+
+export function buildWorkflowRunMessage(message: Message, thread: ThreadChannel, task: string): Message {
+  return new Proxy(message, {
+    get(target, prop, receiver) {
+      if (prop === 'channel') return thread;
+      if (prop === 'channelId') return thread.id;
+      if (prop === 'content') return task;
+      if (prop === 'guildId') return thread.guildId ?? target.guildId;
+      return Reflect.get(target, prop, receiver);
+    },
+  }) as Message;
+}
+
+export function buildWorkflowRunAccepted(
+  accepted: AcceptedDiscordMessage,
+  message: Message,
+  thread: ThreadChannel,
+  task: string,
+): AcceptedDiscordMessage {
+  return {
+    ...accepted,
+    content: task,
+    trigger: 'workflow',
+    origin: {
+      ...accepted.origin,
+      guildId: thread.guildId ?? message.guildId ?? null,
+      channelId: thread.id,
+      threadId: thread.id,
+      targetChannelId: thread.id,
+      messageId: message.id,
+      userId: message.author.id,
+    },
+    channelName: thread.name,
+    guildName: message.guild?.name ?? accepted.guildName,
+    replyToMessageId: null,
+    replyToAuthorId: null,
+    replyToAuthorName: null,
+    replyToContent: null,
+    replyToAttachments: [],
+    mentionContext: null,
+  };
+}
+
+export function buildWorkflowInteractionRunMessage(
+  interaction: CommandInteraction,
+  thread: ThreadChannel,
+  task: string,
+): Message {
+  const emptyAttachments = {
+    size: 0,
+    values: function* values() {
+      return;
+    },
+  };
+
+  return {
+    id: interaction.id,
+    content: task,
+    channel: thread,
+    channelId: thread.id,
+    guildId: thread.guildId ?? interaction.guildId ?? null,
+    guild: interaction.guild ?? null,
+    author: interaction.user,
+    client: interaction.client,
+    attachments: emptyAttachments,
+    reference: null,
+  } as unknown as Message;
+}
+
+export function buildWorkflowInteractionRunAccepted(
+  interaction: CommandInteraction,
+  thread: ThreadChannel,
+  task: string,
+  roleContext: RoleContext,
+): AcceptedDiscordMessage {
+  return {
+    content: task,
+    speakerKind: 'human',
+    trigger: 'workflow',
+    origin: {
+      guildId: thread.guildId ?? interaction.guildId ?? null,
+      channelId: thread.id,
+      threadId: thread.id,
+      targetChannelId: thread.id,
+      messageId: interaction.id,
+      userId: interaction.user.id,
+    },
+    channelName: thread.name,
+    guildName: interaction.guild?.name ?? null,
+    replyToMessageId: null,
+    replyToAuthorId: null,
+    replyToAuthorName: null,
+    replyToContent: null,
+    replyToAttachments: [],
+    mentionContext: null,
+    roleContext,
+  };
 }
 
 function resolveConversationAuthorBridgeRole(

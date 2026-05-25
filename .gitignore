@@ -16,6 +16,7 @@ secrets/
 dist-runtime/
 .openclaw-plugin-*/
 .gemini-discord/
+threads/
 .gemini-extension-install.json
 .daemon.pid
 .daemon-token

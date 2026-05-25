@@ -7,7 +7,8 @@ import {
   PermissionFlagsBits,
   AutocompleteInteraction,
   ApplicationIntegrationType,
-  InteractionContextType
+  InteractionContextType,
+  type ThreadChannel
 } from 'discord.js';
 import { log } from './log.js';
 import type { Config } from '../shared/types.js';
@@ -26,6 +27,13 @@ import {
   type RoleContext,
 } from './permissions.js';
 import { createWorkflowThread } from './workflow/thread-creator.js';
+
+export interface WorkflowThreadCreatedEvent {
+  interaction: CommandInteraction;
+  thread: ThreadChannel;
+  task: string;
+  roleContext: RoleContext;
+}
 
 /**
  * Slash command definitions.
@@ -177,7 +185,8 @@ export function setupInteractionHandler(
   config: Config,
   state: DaemonState,
   memory: ConversationMemory,
-  extensionDir: string
+  extensionDir: string,
+  onWorkflowThreadCreated?: (event: WorkflowThreadCreatedEvent) => void,
 ): void {
   client.on('interactionCreate', async (interaction) => {
     if (interaction.isAutocomplete()) {
@@ -342,7 +351,7 @@ Action: Reverted to \`${oldModel}\`.`);
       await interaction.deferReply();
 
       try {
-        const { threadId } = await createWorkflowThread(
+        const { threadId, thread } = await createWorkflowThread(
           client,
           config,
           extensionDir,
@@ -354,6 +363,7 @@ Action: Reverted to \`${oldModel}\`.`);
           }
         );
         await interaction.editReply(`🧹 **Monitored Workflow Thread Created:** <#${threadId}>`);
+        onWorkflowThreadCreated?.({ interaction, thread, task, roleContext });
       } catch (error) {
         log.error('Failed to create workflow thread from slash command', { error: error instanceof Error ? error.message : String(error) });
         await interaction.editReply(`❌ **Failed to create workflow thread:** ${error instanceof Error ? error.message : String(error)}`);
