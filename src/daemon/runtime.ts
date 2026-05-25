@@ -14,6 +14,13 @@ export interface WorkflowRuntimeRunRequest {
   roleContext?: RoleContext;
 }
 
+export interface WorkflowActiveRun {
+  requestMessageId: string;
+  channelId: string;
+  userContent: string;
+  startedAt: number;
+}
+
 export interface DaemonRuntime {
   client: Client | null;
   memory: ConversationMemory | null;
@@ -24,6 +31,8 @@ export interface DaemonRuntime {
   agentExchangeCount: Map<string, number>;
   lastInteractiveMessageAt: number | null;
   enqueueWorkflowRun: ((request: WorkflowRuntimeRunRequest) => boolean) | null;
+  activeWorkflowRuns: Map<string, WorkflowActiveRun>;
+  workflowResponseCandidates: Map<string, string>;
 }
 
 export const runtimeStore: DaemonRuntime = {
@@ -36,8 +45,11 @@ export const runtimeStore: DaemonRuntime = {
   agentExchangeCount: new Map<string, number>(),
   lastInteractiveMessageAt: null,
   enqueueWorkflowRun: null,
+  activeWorkflowRuns: new Map<string, WorkflowActiveRun>(),
+  workflowResponseCandidates: new Map<string, string>(),
 };
 
 export function getRuntime(): DaemonRuntime {
   return runtimeStore;
 }
+

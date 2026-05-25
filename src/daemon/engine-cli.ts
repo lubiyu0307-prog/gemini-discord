@@ -93,6 +93,7 @@ export async function processViaCli(
     return { response: responseText, messageIds, attachments: [], sessionId: undefined };
   }
 
+  const isWorkflow = isWorkflowThread(extensionDir, message.channelId);
   const allowPersistentSession = isBoss(accepted.roleContext) && config.useGeminiCliSessions;
   const bindingState = loadGeminiBindingState(processingContext.bindingDir);
   const resumeSessionId = allowPersistentSession
@@ -145,7 +146,6 @@ export async function processViaCli(
     const immediateContext = shouldUseImmediateMentionContext(accepted.trigger, accepted.content)
       ? selectImmediateMentionContext(memory.snapshot(processingContext.sessionKey), incomingPrompt)
       : [];
-    const isWorkflow = isWorkflowThread(extensionDir, message.channelId);
     let seedContextOverride: string | undefined;
     if (isWorkflow && !resumeSessionId) {
       const manifest = loadThreadManifest(extensionDir, message.channelId);
@@ -187,8 +187,9 @@ export async function processViaCli(
   let responseMessageIds: string[] = [];
   let currentSessionId: string | null = null;
 
-  const editor = config.streaming ? new LiveEditor({ placeholderDelayMs: null }) : null;
+  const editor = (config.streaming && !isWorkflow) ? new LiveEditor({ placeholderDelayMs: null }) : null;
   if (editor) await editor.init(channel);
+
 
   let feedbackMessageId: string | null = null;
   await geminiSemaphore.acquireWithTimeout(2000, () => {
@@ -248,13 +249,17 @@ export async function processViaCli(
         },
       );
 
-      const prepared = await finalizeAssistantResponse(response, message, isBoss(accepted.roleContext));
+      const prepared = await finalizeAssistantResponse(response, message, {
+        allowPrivilegedActions: isBoss(accepted.roleContext),
+        prependNewlines: isWorkflow,
+      });
       response = prepared.responseText;
       responseMessageIds = await editor.finalize(prepared.displayText, chunkMessage, {
         allowEmpty: prepared.allowEmpty,
         rawText: response,
       });
       responseMessageIds.push(...prepared.actionMessageIds);
+
       if (allowPersistentSession) {
         recordGeminiBindingSession(processingContext.bindingDir, currentSessionId ?? bindingState.lastSessionId);
       }
@@ -281,10 +286,26 @@ export async function processViaCli(
         );
         clearInterval(typingInterval);
 
-        const prepared = await finalizeAssistantResponse(response, message, isBoss(accepted.roleContext));
+        if (isWorkflow) {
+          if (allowPersistentSession) {
+            recordGeminiBindingSession(processingContext.bindingDir, currentSessionId ?? bindingState.lastSessionId);
+          }
+          return {
+            response,
+            messageIds: [],
+            attachments: attachmentMetadata,
+            sessionId: currentSessionId ?? bindingState.lastSessionId ?? undefined,
+          };
+        }
+
+        const prepared = await finalizeAssistantResponse(response, message, {
+          allowPrivilegedActions: isBoss(accepted.roleContext),
+          prependNewlines: isWorkflow,
+        });
         response = prepared.responseText;
         responseMessageIds = await sendPreparedDisplayText(channel, prepared.displayText);
         responseMessageIds.push(...prepared.actionMessageIds);
+
         if (allowPersistentSession) {
           recordGeminiBindingSession(processingContext.bindingDir, currentSessionId ?? bindingState.lastSessionId);
         }
@@ -300,10 +321,14 @@ export async function processViaCli(
       }
     }
   } catch (err) {
+    if (isWorkflow) {
+      throw err;
+    }
     if (editor) await editor.sendError(formatError(err));
     else await retrySend(() => channel.send(formatError(err))).catch(() => {});
     return { response: '', messageIds: [], sessionId: currentSessionId ?? bindingState.lastSessionId ?? undefined };
   } finally {
+
     geminiSemaphore.release();
     if (feedbackMessageId) {
       channel.messages.delete(feedbackMessageId).catch(() => {});
@@ -330,26 +355,42 @@ export interface FinalizedAssistantResponse {
   actionMessageIds: string[];
 }
 
+export interface FinalizeOptions {
+  allowPrivilegedActions: boolean;
+  prependNewlines?: boolean;
+}
+
 export async function finalizeAssistantResponse(
   rawResponse: string,
   message: Message,
-  allowPrivilegedActions: boolean,
+  options: FinalizeOptions,
 ): Promise<FinalizedAssistantResponse> {
   // 1. Strip CoT and internal thinking blocks early
   const sanitized = sanitizeFullResponse(rawResponse);
 
   // 2. Handle cross-channel send directives
   const actionResult = await processCrossChannelSends(sanitized, message.client, {
-    allowPrivileged: allowPrivilegedActions,
+    allowPrivileged: options.allowPrivilegedActions,
   });
 
+  let displayText = actionResult.cleanedResponse;
+  const trimmed = displayText.trim();
+  if (trimmed && !trimmed.includes('\n') && !trimmed.startsWith('✦')) {
+    displayText = `✦ ${trimmed}`;
+  }
+
+  if (options.prependNewlines && trimmed) {
+    displayText = `\n\n${displayText}`;
+  }
+
   return {
-    displayText: actionResult.cleanedResponse,
+    displayText: displayText,
     responseText: actionResult.cleanedResponse,
     allowEmpty: true,
     actionMessageIds: actionResult.messageIds,
   };
 }
+
 
 export async function sendPreparedDisplayText(
   channel: TextChannel | DMChannel | NewsChannel,

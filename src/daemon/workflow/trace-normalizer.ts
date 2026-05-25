@@ -1,6 +1,9 @@
 import type { TraceEvent, TraceEventType } from './trace-event.js';
 import { resolveToolEntry } from './tool-registry.js';
 import { redactTraceArgs, redactTraceResult, redactTraceText, redactFilePath } from './redaction.js';
+import { runtimeStore } from '../runtime.js';
+import { isExplicitSendToCurrentThread } from './policy.js';
+
 
 function stringifyTraceValue(value: unknown, toolName?: string): string {
   if (value === null || value === undefined) return '';
@@ -281,6 +284,24 @@ export function normalizeAcpUpdate(
       const redactedResult = redactTraceResult(resultText, 200);
       const redactedDetail = redactTraceText(resultText, 12000);
 
+      const isDiscordMessage = toolEntry.canonical === 'discord_message';
+      let policySuppressed = false;
+      let intercepted = false;
+      if (isDiscordMessage) {
+        const targetChannelId = String(rawArgs['channel_id'] || rawArgs['channelId'] || '');
+        const activeRun = targetChannelId ? runtimeStore.activeWorkflowRuns.get(targetChannelId) : null;
+        if (activeRun) {
+          if (!isExplicitSendToCurrentThread(activeRun.userContent)) {
+            policySuppressed = true;
+          }
+        }
+        const rawOutput = updatePayload['rawOutput'];
+        if (rawOutput && typeof rawOutput === 'object' && (rawOutput as any).intercepted === true) {
+          intercepted = true;
+          policySuppressed = true;
+        }
+      }
+
       return {
         type: statusInfo.type,
         timestamp,
@@ -293,6 +314,8 @@ export function normalizeAcpUpdate(
         durationMs,
         resultSummary: redactedResult.summary || null,
         resultDetail: redactedDetail.text || redactedResult.summary || null,
+        policySuppressed,
+        intercepted,
         artifactRef: null,
         redactionMetadata: {
           fieldsRedacted,
@@ -300,6 +323,7 @@ export function normalizeAcpUpdate(
         },
         raw: updatePayload,
       };
+
     }
 
     const id = typeof toolCall['id'] === 'string' ? toolCall['id'] : '';
@@ -387,6 +411,23 @@ export function normalizeAcpUpdate(
       }
     }
 
+    const isDiscordMessage = name === 'discord_message' || toolEntry.canonical === 'discord_message';
+    let policySuppressed = false;
+    let intercepted = false;
+    if (isDiscordMessage) {
+      const targetChannelId = String(rawArgs['channel_id'] || rawArgs['channelId'] || '');
+      const activeRun = targetChannelId ? runtimeStore.activeWorkflowRuns.get(targetChannelId) : null;
+      if (activeRun) {
+        if (!isExplicitSendToCurrentThread(activeRun.userContent)) {
+          policySuppressed = true;
+        }
+      }
+      if (result && typeof result === 'object' && (result as any).intercepted === true) {
+        intercepted = true;
+        policySuppressed = true;
+      }
+    }
+
     return {
       type,
       timestamp,
@@ -399,6 +440,8 @@ export function normalizeAcpUpdate(
       durationMs,
       resultSummary,
       resultDetail,
+      policySuppressed,
+      intercepted,
       artifactRef,
       redactionMetadata: {
         fieldsRedacted,
@@ -406,6 +449,7 @@ export function normalizeAcpUpdate(
       },
       raw: updatePayload,
     };
+
   }
 
   return null;

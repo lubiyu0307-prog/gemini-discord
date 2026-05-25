@@ -246,7 +246,8 @@ describe('workflow trace events & renderer integration', () => {
     expect(event!.args.command).toBe('cd /tmp && npm test');
 
     const rendered = new TraceRendererRegistry().render(event!);
-    expect(rendered.content).toContain('Shell cd /tmp && npm test');
+    expect(rendered.content).toContain('cd /tmp');
+    expect(rendered.content).toContain('npm test');
     expect(rendered.content).toContain('passed');
     expect(rendered.embeds).toBeUndefined();
   });
@@ -384,6 +385,71 @@ describe('workflow trace events & renderer integration', () => {
 
     expect(mockChannel.send).toHaveBeenCalledTimes(2);
     expect(toolMessage.edit).not.toHaveBeenCalled();
-    expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('`1` tool calls'));
+    expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('`1` tool call'));
+  });
+
+  it('does not count update_topic as a tool call and only renders it at most once', async () => {
+    const header = { id: 'header', edit: vi.fn().mockResolvedValue(undefined) };
+    const mockChannel = {
+      send: vi.fn().mockResolvedValue(header),
+    } as any;
+
+    const registry = new TraceRendererRegistry();
+    const dispatcher = new TraceDispatcher(mockChannel, registry);
+
+    await dispatcher.dispatchRunHeader({
+      threadId: 'thread-1',
+      parentChannelId: 'parent-1',
+      guildId: 'guild-1',
+      creatorUserId: 'user-1',
+      starterMessageId: 'message-1',
+      createdAt: new Date().toISOString(),
+      mode: 'monitored_workflow',
+      taskSummary: 'Fix routing',
+      traceMode: 'compact',
+      originContext: { type: 'channel', sourceChannelId: 'parent-1' },
+    });
+
+    // 1st update_topic completed (should render)
+    await dispatcher.dispatch({
+      type: 'tool_completed',
+      timestamp: Date.now(),
+      toolName: 'update_topic',
+      canonicalToolName: 'update_topic',
+      displayName: 'UpdateTopic',
+      toolFamily: 'planning',
+      args: { topic: 'Searching chapter' },
+      status: 'completed',
+      durationMs: 10,
+      resultSummary: 'Topic: Searching chapter\nSummary: Looking up chapter number',
+      artifactRef: null,
+      redactionMetadata: { fieldsRedacted: [], truncated: false },
+      raw: { toolCallId: 'topic-1' },
+    });
+
+    // 2nd update_topic completed (should be suppressed / not render)
+    await dispatcher.dispatch({
+      type: 'tool_completed',
+      timestamp: Date.now(),
+      toolName: 'update_topic',
+      canonicalToolName: 'update_topic',
+      displayName: 'UpdateTopic',
+      toolFamily: 'planning',
+      args: { topic: 'Searching chapter again' },
+      status: 'completed',
+      durationMs: 10,
+      resultSummary: 'Topic: Searching chapter again\nSummary: Looking up chapter number again',
+      artifactRef: null,
+      redactionMetadata: { fieldsRedacted: [], truncated: false },
+      raw: { toolCallId: 'topic-2' },
+    });
+
+    await dispatcher.dispatchRunComplete();
+
+    // Channel send should have been called twice (once for header, once for 1st update_topic)
+    expect(mockChannel.send).toHaveBeenCalledTimes(2);
+    // Header should contain '0 tool calls' because update_topic is not counted
+    expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('`0` tool calls'));
   });
 });
+

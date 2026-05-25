@@ -77,9 +77,175 @@ function intArg(args: Record<string, unknown>, ...keys: string[]): number | null
 function shortPath(path: string): string {
   if (!path) return '';
   const normalized = path.replace(/\\/g, '/');
+  if (normalized.startsWith('/Users/yamato/')) {
+    return normalized.replace(/^\/Users\/yamato\//, '~/');
+  } else if (normalized === '/Users/yamato') {
+    return '~';
+  }
   const parts = normalized.split('/').filter(Boolean);
   if (parts.length <= 4) return normalized;
   return `${parts[0]}/.../${parts.slice(-2).join('/')}`;
+}
+
+function splitCommand(cmd: string): string[] {
+  const subCmds: string[] = [];
+  let current = '';
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let inHeredoc = false;
+  let heredocMarker = '';
+
+  const lines = cmd.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (inHeredoc) {
+      const trimmedLine = line.trim();
+      const markerRegex = new RegExp(`^${heredocMarker}\\b\\s*(?:&&|;)?(.*)$`);
+      const markerMatch = trimmedLine.match(markerRegex);
+
+      if (markerMatch) {
+        current += '\n' + heredocMarker;
+        inHeredoc = false;
+        heredocMarker = '';
+        subCmds.push(current.trim());
+        current = '';
+
+        const remainingOnLine = markerMatch[1].trim();
+        if (remainingOnLine) {
+          const remainingSubCmds = splitCommand(remainingOnLine);
+          subCmds.push(...remainingSubCmds);
+        }
+        continue;
+      }
+
+      current += '\n' + line;
+      continue;
+    }
+
+    const heredocMatch = line.match(/<<\s*['"]?(\w+)['"]?/);
+    if (heredocMatch) {
+      inHeredoc = true;
+      heredocMarker = heredocMatch[1];
+      const beforeHeredoc = line.substring(0, heredocMatch.index).trim();
+      const catMatch = beforeHeredoc.match(/(.*?)\bcat\s*$/i);
+      if (catMatch) {
+        let left = catMatch[1].trim();
+        if (left.endsWith('&&')) {
+          left = left.slice(0, -2).trim();
+        }
+        if (left) {
+          subCmds.push(left);
+        }
+        current = 'cat ' + line.substring(heredocMatch.index!);
+      } else {
+        if (beforeHeredoc) {
+          subCmds.push(beforeHeredoc);
+        }
+        current = line.substring(heredocMatch.index!);
+      }
+      continue;
+    }
+
+    let startIdx = 0;
+    for (let j = 0; j < line.length; j++) {
+      const char = line[j];
+      if (char === "'" && !inDoubleQuote) {
+        inSingleQuote = !inSingleQuote;
+      } else if (char === '"' && !inSingleQuote) {
+        inDoubleQuote = !inDoubleQuote;
+      } else if (!inSingleQuote && !inDoubleQuote) {
+        if (line.startsWith('&&', j)) {
+          const part = line.substring(startIdx, j).trim();
+          const combined = (current ? current + ' ' : '') + part;
+          if (combined.trim()) subCmds.push(combined.trim());
+          current = '';
+          j++;
+          startIdx = j + 1;
+        } else if (char === ';') {
+          const part = line.substring(startIdx, j).trim();
+          const combined = (current ? current + ' ' : '') + part;
+          if (combined.trim()) subCmds.push(combined.trim());
+          current = '';
+          startIdx = j + 1;
+        }
+      }
+    }
+    const remaining = line.substring(startIdx).trim();
+    if (remaining) {
+      current = (current ? current + ' ' : '') + remaining;
+    }
+    
+    if (current.trim()) {
+      subCmds.push(current.trim());
+      current = '';
+    }
+  }
+  if (current.trim()) {
+    subCmds.push(current.trim());
+  }
+  return subCmds.map(c => c.trim()).filter(Boolean);
+}
+
+function parseHeredocTarget(cmd: string): { file: string; lines: number; content: string } | null {
+  const match = cmd.match(/(?:cat\s*<<\s*['"]?(\w+)['"]?\s*>\s*(\S+)|cat\s*>\s*(\S+)\s*<<\s*['"]?(\w+)['"]?)/i);
+  if (!match) return null;
+  const file = shortPath(match[2] || match[3] || '');
+  const marker = match[1] || match[4] || 'EOF';
+  
+  const lines = cmd.split(/\r?\n/);
+  const contentLines: string[] = [];
+  let inContent = false;
+  for (const line of lines) {
+    if (inContent) {
+      if (line.trim() === marker) {
+        break;
+      }
+      contentLines.push(line);
+    } else if (line.includes('<<') && line.includes(marker)) {
+      inContent = true;
+    }
+  }
+  return {
+    file,
+    lines: contentLines.length,
+    content: contentLines.join('\n'),
+  };
+}
+
+function summarizeCommand(cmd: string): string {
+  const collapsed = cmd.replace(/\/Users\/yamato\//g, '~/').trim();
+  
+  if (collapsed.startsWith('mkdir -p ')) {
+    return `mkdir -p ${shortPath(collapsed.substring(9))}`;
+  }
+  const heredoc = parseHeredocTarget(collapsed);
+  if (heredoc) {
+    return `cat << 'EOF' > ${heredoc.file}`;
+  }
+  if (collapsed.includes('python')) {
+    const match = collapsed.match(/(?:^|\/|~)(?:python3|python)\s+(\S+)/);
+    if (match) {
+      return `python3 ${shortPath(match[1])}`;
+    }
+  }
+  
+  if (collapsed.length <= 120) return collapsed;
+  return collapsed.slice(0, 117) + '...';
+}
+
+function truncateLines(text: string, maxLines = 10, keepEnd = false): string {
+  const lines = text.trimEnd().split(/\r?\n/);
+  if (lines.length <= maxLines) return text;
+  
+  if (keepEnd) {
+    const hiddenCount = lines.length - maxLines;
+    const preview = lines.slice(hiddenCount).join('\n');
+    return `... first ${hiddenCount} lines hidden ...\n${preview}`;
+  } else {
+    const hiddenCount = lines.length - maxLines;
+    const preview = lines.slice(0, maxLines).join('\n');
+    return `${preview}\n... ${hiddenCount} lines truncated ...`;
+  }
 }
 
 function truncate(text: string, maxLength: number): string {
@@ -263,20 +429,82 @@ export class ShellRenderer implements ToolRenderer {
 
   render(event: TraceEvent): RenderedTrace {
     const command = shellCommand(event);
-    const title = shellTitle(event, command);
     if (boolArg(event.args, 'is_background', 'isBackground')) {
-      const detail = event.status === 'completed'
-        ? 'Command moved to background. Output hidden.'
-        : 'Starting background command...';
-      return panel(event, title, detail);
+      const statusText = event.status === 'completed' ? ' → Moved to background' : ' → Starting in background...';
+      return {
+        content: `${statusGlyph(event.status)} **Shell** ${inlineCode(summarizeCommand(command))}${statusText}`,
+        density: 'row',
+        flags: flags(),
+      };
     }
 
-    if (event.status === 'started' || event.status === 'progress') {
+    if (event.status === 'started') {
       return suppressed();
     }
 
+    if (event.status === 'progress') {
+      return {
+        content: `${statusGlyph(event.status)} **Shell** ${inlineCode(summarizeCommand(command))}`,
+        density: 'row',
+        flags: flags(),
+      };
+    }
+
+    const subCmds = splitCommand(command);
+    const lines: string[] = [];
+    let hasHeredoc = false;
+    let heredocFile = '';
+    let heredocContent = '';
+    let isPureDirectory = true;
+
+    for (const sub of subCmds) {
+      const heredoc = parseHeredocTarget(sub);
+      if (heredoc) {
+        hasHeredoc = true;
+        heredocFile = heredoc.file;
+        heredocContent = heredoc.content;
+        isPureDirectory = false;
+        const glyph = statusGlyph(event.status);
+        lines.push(`${glyph} **WriteFile** ${inlineCode(heredoc.file)} → Created (+${heredoc.lines}, -0)`);
+      } else {
+        const isDir = sub.startsWith('mkdir') || sub.startsWith('ls -d') || sub.startsWith('cd ') || sub === 'cd';
+        if (!isDir) {
+          isPureDirectory = false;
+        }
+        const glyph = statusGlyph(event.status);
+        lines.push(`${glyph} **Shell** ${inlineCode(summarizeCommand(sub))}`);
+      }
+    }
+
+    const previewLines: string[] = [];
+    if (hasHeredoc && heredocContent) {
+      const truncatedPreview = truncateLines(heredocContent, 10);
+      previewLines.push(outputBlock(languageForPath(heredocFile), truncatedPreview));
+    }
+
     const detail = event.resultDetail || event.resultSummary || '';
-    return panel(event, title, detail);
+    if (detail.trim() && !isPureDirectory) {
+      const attachment = attachmentFor(event, detail);
+      const truncatedOutput = truncateLines(detail, 10, event.status === 'failed');
+      previewLines.push(outputBlock('txt', truncatedOutput));
+      if (attachment) {
+        previewLines.push('↳ full output attached');
+      }
+    }
+
+    const content = [
+      ...lines,
+      ...previewLines,
+    ].join('\n');
+
+    const attachment = !isPureDirectory ? attachmentFor(event, detail) : null;
+
+    return {
+      content,
+      files: attachment ? [attachment] : undefined,
+      density: previewLines.length > 0 ? 'panel' : 'row',
+      flags: flags(),
+    };
   }
 }
 
@@ -296,37 +524,70 @@ export class FilesystemRenderer implements ToolRenderer {
     if (canonical === 'replace') {
       const added = intArg(event.args, 'added', 'lines_added');
       const removed = intArg(event.args, 'removed', 'lines_removed');
-      const summary = event.resultSummary || 'Accepted';
       const delta = added !== null || removed !== null ? ` (+${added ?? 0}, -${removed ?? 0})` : '';
       const newContent = event.resultDetail ? diffNewContent(event.resultDetail) : '';
-      return card(event, `Edit ${path ? inlineCode(shortPath(path)) : ''} → ${summary}${delta}`, [
-        newContent ? outputBlock(languageForPath(path), detailLines(newContent, 28)) : '',
-      ]);
+      return {
+        content: [
+          `${statusGlyph(event.status)} **Edit** ${path ? inlineCode(shortPath(path)) : ''} → Accepted${delta}`,
+          newContent ? outputBlock(languageForPath(path), truncateLines(newContent, 10)) : '',
+        ].filter(Boolean).join('\n'),
+        density: newContent ? 'panel' : 'row',
+        flags: flags(),
+      };
     }
 
     if (canonical === 'write_file') {
       const detail = event.resultDetail || '';
       const newContent = diffNewContent(detail) || detail;
-      return card(event, `WriteFile ${path ? inlineCode(shortPath(path)) : ''}${resultSuffix(event, 'Accepted')}`, [
-        newContent ? outputBlock(languageForPath(path), detailLines(newContent, 28)) : '',
-      ]);
+      const statusText = event.status === 'completed' ? ' → Created/Updated' : '';
+      return {
+        content: [
+          `${statusGlyph(event.status)} **WriteFile** ${path ? inlineCode(shortPath(path)) : ''}${statusText}`,
+          newContent ? outputBlock(languageForPath(path), truncateLines(newContent, 10)) : '',
+        ].filter(Boolean).join('\n'),
+        density: newContent ? 'card' : 'row',
+        flags: flags(),
+      };
     }
 
     if (canonical === 'read_file') {
-      return row(event, `${path ? inlineCode(shortPath(path)) : ''} → ${readFileResult(event)}`);
+      const detail = event.resultDetail || '';
+      return {
+        content: [
+          `${statusGlyph(event.status)} **ReadFile** ${path ? inlineCode(shortPath(path)) : ''} → ${readFileResult(event)}`,
+          detail ? outputBlock(languageForPath(path), truncateLines(detail, 10)) : '',
+        ].filter(Boolean).join('\n'),
+        density: detail ? 'panel' : 'row',
+        flags: flags(),
+      };
     }
 
     if (canonical === 'read_many_files') {
       const include = stringArg(event.args, 'include');
-      return row(event, `${include ? inlineCode(include) : 'files'}${resultSuffix(event, 'Read files')}`);
+      const filesCount = event.resultSummary?.match(/Read\s+(\d+)\s+file/i)?.[1] || 'n';
+      return {
+        content: `${statusGlyph(event.status)} **ReadManyFiles** ${include ? inlineCode(include) : 'files'}\n↳ Read ${filesCount} file(s)`,
+        density: 'card',
+        flags: flags(),
+      };
     }
 
     if (canonical === 'list_directory') {
       const dir = stringArg(event.args, 'dir_path', 'path');
-      return row(event, `${dir ? inlineCode(shortPath(dir)) : 'directory'}${resultSuffix(event, 'Listed directory')}`);
+      const countMatch = event.resultSummary?.match(/(\d+)\s+entries|(\d+)\s+files|listed\s+(\d+)/i);
+      const count = countMatch?.[1] || countMatch?.[2] || countMatch?.[3] || 'n';
+      return {
+        content: `${statusGlyph(event.status)} **ListDirectory** ${dir ? inlineCode(shortPath(dir)) : 'directory'} → Listed ${count} entries`,
+        density: 'row',
+        flags: flags(),
+      };
     }
 
-    return row(event, `${path ? inlineCode(shortPath(path)) : ''}${resultSuffix(event)}`);
+    return {
+      content: `${statusGlyph(event.status)} **${event.displayName || event.toolName}** ${path ? inlineCode(shortPath(path)) : ''}${resultSuffix(event)}`,
+      density: 'row',
+      flags: flags(),
+    };
   }
 }
 
@@ -340,10 +601,35 @@ export class SearchRenderer implements ToolRenderer {
       return suppressed();
     }
 
+    const canonical = event.canonicalToolName;
     const query = searchTarget(event);
     const dir = stringArg(event.args, 'dir_path', 'path');
+
+    if (canonical === 'grep_search') {
+      const matchCount = event.resultSummary?.match(/Found\s+(\d+)\s+matches/i)?.[1] || 'n';
+      const dirText = dir ? ` in ${inlineCode(shortPath(dir))}` : '';
+      return {
+        content: `${statusGlyph(event.status)} **SearchText** '${query}'${dirText} → Found ${matchCount} matches`,
+        density: 'row',
+        flags: flags(),
+      };
+    }
+
+    if (canonical === 'glob') {
+      const fileCount = event.resultSummary?.match(/Found\s+(\d+)\s+files/i)?.[1] || 'n';
+      return {
+        content: `${statusGlyph(event.status)} **Glob** ${query ? inlineCode(query) : 'pattern'} → Found ${fileCount} files`,
+        density: 'row',
+        flags: flags(),
+      };
+    }
+
     const within = dir ? ` within ${inlineCode(shortPath(dir))}` : '';
-    return row(event, `${query ? inlineCode(query) : ''}${within}${resultSuffix(event)}`);
+    return {
+      content: `${statusGlyph(event.status)} **${event.displayName || event.toolName}** ${query ? inlineCode(query) : ''}${within}${resultSuffix(event)}`,
+      density: 'row',
+      flags: flags(),
+    };
   }
 }
 
@@ -353,23 +639,41 @@ export class WebRenderer implements ToolRenderer {
   }
 
   render(event: TraceEvent): RenderedTrace {
-    if (event.status === 'started' || event.status === 'progress') {
-      return suppressed();
+    const canonical = event.canonicalToolName;
+    const query = stringArg(event.args, 'query', 'prompt', 'url', 'Url');
+
+    if (canonical === 'google_web_search') {
+      if (event.status === 'started' || event.status === 'progress') {
+        return {
+          content: `${statusGlyph(event.status)} **GoogleSearch**  Searching the web for: \`"${oneLine(query, 120)}"\``,
+          density: 'row',
+          flags: flags(),
+        };
+      }
+      
+      const resultText = event.status === 'completed'
+        ? `↳ Search results for \`"${oneLine(query, 120)}"\` returned.`
+        : `↳ Failed or cancelled search.`;
+
+      return {
+        content: `${statusGlyph(event.status)} **GoogleSearch**  Searching the web for: \`"${oneLine(query, 120)}"\`\n${resultText}`,
+        density: 'row',
+        flags: flags(),
+      };
     }
 
-    const query = stringArg(event.args, 'query', 'prompt', 'url', 'Url');
-    const title = event.displayName || (event.canonicalToolName === 'google_web_search' ? 'GoogleSearch' : 'Web');
-    const action = event.canonicalToolName === 'google_web_search' ? 'Searching the web for:' : 'Fetching';
-    const body = query ? `${action} "${oneLine(query, 180)}"` : '';
-    if (event.resultDetail && event.resultDetail.length > 500) {
-      return transcript(event, `${title} ${body}`.trim(), event.resultDetail);
+    if (event.status === 'started' || event.status === 'progress') {
+      return {
+        content: `${statusGlyph(event.status)} **WebFetch** "${oneLine(query, 120)}"`,
+        density: 'row',
+        flags: flags(),
+      };
     }
+
+    const title = event.displayName || 'WebFetch';
     return {
-      content: [
-        terminalLine(event, title, body),
-        event.resultSummary ? `↳ ${oneLine(event.resultSummary, 240)}` : '',
-      ].filter(Boolean).join('\n'),
-      density: 'card',
+      content: `${statusGlyph(event.status)} **${title}** ${query ? inlineCode(query) : ''}${resultSuffix(event, 'Content retrieved')}`,
+      density: 'row',
       flags: flags(),
     };
   }
@@ -377,17 +681,47 @@ export class WebRenderer implements ToolRenderer {
 
 export class PlanningRenderer implements ToolRenderer {
   canRender(event: TraceEvent): boolean {
-    return event.toolFamily === 'planning' || event.type === 'phase_started';
+    const isUpdateTopic = event.canonicalToolName === 'update_topic' ||
+      event.toolName === 'update_topic' ||
+      !!event.displayName?.toLowerCase().includes('update topic') ||
+      !!event.displayName?.toLowerCase().includes('updatetopic');
+    return event.toolFamily === 'planning' || event.type === 'phase_started' || isUpdateTopic;
   }
 
   render(event: TraceEvent): RenderedTrace {
-    if (event.canonicalToolName === 'update_topic') {
+    const isUpdateTopic = event.canonicalToolName === 'update_topic' ||
+      event.toolName === 'update_topic' ||
+      !!event.displayName?.toLowerCase().includes('update topic') ||
+      !!event.displayName?.toLowerCase().includes('updatetopic');
+
+    if (isUpdateTopic) {
       if (event.status === 'started' || event.status === 'progress') {
         return suppressed();
       }
-      const title = stringArg(event.args, 'topic', 'title') || event.resultSummary?.match(/Topic:\s*([^\n]+)/)?.[1] || '';
+      const title = stringArg(event.args, 'topic', 'title') ||
+        event.resultSummary?.match(/Topic:\s*([^\n]+)/)?.[1] ||
+        event.displayName?.replace(/^Update\s+topic\s+to\s*/i, '') ||
+        '';
+
+      let summaryLine = stringArg(event.args, 'summary');
+      if (!summaryLine) {
+        const summaryMatch = event.resultSummary?.match(/Summary:\s*([^\n]+)/i);
+        if (summaryMatch) {
+          summaryLine = summaryMatch[1];
+        }
+      }
+      if (summaryLine) {
+        summaryLine = summaryLine.trim().split(/\r?\n/)[0];
+        summaryLine = summaryLine.replace(/^(Strategy|Intent|Summary):\s*/i, '');
+        summaryLine = oneLine(summaryLine, 120);
+      }
+      
+      const content = summaryLine
+        ? `**${oneLine(title, 120)}:** ${summaryLine}`
+        : `**${oneLine(title, 120)}**`;
+
       return {
-        content: title ? `**Topic:** ${oneLine(title, 120)}` : '',
+        content: title ? content : '',
         density: 'row',
         suppressed: !title,
         flags: flags(),
@@ -413,13 +747,33 @@ export class McpRenderer implements ToolRenderer {
   }
 
   render(event: TraceEvent): RenderedTrace {
+    const rawToolName = event.toolName || '';
+    let serverName = '';
+    if (rawToolName.includes('/')) {
+      serverName = rawToolName.split('/')[0];
+    } else if (rawToolName.startsWith('mcp_')) {
+      const parts = rawToolName.split('_');
+      if (parts.length > 1) {
+        serverName = parts[1];
+      }
+    }
+    if (!serverName) serverName = 'mcp';
+
+    const args = compactArgs(event.args, ['namespace', 'query', 'name', 'path', 'uri', 'prompt']);
     if (event.status === 'started' || event.status === 'progress') {
-      return suppressed();
+      return {
+        content: `${statusGlyph(event.status)} **MCPTool** (${serverName}) ${args ? `{${args}}` : ''}`,
+        density: 'row',
+        flags: flags(),
+      };
     }
 
-    const args = compactArgs(event.args, ['namespace', 'query', 'name', 'path', 'uri']);
-    const result = event.resultSummary ? `→ ${event.resultSummary}` : '';
-    return card(event, event.displayName || event.toolName || 'MCP', [args, result]);
+    const resultText = event.resultSummary ? ` → ${oneLine(event.resultSummary, 120)}` : '';
+    return {
+      content: `${statusGlyph(event.status)} **MCPTool** (${serverName}) ${args ? `{${args}}` : ''}${resultText}`,
+      density: 'row',
+      flags: flags(),
+    };
   }
 }
 
@@ -444,16 +798,22 @@ export class GenericFallbackRenderer implements ToolRenderer {
   }
 
   render(event: TraceEvent): RenderedTrace {
-    if (event.status === 'started' || event.status === 'progress') {
-      return suppressed();
-    }
-
     const args = compactArgs(event.args, Object.keys(event.args));
     const title = event.displayName || event.toolName || 'Tool';
-    if (event.resultDetail && event.resultDetail.length > 500) {
-      return panel(event, title, event.resultDetail);
+    if (event.status === 'started' || event.status === 'progress') {
+      return {
+        content: `${statusGlyph(event.status)} **${title}** ${args ? `\`{${args}}\`` : ''}`,
+        density: 'row',
+        flags: flags(),
+      };
     }
-    return card(event, title, [args, event.resultSummary ? `→ ${event.resultSummary}` : '']);
+
+    const result = event.resultSummary ? ` → ${oneLine(event.resultSummary, 120)}` : '';
+    return {
+      content: `${statusGlyph(event.status)} **${title}** ${args ? `\`{${args}}\`` : ''}${result}`,
+      density: 'row',
+      flags: flags(),
+    };
   }
 }
 

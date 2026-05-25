@@ -25,6 +25,8 @@ export interface TraceEvent {
   resultSummary: string | null;      // short safe result text
   resultDetail?: string | null;      // longer safe result text for panels/attachments
   artifactRef: string | null;        // optional file/log/diff reference
+  policySuppressed?: boolean;        // true if tool execution was suppressed by turn policy (e.g. intercepted discord_message)
+  intercepted?: boolean;             // true if tool call was captured as final response candidate instead of posting to Discord
   redactionMetadata: {
     fieldsRedacted: string[];
     truncated: boolean;

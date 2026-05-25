@@ -19,7 +19,7 @@ import { log } from './log.js';
 import { registerGuildCommands, setupInteractionHandler } from './commands.js';
 import { buildGuildChannelMap } from './channels.js';
 import { buildGuildUserMap } from './users.js';
-import { processViaCli, resolveProcessingContext, formatError, type ProcessingContext } from './engine-cli.js';
+import { processViaCli, resolveProcessingContext, formatError, type ProcessingContext, finalizeAssistantResponse, sendPreparedDisplayText } from './engine-cli.js';
 import { retrySend } from './retry.js';
 import { resolveToolMode, type ToolMode } from './tool-mode.js';
 import { getSupportedAttachmentMetadata } from './attachments.js';
@@ -743,6 +743,13 @@ async function processMessage(
       if (manifest) {
         await traceDispatcher.dispatchRunHeader(manifest);
       }
+
+      runtimeStore.activeWorkflowRuns.set(message.channelId, {
+        requestMessageId: message.id,
+        channelId: message.channelId,
+        userContent: accepted.content,
+        startedAt: Date.now(),
+      });
     }
 
     const traceCallbacks = traceDispatcher ? {
@@ -751,15 +758,46 @@ async function processMessage(
       }
     } : undefined;
 
-    const result = await processViaCli(
-      message, accepted, config, memory, processingContext, geminiSemaphore, channel, toolMode, extensionDir, traceCallbacks,
-    );
-    response = result.response;
-    responseMessageIds = result.messageIds;
-    effectiveAttachmentMetadata = result.attachments ?? attachmentMetadata;
-    geminiSessionId = result.sessionId;
-    if (traceDispatcher) {
-      await traceDispatcher.dispatchRunComplete();
+    try {
+      const result = await processViaCli(
+        message, accepted, config, memory, processingContext, geminiSemaphore, channel, toolMode, extensionDir, traceCallbacks,
+      );
+      response = result.response;
+      responseMessageIds = result.messageIds;
+      effectiveAttachmentMetadata = result.attachments ?? attachmentMetadata;
+      geminiSessionId = result.sessionId;
+
+      if (traceDispatcher) {
+        await traceDispatcher.dispatchRunComplete();
+      }
+
+      const candidateKey = `${message.id}:${message.channelId}`;
+      const candidate = runtimeStore.workflowResponseCandidates.get(candidateKey);
+      if (isWorkflow) {
+        if (!response.trim() && candidate) {
+          response = candidate;
+        }
+        runtimeStore.workflowResponseCandidates.delete(candidateKey);
+
+        if (response.trim().length > 0) {
+          const prepared = await finalizeAssistantResponse(response, message, {
+            allowPrivilegedActions: isBoss(accepted.roleContext),
+            prependNewlines: false,
+          });
+          response = prepared.responseText;
+          const finalMsgIds = await sendPreparedDisplayText(channel as any, prepared.displayText);
+          responseMessageIds.push(...finalMsgIds);
+          responseMessageIds.push(...prepared.actionMessageIds);
+        }
+      }
+    } catch (err) {
+      const candidateKey = `${message.id}:${message.channelId}`;
+      runtimeStore.workflowResponseCandidates.delete(candidateKey);
+      throw err;
+    } finally {
+      if (isWorkflow) {
+        runtimeStore.activeWorkflowRuns.delete(message.channelId);
+      }
     }
 
     if (response.trim().length > 0 || responseMessageIds.length > 0) {

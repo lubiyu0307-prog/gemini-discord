@@ -5,6 +5,8 @@ import { resolveDiscoveredChannel } from '../channels.js';
 import { log } from '../log.js';
 import { runtimeStore } from '../runtime.js';
 import { validateWorkflowTaskSummary, WorkflowTaskValidationError } from '../workflow/task-validation.js';
+import { isWorkflowThread } from '../workflow/thread-manifest.js';
+import { isExplicitSendToCurrentThread } from '../workflow/policy.js';
 import {
   respond,
   authorizeApiAction,
@@ -14,6 +16,7 @@ import {
   isWritableTarget,
   type ApiDependencies,
 } from '../api-utils.js';
+
 
 export async function handleMessageRoutes(
   req: http.IncomingMessage,
@@ -75,7 +78,27 @@ export async function handleMessageRoutes(
       }
 
       const silent = parsed['silent'] === true;
+
+      if (channelId && isWorkflowThread(extensionDir, channelId)) {
+        const activeRun = runtimeStore.activeWorkflowRuns.get(channelId);
+        if (activeRun && !isExplicitSendToCurrentThread(activeRun.userContent)) {
+          // Intercept and bypass actual Discord send
+          const key = `${activeRun.requestMessageId}:${channelId}`;
+          runtimeStore.workflowResponseCandidates.set(key, content);
+          respond(res, 200, {
+            ok: true,
+            intercepted: true,
+            chunks: 0,
+            messageIds: [],
+            channel_id: channelId,
+            note: "Captured as final response candidate for current workflow thread; no Discord send was performed."
+          });
+          return true;
+        }
+      }
+
       const messageIds = await sendDiscordMessage(channel, content, chunkMessage, { files, silent });
+
 
       const sessionKey = resolveConversationSessionKey(
         config,
@@ -135,9 +158,29 @@ export async function handleMessageRoutes(
         return true;
       }
 
-      const msg = await channel.messages.fetch(messageId);
       const silent = parsed['silent'] === true;
+      const msg = await channel.messages.fetch(messageId);
+
+      if (channelId && isWorkflowThread(extensionDir, channelId)) {
+        const activeRun = runtimeStore.activeWorkflowRuns.get(channelId);
+        if (activeRun && !isExplicitSendToCurrentThread(activeRun.userContent)) {
+          // Intercept and bypass actual Discord send
+          const key = `${activeRun.requestMessageId}:${channelId}`;
+          runtimeStore.workflowResponseCandidates.set(key, content);
+          respond(res, 200, {
+            ok: true,
+            intercepted: true,
+            chunks: 0,
+            messageIds: [],
+            channel_id: channelId,
+            note: "Captured as final response candidate for current workflow thread; no Discord send was performed."
+          });
+          return true;
+        }
+      }
+
       const messageIds = await sendDiscordMessage(channel, content, chunkMessage, { replyTo: msg, files, silent });
+
 
       const sessionKey = resolveConversationSessionKey(
         config,

@@ -46632,7 +46632,7 @@ var require_dist8 = __commonJS({
        */
       addTextDisplayComponents(...components) {
         const normalized = normalizeArray(components);
-        const resolved = normalized.map((row2) => resolveBuilder(row2, TextDisplayBuilder));
+        const resolved = normalized.map((row) => resolveBuilder(row, TextDisplayBuilder));
         this.components.push(...resolved);
         return this;
       }
@@ -46644,7 +46644,7 @@ var require_dist8 = __commonJS({
        */
       addActionRowComponents(...components) {
         const normalized = normalizeArray(components);
-        const resolved = normalized.map((row2) => resolveBuilder(row2, ActionRowBuilder));
+        const resolved = normalized.map((row) => resolveBuilder(row, ActionRowBuilder));
         this.components.push(...resolved);
         return this;
       }
@@ -76634,7 +76634,7 @@ function resolveSessionKey(memoryScope, channelId, dmUserId) {
 }
 function buildDiscordPrompt(options) {
   const history = options.history ?? [];
-  const { transcript: transcript2, omittedCount } = buildTranscript(
+  const { transcript, omittedCount } = buildTranscript(
     history,
     options.promptHistoryMessageLimit ?? DEFAULT_PROMPT_HISTORY_MESSAGE_LIMIT,
     options.promptHistoryCharBudget ?? DEFAULT_PROMPT_HISTORY_CHAR_BUDGET,
@@ -76642,7 +76642,7 @@ function buildDiscordPrompt(options) {
     options.ownerIds
   );
   const historyBlock = omittedCount > 0 ? `(${omittedCount} earlier messages omitted)
-${transcript2}` : transcript2;
+${transcript}` : transcript;
   const immediateContextBlock = formatImmediateMentionContextBlock(options.immediateContext, {
     bossUserId: options.bossUserId,
     allowedAgentIds: options.allowedAgentIds,
@@ -77728,7 +77728,9 @@ var init_runtime = __esm({
       isShuttingDown: false,
       agentExchangeCount: /* @__PURE__ */ new Map(),
       lastInteractiveMessageAt: null,
-      enqueueWorkflowRun: null
+      enqueueWorkflowRun: null,
+      activeWorkflowRuns: /* @__PURE__ */ new Map(),
+      workflowResponseCandidates: /* @__PURE__ */ new Map()
     };
   }
 });
@@ -89082,6 +89084,7 @@ async function processViaCli(message, accepted, config, memory, processingContex
     const messageIds = await sendPreparedDisplayText(channel, responseText);
     return { response: responseText, messageIds, attachments: [], sessionId: void 0 };
   }
+  const isWorkflow = isWorkflowThread(extensionDir2, message.channelId);
   const allowPersistentSession = isBoss(accepted.roleContext) && config.useGeminiCliSessions;
   const bindingState = loadGeminiBindingState(processingContext.bindingDir);
   const resumeSessionId = allowPersistentSession ? resolveBindingResumeSessionId(bindingState) : null;
@@ -89118,7 +89121,6 @@ async function processViaCli(message, accepted, config, memory, processingContex
   }) : void 0;
   if (allowPersistentSession) {
     const immediateContext = shouldUseImmediateMentionContext(accepted.trigger, accepted.content) ? selectImmediateMentionContext(memory.snapshot(processingContext.sessionKey), incomingPrompt) : [];
-    const isWorkflow = isWorkflowThread(extensionDir2, message.channelId);
     let seedContextOverride;
     if (isWorkflow && !resumeSessionId) {
       const manifest = loadThreadManifest(extensionDir2, message.channelId);
@@ -89156,7 +89158,7 @@ async function processViaCli(message, accepted, config, memory, processingContex
   let response = "";
   let responseMessageIds = [];
   let currentSessionId = null;
-  const editor = config.streaming ? new LiveEditor({ placeholderDelayMs: null }) : null;
+  const editor = config.streaming && !isWorkflow ? new LiveEditor({ placeholderDelayMs: null }) : null;
   if (editor) await editor.init(channel);
   let feedbackMessageId = null;
   await geminiSemaphore.acquireWithTimeout(2e3, () => {
@@ -89210,7 +89212,10 @@ async function processViaCli(message, accepted, config, memory, processingContex
           onTraceEvent: traceCallbacks?.onTraceEvent
         }
       );
-      const prepared = await finalizeAssistantResponse(response, message, isBoss(accepted.roleContext));
+      const prepared = await finalizeAssistantResponse(response, message, {
+        allowPrivilegedActions: isBoss(accepted.roleContext),
+        prependNewlines: isWorkflow
+      });
       response = prepared.responseText;
       responseMessageIds = await editor.finalize(prepared.displayText, chunkMessage, {
         allowEmpty: prepared.allowEmpty,
@@ -89244,7 +89249,21 @@ async function processViaCli(message, accepted, config, memory, processingContex
           }
         );
         clearInterval(typingInterval);
-        const prepared = await finalizeAssistantResponse(response, message, isBoss(accepted.roleContext));
+        if (isWorkflow) {
+          if (allowPersistentSession) {
+            recordGeminiBindingSession(processingContext.bindingDir, currentSessionId ?? bindingState.lastSessionId);
+          }
+          return {
+            response,
+            messageIds: [],
+            attachments: attachmentMetadata,
+            sessionId: currentSessionId ?? bindingState.lastSessionId ?? void 0
+          };
+        }
+        const prepared = await finalizeAssistantResponse(response, message, {
+          allowPrivilegedActions: isBoss(accepted.roleContext),
+          prependNewlines: isWorkflow
+        });
         response = prepared.responseText;
         responseMessageIds = await sendPreparedDisplayText(channel, prepared.displayText);
         responseMessageIds.push(...prepared.actionMessageIds);
@@ -89263,6 +89282,9 @@ async function processViaCli(message, accepted, config, memory, processingContex
       }
     }
   } catch (err) {
+    if (isWorkflow) {
+      throw err;
+    }
     if (editor) await editor.sendError(formatError(err));
     else await retrySend(() => channel.send(formatError(err))).catch(() => {
     });
@@ -89288,13 +89310,23 @@ async function processViaCli(message, accepted, config, memory, processingContex
     }
   }
 }
-async function finalizeAssistantResponse(rawResponse, message, allowPrivilegedActions) {
+async function finalizeAssistantResponse(rawResponse, message, options) {
   const sanitized = sanitizeFullResponse(rawResponse);
   const actionResult = await processCrossChannelSends(sanitized, message.client, {
-    allowPrivileged: allowPrivilegedActions
+    allowPrivileged: options.allowPrivilegedActions
   });
+  let displayText = actionResult.cleanedResponse;
+  const trimmed = displayText.trim();
+  if (trimmed && !trimmed.includes("\n") && !trimmed.startsWith("\u2726")) {
+    displayText = `\u2726 ${trimmed}`;
+  }
+  if (options.prependNewlines && trimmed) {
+    displayText = `
+
+${displayText}`;
+  }
   return {
-    displayText: actionResult.cleanedResponse,
+    displayText,
     responseText: actionResult.cleanedResponse,
     allowEmpty: true,
     actionMessageIds: actionResult.messageIds
@@ -89731,9 +89763,162 @@ function intArg(args, ...keys) {
 function shortPath(path14) {
   if (!path14) return "";
   const normalized = path14.replace(/\\/g, "/");
+  if (normalized.startsWith("/Users/yamato/")) {
+    return normalized.replace(/^\/Users\/yamato\//, "~/");
+  } else if (normalized === "/Users/yamato") {
+    return "~";
+  }
   const parts = normalized.split("/").filter(Boolean);
   if (parts.length <= 4) return normalized;
   return `${parts[0]}/.../${parts.slice(-2).join("/")}`;
+}
+function splitCommand(cmd) {
+  const subCmds = [];
+  let current = "";
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let inHeredoc = false;
+  let heredocMarker = "";
+  const lines = cmd.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (inHeredoc) {
+      const trimmedLine = line.trim();
+      const markerRegex = new RegExp(`^${heredocMarker}\\b\\s*(?:&&|;)?(.*)$`);
+      const markerMatch = trimmedLine.match(markerRegex);
+      if (markerMatch) {
+        current += "\n" + heredocMarker;
+        inHeredoc = false;
+        heredocMarker = "";
+        subCmds.push(current.trim());
+        current = "";
+        const remainingOnLine = markerMatch[1].trim();
+        if (remainingOnLine) {
+          const remainingSubCmds = splitCommand(remainingOnLine);
+          subCmds.push(...remainingSubCmds);
+        }
+        continue;
+      }
+      current += "\n" + line;
+      continue;
+    }
+    const heredocMatch = line.match(/<<\s*['"]?(\w+)['"]?/);
+    if (heredocMatch) {
+      inHeredoc = true;
+      heredocMarker = heredocMatch[1];
+      const beforeHeredoc = line.substring(0, heredocMatch.index).trim();
+      const catMatch = beforeHeredoc.match(/(.*?)\bcat\s*$/i);
+      if (catMatch) {
+        let left = catMatch[1].trim();
+        if (left.endsWith("&&")) {
+          left = left.slice(0, -2).trim();
+        }
+        if (left) {
+          subCmds.push(left);
+        }
+        current = "cat " + line.substring(heredocMatch.index);
+      } else {
+        if (beforeHeredoc) {
+          subCmds.push(beforeHeredoc);
+        }
+        current = line.substring(heredocMatch.index);
+      }
+      continue;
+    }
+    let startIdx = 0;
+    for (let j = 0; j < line.length; j++) {
+      const char = line[j];
+      if (char === "'" && !inDoubleQuote) {
+        inSingleQuote = !inSingleQuote;
+      } else if (char === '"' && !inSingleQuote) {
+        inDoubleQuote = !inDoubleQuote;
+      } else if (!inSingleQuote && !inDoubleQuote) {
+        if (line.startsWith("&&", j)) {
+          const part = line.substring(startIdx, j).trim();
+          const combined = (current ? current + " " : "") + part;
+          if (combined.trim()) subCmds.push(combined.trim());
+          current = "";
+          j++;
+          startIdx = j + 1;
+        } else if (char === ";") {
+          const part = line.substring(startIdx, j).trim();
+          const combined = (current ? current + " " : "") + part;
+          if (combined.trim()) subCmds.push(combined.trim());
+          current = "";
+          startIdx = j + 1;
+        }
+      }
+    }
+    const remaining = line.substring(startIdx).trim();
+    if (remaining) {
+      current = (current ? current + " " : "") + remaining;
+    }
+    if (current.trim()) {
+      subCmds.push(current.trim());
+      current = "";
+    }
+  }
+  if (current.trim()) {
+    subCmds.push(current.trim());
+  }
+  return subCmds.map((c) => c.trim()).filter(Boolean);
+}
+function parseHeredocTarget(cmd) {
+  const match = cmd.match(/(?:cat\s*<<\s*['"]?(\w+)['"]?\s*>\s*(\S+)|cat\s*>\s*(\S+)\s*<<\s*['"]?(\w+)['"]?)/i);
+  if (!match) return null;
+  const file = shortPath(match[2] || match[3] || "");
+  const marker = match[1] || match[4] || "EOF";
+  const lines = cmd.split(/\r?\n/);
+  const contentLines = [];
+  let inContent = false;
+  for (const line of lines) {
+    if (inContent) {
+      if (line.trim() === marker) {
+        break;
+      }
+      contentLines.push(line);
+    } else if (line.includes("<<") && line.includes(marker)) {
+      inContent = true;
+    }
+  }
+  return {
+    file,
+    lines: contentLines.length,
+    content: contentLines.join("\n")
+  };
+}
+function summarizeCommand(cmd) {
+  const collapsed = cmd.replace(/\/Users\/yamato\//g, "~/").trim();
+  if (collapsed.startsWith("mkdir -p ")) {
+    return `mkdir -p ${shortPath(collapsed.substring(9))}`;
+  }
+  const heredoc = parseHeredocTarget(collapsed);
+  if (heredoc) {
+    return `cat << 'EOF' > ${heredoc.file}`;
+  }
+  if (collapsed.includes("python")) {
+    const match = collapsed.match(/(?:^|\/|~)(?:python3|python)\s+(\S+)/);
+    if (match) {
+      return `python3 ${shortPath(match[1])}`;
+    }
+  }
+  if (collapsed.length <= 120) return collapsed;
+  return collapsed.slice(0, 117) + "...";
+}
+function truncateLines(text, maxLines = 10, keepEnd = false) {
+  const lines = text.trimEnd().split(/\r?\n/);
+  if (lines.length <= maxLines) return text;
+  if (keepEnd) {
+    const hiddenCount = lines.length - maxLines;
+    const preview = lines.slice(hiddenCount).join("\n");
+    return `... first ${hiddenCount} lines hidden ...
+${preview}`;
+  } else {
+    const hiddenCount = lines.length - maxLines;
+    const preview = lines.slice(0, maxLines).join("\n");
+    return `${preview}
+... ${hiddenCount} lines truncated ...`;
+  }
 }
 function truncate2(text, maxLength) {
   if (text.length <= maxLength) return text;
@@ -89789,12 +89974,6 @@ function outputBlock(language, text) {
   const value = text.trimEnd();
   return value ? codeBlock(language, value) : "";
 }
-function detailLines(detail, maxLines) {
-  const lines = detail.trimEnd().split(/\r?\n/);
-  const preview = lines.slice(0, maxLines).join("\n");
-  return lines.length > maxLines ? `${preview}
-...` : preview;
-}
 function languageForPath(path14) {
   const ext = path14.split(".").pop()?.toLowerCase();
   switch (ext) {
@@ -89821,44 +90000,6 @@ function languageForPath(path14) {
 function diffNewContent(detail) {
   const marker = detail.match(/\+\+\+ new\n([\s\S]*)$/);
   return marker?.[1]?.trimEnd() ?? "";
-}
-function cleanDisplayName(event, fallback) {
-  const display = event.displayName || fallback;
-  return display.replace(/\s+/g, " ").trim();
-}
-function shellTitle(event, command) {
-  const displayName = cleanDisplayName(event, "Shell");
-  if (!command) return displayName === "Shell command" ? "Shell" : displayName;
-  if (displayName === "Shell command" || displayName === "Shell") {
-    return `Shell ${truncate2(command, 140)}`;
-  }
-  return displayName.includes(command) ? displayName : `${displayName} ${truncate2(command, 140)}`;
-}
-function transcript(event, title, detail, language = "txt") {
-  const attachment = attachmentFor(event, detail);
-  const preview = truncate2(detailLines(detail || event.resultSummary || "", 24), PANEL_INLINE_LIMIT);
-  const lines = [
-    terminalLine(event, title),
-    preview ? `
-${outputBlock(language, preview)}` : "",
-    attachment ? "\u21B3 full output attached" : ""
-  ].filter(Boolean);
-  return {
-    content: lines.join("\n"),
-    files: attachment ? [attachment] : void 0,
-    density: "panel",
-    flags: flags()
-  };
-}
-function row(event, body) {
-  return {
-    content: terminalLine(event, event.displayName || event.toolName || "Tool", body),
-    density: "row",
-    flags: flags()
-  };
-}
-function panel(event, title, detail, language = "txt") {
-  return transcript(event, title, detail, language);
 }
 function card(event, title, lines) {
   return {
@@ -89887,13 +90028,12 @@ function readFileResult(event) {
   if (start !== null && limit !== null) return `Read lines ${start}-${start + limit}`;
   return event.resultSummary ? truncate2(event.resultSummary.replace(/\s+/g, " "), 180) : "Read file";
 }
-var import_discord7, TRACE_LIMIT, PANEL_INLINE_LIMIT, ATTACHMENT_THRESHOLD, ShellRenderer, FilesystemRenderer, SearchRenderer, WebRenderer, PlanningRenderer, McpRenderer, InteractionRenderer, GenericFallbackRenderer, TraceRendererRegistry;
+var import_discord7, TRACE_LIMIT, ATTACHMENT_THRESHOLD, ShellRenderer, FilesystemRenderer, SearchRenderer, WebRenderer, PlanningRenderer, McpRenderer, InteractionRenderer, GenericFallbackRenderer, TraceRendererRegistry;
 var init_trace_renderer = __esm({
   "src/daemon/workflow/trace-renderer.ts"() {
     "use strict";
     import_discord7 = __toESM(require_src(), 1);
     TRACE_LIMIT = 1900;
-    PANEL_INLINE_LIMIT = 900;
     ATTACHMENT_THRESHOLD = 1200;
     ShellRenderer = class {
       canRender(event) {
@@ -89901,16 +90041,73 @@ var init_trace_renderer = __esm({
       }
       render(event) {
         const command = shellCommand(event);
-        const title = shellTitle(event, command);
         if (boolArg(event.args, "is_background", "isBackground")) {
-          const detail2 = event.status === "completed" ? "Command moved to background. Output hidden." : "Starting background command...";
-          return panel(event, title, detail2);
+          const statusText = event.status === "completed" ? " \u2192 Moved to background" : " \u2192 Starting in background...";
+          return {
+            content: `${statusGlyph(event.status)} **Shell** ${inlineCode(summarizeCommand(command))}${statusText}`,
+            density: "row",
+            flags: flags()
+          };
         }
-        if (event.status === "started" || event.status === "progress") {
+        if (event.status === "started") {
           return suppressed();
         }
+        if (event.status === "progress") {
+          return {
+            content: `${statusGlyph(event.status)} **Shell** ${inlineCode(summarizeCommand(command))}`,
+            density: "row",
+            flags: flags()
+          };
+        }
+        const subCmds = splitCommand(command);
+        const lines = [];
+        let hasHeredoc = false;
+        let heredocFile = "";
+        let heredocContent = "";
+        let isPureDirectory = true;
+        for (const sub of subCmds) {
+          const heredoc = parseHeredocTarget(sub);
+          if (heredoc) {
+            hasHeredoc = true;
+            heredocFile = heredoc.file;
+            heredocContent = heredoc.content;
+            isPureDirectory = false;
+            const glyph = statusGlyph(event.status);
+            lines.push(`${glyph} **WriteFile** ${inlineCode(heredoc.file)} \u2192 Created (+${heredoc.lines}, -0)`);
+          } else {
+            const isDir = sub.startsWith("mkdir") || sub.startsWith("ls -d") || sub.startsWith("cd ") || sub === "cd";
+            if (!isDir) {
+              isPureDirectory = false;
+            }
+            const glyph = statusGlyph(event.status);
+            lines.push(`${glyph} **Shell** ${inlineCode(summarizeCommand(sub))}`);
+          }
+        }
+        const previewLines = [];
+        if (hasHeredoc && heredocContent) {
+          const truncatedPreview = truncateLines(heredocContent, 10);
+          previewLines.push(outputBlock(languageForPath(heredocFile), truncatedPreview));
+        }
         const detail = event.resultDetail || event.resultSummary || "";
-        return panel(event, title, detail);
+        if (detail.trim() && !isPureDirectory) {
+          const attachment2 = attachmentFor(event, detail);
+          const truncatedOutput = truncateLines(detail, 10, event.status === "failed");
+          previewLines.push(outputBlock("txt", truncatedOutput));
+          if (attachment2) {
+            previewLines.push("\u21B3 full output attached");
+          }
+        }
+        const content = [
+          ...lines,
+          ...previewLines
+        ].join("\n");
+        const attachment = !isPureDirectory ? attachmentFor(event, detail) : null;
+        return {
+          content,
+          files: attachment ? [attachment] : void 0,
+          density: previewLines.length > 0 ? "panel" : "row",
+          flags: flags()
+        };
       }
     };
     FilesystemRenderer = class {
@@ -89926,32 +90123,66 @@ var init_trace_renderer = __esm({
         if (canonical === "replace") {
           const added = intArg(event.args, "added", "lines_added");
           const removed = intArg(event.args, "removed", "lines_removed");
-          const summary = event.resultSummary || "Accepted";
           const delta = added !== null || removed !== null ? ` (+${added ?? 0}, -${removed ?? 0})` : "";
           const newContent = event.resultDetail ? diffNewContent(event.resultDetail) : "";
-          return card(event, `Edit ${path14 ? inlineCode(shortPath(path14)) : ""} \u2192 ${summary}${delta}`, [
-            newContent ? outputBlock(languageForPath(path14), detailLines(newContent, 28)) : ""
-          ]);
+          return {
+            content: [
+              `${statusGlyph(event.status)} **Edit** ${path14 ? inlineCode(shortPath(path14)) : ""} \u2192 Accepted${delta}`,
+              newContent ? outputBlock(languageForPath(path14), truncateLines(newContent, 10)) : ""
+            ].filter(Boolean).join("\n"),
+            density: newContent ? "panel" : "row",
+            flags: flags()
+          };
         }
         if (canonical === "write_file") {
           const detail = event.resultDetail || "";
           const newContent = diffNewContent(detail) || detail;
-          return card(event, `WriteFile ${path14 ? inlineCode(shortPath(path14)) : ""}${resultSuffix(event, "Accepted")}`, [
-            newContent ? outputBlock(languageForPath(path14), detailLines(newContent, 28)) : ""
-          ]);
+          const statusText = event.status === "completed" ? " \u2192 Created/Updated" : "";
+          return {
+            content: [
+              `${statusGlyph(event.status)} **WriteFile** ${path14 ? inlineCode(shortPath(path14)) : ""}${statusText}`,
+              newContent ? outputBlock(languageForPath(path14), truncateLines(newContent, 10)) : ""
+            ].filter(Boolean).join("\n"),
+            density: newContent ? "card" : "row",
+            flags: flags()
+          };
         }
         if (canonical === "read_file") {
-          return row(event, `${path14 ? inlineCode(shortPath(path14)) : ""} \u2192 ${readFileResult(event)}`);
+          const detail = event.resultDetail || "";
+          return {
+            content: [
+              `${statusGlyph(event.status)} **ReadFile** ${path14 ? inlineCode(shortPath(path14)) : ""} \u2192 ${readFileResult(event)}`,
+              detail ? outputBlock(languageForPath(path14), truncateLines(detail, 10)) : ""
+            ].filter(Boolean).join("\n"),
+            density: detail ? "panel" : "row",
+            flags: flags()
+          };
         }
         if (canonical === "read_many_files") {
           const include = stringArg(event.args, "include");
-          return row(event, `${include ? inlineCode(include) : "files"}${resultSuffix(event, "Read files")}`);
+          const filesCount = event.resultSummary?.match(/Read\s+(\d+)\s+file/i)?.[1] || "n";
+          return {
+            content: `${statusGlyph(event.status)} **ReadManyFiles** ${include ? inlineCode(include) : "files"}
+\u21B3 Read ${filesCount} file(s)`,
+            density: "card",
+            flags: flags()
+          };
         }
         if (canonical === "list_directory") {
           const dir = stringArg(event.args, "dir_path", "path");
-          return row(event, `${dir ? inlineCode(shortPath(dir)) : "directory"}${resultSuffix(event, "Listed directory")}`);
+          const countMatch = event.resultSummary?.match(/(\d+)\s+entries|(\d+)\s+files|listed\s+(\d+)/i);
+          const count = countMatch?.[1] || countMatch?.[2] || countMatch?.[3] || "n";
+          return {
+            content: `${statusGlyph(event.status)} **ListDirectory** ${dir ? inlineCode(shortPath(dir)) : "directory"} \u2192 Listed ${count} entries`,
+            density: "row",
+            flags: flags()
+          };
         }
-        return row(event, `${path14 ? inlineCode(shortPath(path14)) : ""}${resultSuffix(event)}`);
+        return {
+          content: `${statusGlyph(event.status)} **${event.displayName || event.toolName}** ${path14 ? inlineCode(shortPath(path14)) : ""}${resultSuffix(event)}`,
+          density: "row",
+          flags: flags()
+        };
       }
     };
     SearchRenderer = class {
@@ -89962,10 +90193,32 @@ var init_trace_renderer = __esm({
         if (event.status === "started" || event.status === "progress") {
           return suppressed();
         }
+        const canonical = event.canonicalToolName;
         const query = searchTarget(event);
         const dir = stringArg(event.args, "dir_path", "path");
+        if (canonical === "grep_search") {
+          const matchCount = event.resultSummary?.match(/Found\s+(\d+)\s+matches/i)?.[1] || "n";
+          const dirText = dir ? ` in ${inlineCode(shortPath(dir))}` : "";
+          return {
+            content: `${statusGlyph(event.status)} **SearchText** '${query}'${dirText} \u2192 Found ${matchCount} matches`,
+            density: "row",
+            flags: flags()
+          };
+        }
+        if (canonical === "glob") {
+          const fileCount = event.resultSummary?.match(/Found\s+(\d+)\s+files/i)?.[1] || "n";
+          return {
+            content: `${statusGlyph(event.status)} **Glob** ${query ? inlineCode(query) : "pattern"} \u2192 Found ${fileCount} files`,
+            density: "row",
+            flags: flags()
+          };
+        }
         const within = dir ? ` within ${inlineCode(shortPath(dir))}` : "";
-        return row(event, `${query ? inlineCode(query) : ""}${within}${resultSuffix(event)}`);
+        return {
+          content: `${statusGlyph(event.status)} **${event.displayName || event.toolName}** ${query ? inlineCode(query) : ""}${within}${resultSuffix(event)}`,
+          density: "row",
+          flags: flags()
+        };
       }
     };
     WebRenderer = class {
@@ -89973,38 +90226,66 @@ var init_trace_renderer = __esm({
         return event.toolFamily === "web";
       }
       render(event) {
-        if (event.status === "started" || event.status === "progress") {
-          return suppressed();
-        }
+        const canonical = event.canonicalToolName;
         const query = stringArg(event.args, "query", "prompt", "url", "Url");
-        const title = event.displayName || (event.canonicalToolName === "google_web_search" ? "GoogleSearch" : "Web");
-        const action = event.canonicalToolName === "google_web_search" ? "Searching the web for:" : "Fetching";
-        const body = query ? `${action} "${oneLine(query, 180)}"` : "";
-        if (event.resultDetail && event.resultDetail.length > 500) {
-          return transcript(event, `${title} ${body}`.trim(), event.resultDetail);
+        if (canonical === "google_web_search") {
+          if (event.status === "started" || event.status === "progress") {
+            return {
+              content: `${statusGlyph(event.status)} **GoogleSearch**  Searching the web for: \`"${oneLine(query, 120)}"\``,
+              density: "row",
+              flags: flags()
+            };
+          }
+          const resultText = event.status === "completed" ? `\u21B3 Search results for \`"${oneLine(query, 120)}"\` returned.` : `\u21B3 Failed or cancelled search.`;
+          return {
+            content: `${statusGlyph(event.status)} **GoogleSearch**  Searching the web for: \`"${oneLine(query, 120)}"\`
+${resultText}`,
+            density: "row",
+            flags: flags()
+          };
         }
+        if (event.status === "started" || event.status === "progress") {
+          return {
+            content: `${statusGlyph(event.status)} **WebFetch** "${oneLine(query, 120)}"`,
+            density: "row",
+            flags: flags()
+          };
+        }
+        const title = event.displayName || "WebFetch";
         return {
-          content: [
-            terminalLine(event, title, body),
-            event.resultSummary ? `\u21B3 ${oneLine(event.resultSummary, 240)}` : ""
-          ].filter(Boolean).join("\n"),
-          density: "card",
+          content: `${statusGlyph(event.status)} **${title}** ${query ? inlineCode(query) : ""}${resultSuffix(event, "Content retrieved")}`,
+          density: "row",
           flags: flags()
         };
       }
     };
     PlanningRenderer = class {
       canRender(event) {
-        return event.toolFamily === "planning" || event.type === "phase_started";
+        const isUpdateTopic = event.canonicalToolName === "update_topic" || event.toolName === "update_topic" || !!event.displayName?.toLowerCase().includes("update topic") || !!event.displayName?.toLowerCase().includes("updatetopic");
+        return event.toolFamily === "planning" || event.type === "phase_started" || isUpdateTopic;
       }
       render(event) {
-        if (event.canonicalToolName === "update_topic") {
+        const isUpdateTopic = event.canonicalToolName === "update_topic" || event.toolName === "update_topic" || !!event.displayName?.toLowerCase().includes("update topic") || !!event.displayName?.toLowerCase().includes("updatetopic");
+        if (isUpdateTopic) {
           if (event.status === "started" || event.status === "progress") {
             return suppressed();
           }
-          const title = stringArg(event.args, "topic", "title") || event.resultSummary?.match(/Topic:\s*([^\n]+)/)?.[1] || "";
+          const title = stringArg(event.args, "topic", "title") || event.resultSummary?.match(/Topic:\s*([^\n]+)/)?.[1] || event.displayName?.replace(/^Update\s+topic\s+to\s*/i, "") || "";
+          let summaryLine = stringArg(event.args, "summary");
+          if (!summaryLine) {
+            const summaryMatch = event.resultSummary?.match(/Summary:\s*([^\n]+)/i);
+            if (summaryMatch) {
+              summaryLine = summaryMatch[1];
+            }
+          }
+          if (summaryLine) {
+            summaryLine = summaryLine.trim().split(/\r?\n/)[0];
+            summaryLine = summaryLine.replace(/^(Strategy|Intent|Summary):\s*/i, "");
+            summaryLine = oneLine(summaryLine, 120);
+          }
+          const content = summaryLine ? `**${oneLine(title, 120)}:** ${summaryLine}` : `**${oneLine(title, 120)}**`;
           return {
-            content: title ? `**Topic:** ${oneLine(title, 120)}` : "",
+            content: title ? content : "",
             density: "row",
             suppressed: !title,
             flags: flags()
@@ -90027,12 +90308,31 @@ var init_trace_renderer = __esm({
         return event.toolFamily === "mcp";
       }
       render(event) {
-        if (event.status === "started" || event.status === "progress") {
-          return suppressed();
+        const rawToolName = event.toolName || "";
+        let serverName = "";
+        if (rawToolName.includes("/")) {
+          serverName = rawToolName.split("/")[0];
+        } else if (rawToolName.startsWith("mcp_")) {
+          const parts = rawToolName.split("_");
+          if (parts.length > 1) {
+            serverName = parts[1];
+          }
         }
-        const args = compactArgs(event.args, ["namespace", "query", "name", "path", "uri"]);
-        const result = event.resultSummary ? `\u2192 ${event.resultSummary}` : "";
-        return card(event, event.displayName || event.toolName || "MCP", [args, result]);
+        if (!serverName) serverName = "mcp";
+        const args = compactArgs(event.args, ["namespace", "query", "name", "path", "uri", "prompt"]);
+        if (event.status === "started" || event.status === "progress") {
+          return {
+            content: `${statusGlyph(event.status)} **MCPTool** (${serverName}) ${args ? `{${args}}` : ""}`,
+            density: "row",
+            flags: flags()
+          };
+        }
+        const resultText = event.resultSummary ? ` \u2192 ${oneLine(event.resultSummary, 120)}` : "";
+        return {
+          content: `${statusGlyph(event.status)} **MCPTool** (${serverName}) ${args ? `{${args}}` : ""}${resultText}`,
+          density: "row",
+          flags: flags()
+        };
       }
     };
     InteractionRenderer = class {
@@ -90052,15 +90352,21 @@ var init_trace_renderer = __esm({
         return true;
       }
       render(event) {
-        if (event.status === "started" || event.status === "progress") {
-          return suppressed();
-        }
         const args = compactArgs(event.args, Object.keys(event.args));
         const title = event.displayName || event.toolName || "Tool";
-        if (event.resultDetail && event.resultDetail.length > 500) {
-          return panel(event, title, event.resultDetail);
+        if (event.status === "started" || event.status === "progress") {
+          return {
+            content: `${statusGlyph(event.status)} **${title}** ${args ? `\`{${args}}\`` : ""}`,
+            density: "row",
+            flags: flags()
+          };
         }
-        return card(event, title, [args, event.resultSummary ? `\u2192 ${event.resultSummary}` : ""]);
+        const result = event.resultSummary ? ` \u2192 ${oneLine(event.resultSummary, 120)}` : "";
+        return {
+          content: `${statusGlyph(event.status)} **${title}** ${args ? `\`{${args}}\`` : ""}${result}`,
+          density: "row",
+          flags: flags()
+        };
       }
     };
     TraceRendererRegistry = class {
@@ -90120,9 +90426,47 @@ var init_trace_dispatcher = __esm({
       seenToolCallIds = /* @__PURE__ */ new Set();
       hasTraceEvents = false;
       heartbeatTimer = null;
+      fallbackCounters = /* @__PURE__ */ new Map();
+      lastEditTimes = /* @__PURE__ */ new Map();
+      renderedTopic = false;
+      topicMessage = null;
+      getEffectiveToolCallId(event) {
+        const id = resolveToolCallId(event);
+        if (id) return id;
+        if (!event.canonicalToolName) return null;
+        const baseKey = `fallback:${event.canonicalToolName}`;
+        if (!this.fallbackCounters.has(baseKey)) {
+          this.fallbackCounters.set(baseKey, 1);
+        }
+        let count = this.fallbackCounters.get(baseKey);
+        if (event.status === "started" || event.type === "tool_started") {
+          if (this.activeMessages.has(`${baseKey}:${count}`)) {
+            count += 1;
+            this.fallbackCounters.set(baseKey, count);
+          }
+        }
+        return `${baseKey}:${count}`;
+      }
       async dispatch(event) {
         try {
+          if (event.policySuppressed) {
+            this.hasTraceEvents = true;
+            if (event.displayName || event.toolName) {
+              this.currentStep = event.displayName || event.toolName;
+            }
+            await this.updateRunHeader("running");
+            return;
+          }
           const rendered = this.registry.render(event);
+          const isUpdateTopic = event.canonicalToolName === "update_topic" || event.toolName === "update_topic" || event.displayName?.toLowerCase().includes("update topic") || event.displayName?.toLowerCase().includes("updatetopic");
+          if (isUpdateTopic) {
+            if (!rendered.suppressed) {
+              if (this.renderedTopic) {
+                return;
+              }
+              this.renderedTopic = true;
+            }
+          }
           if (rendered.suppressed) {
             this.hasTraceEvents = true;
             if (event.displayName || event.toolName) {
@@ -90137,8 +90481,8 @@ var init_trace_dispatcher = __esm({
             files: rendered.files
           };
           this.hasTraceEvents = true;
-          const toolCallId = resolveToolCallId(event);
-          if (toolCallId ? !this.seenToolCallIds.has(toolCallId) : event.type === "tool_started") {
+          const toolCallId = this.getEffectiveToolCallId(event);
+          if (!isUpdateTopic && (toolCallId ? !this.seenToolCallIds.has(toolCallId) : event.type === "tool_started")) {
             this.toolCallCount += 1;
             if (toolCallId) {
               this.seenToolCallIds.add(toolCallId);
@@ -90152,18 +90496,26 @@ var init_trace_dispatcher = __esm({
             const existingMessage = this.activeMessages.get(toolCallId);
             if (existingMessage) {
               if (event.status === "progress") {
-                await existingMessage.edit(payload);
+                const lastEdit = this.lastEditTimes.get(toolCallId) ?? 0;
+                if (Date.now() - lastEdit >= 1e3) {
+                  await existingMessage.edit(payload);
+                  this.lastEditTimes.set(toolCallId, Date.now());
+                }
                 return;
               } else if (event.status === "completed" || event.status === "failed" || event.status === "cancelled") {
                 await existingMessage.edit(payload);
                 this.activeMessages.delete(toolCallId);
+                this.lastEditTimes.delete(toolCallId);
                 return;
               }
             }
           }
           const sent = await this.threadChannel.send(payload);
-          if (toolCallId && (event.status === "started" || event.status === "progress")) {
+          if (isUpdateTopic) {
+            this.topicMessage = sent;
+          } else if (toolCallId && (event.status === "started" || event.status === "progress")) {
             this.activeMessages.set(toolCallId, sent);
+            this.lastEditTimes.set(toolCallId, Date.now());
           }
         } catch (error) {
           log.warn("Failed to dispatch trace event to Discord", { error: String(error) });
@@ -90176,6 +90528,8 @@ var init_trace_dispatcher = __esm({
           this.currentStep = null;
           this.seenToolCallIds.clear();
           this.hasTraceEvents = false;
+          this.renderedTopic = false;
+          this.topicMessage = null;
           this.headerMessage = await this.threadChannel.send({
             content: `\u25CC **Queued** \xB7 ${this.formatTask(manifest.taskSummary)}`
           });
@@ -90188,11 +90542,25 @@ var init_trace_dispatcher = __esm({
       async dispatchRunComplete() {
         this.stopHeartbeat();
         await this.updateRunHeader("complete");
+        await this.cleanupSimpleWorkflowTopic();
       }
       async dispatchRunFailed(error) {
         this.stopHeartbeat();
         const message = error instanceof Error ? error.message : String(error);
         await this.updateRunHeader("failed", message);
+        await this.cleanupSimpleWorkflowTopic();
+      }
+      async cleanupSimpleWorkflowTopic() {
+        if (this.toolCallCount <= 1 && this.topicMessage) {
+          try {
+            if (typeof this.topicMessage.delete === "function") {
+              await this.topicMessage.delete();
+            }
+          } catch (error) {
+            log.warn("Failed to delete topic message for simple workflow", { error: String(error) });
+          }
+          this.topicMessage = null;
+        }
       }
       async dispatchFinalResponse(response) {
         try {
@@ -90208,10 +90576,10 @@ var init_trace_dispatcher = __esm({
         const elapsed = this.formatElapsed(Date.now() - this.startedAt);
         let content;
         if (state2 === "complete") {
-          content = `\u2713 **Complete** \`${elapsed}\` \xB7 \`${this.toolCallCount}\` tool calls`;
+          content = `\u2713 **Complete** \`${elapsed}\` \xB7 \`${this.toolCallCount}\` tool call${this.toolCallCount === 1 ? "" : "s"}`;
         } else if (state2 === "failed") {
           const suffix = detail ? ` \xB7 ${detail.slice(0, 160)}` : "";
-          content = `\u2717 **Failed** \`${elapsed}\` \xB7 \`${this.toolCallCount}\` tool calls${suffix}`;
+          content = `\u2717 **Failed** \`${elapsed}\` \xB7 \`${this.toolCallCount}\` tool call${this.toolCallCount === 1 ? "" : "s"}${suffix}`;
         } else {
           const suffix = this.currentStep ? ` \xB7 current step: \`${this.currentStep}\`` : this.hasTraceEvents ? "" : " \xB7 waiting for first tool event";
           content = `\u2301 **Running** \`${elapsed}\`${suffix}`;
@@ -90799,6 +91167,12 @@ async function processMessage(message, accepted, config, memory, state2, process
       if (manifest) {
         await traceDispatcher.dispatchRunHeader(manifest);
       }
+      runtimeStore.activeWorkflowRuns.set(message.channelId, {
+        requestMessageId: message.id,
+        channelId: message.channelId,
+        userContent: accepted.content,
+        startedAt: Date.now()
+      });
     }
     const traceCallbacks = traceDispatcher ? {
       onTraceEvent: (event) => {
@@ -90806,24 +91180,52 @@ async function processMessage(message, accepted, config, memory, state2, process
         });
       }
     } : void 0;
-    const result = await processViaCli(
-      message,
-      accepted,
-      config,
-      memory,
-      processingContext,
-      geminiSemaphore,
-      channel,
-      toolMode,
-      extensionDir2,
-      traceCallbacks
-    );
-    response = result.response;
-    responseMessageIds = result.messageIds;
-    effectiveAttachmentMetadata = result.attachments ?? attachmentMetadata;
-    geminiSessionId = result.sessionId;
-    if (traceDispatcher) {
-      await traceDispatcher.dispatchRunComplete();
+    try {
+      const result = await processViaCli(
+        message,
+        accepted,
+        config,
+        memory,
+        processingContext,
+        geminiSemaphore,
+        channel,
+        toolMode,
+        extensionDir2,
+        traceCallbacks
+      );
+      response = result.response;
+      responseMessageIds = result.messageIds;
+      effectiveAttachmentMetadata = result.attachments ?? attachmentMetadata;
+      geminiSessionId = result.sessionId;
+      if (traceDispatcher) {
+        await traceDispatcher.dispatchRunComplete();
+      }
+      const candidateKey = `${message.id}:${message.channelId}`;
+      const candidate = runtimeStore.workflowResponseCandidates.get(candidateKey);
+      if (isWorkflow) {
+        if (!response.trim() && candidate) {
+          response = candidate;
+        }
+        runtimeStore.workflowResponseCandidates.delete(candidateKey);
+        if (response.trim().length > 0) {
+          const prepared = await finalizeAssistantResponse(response, message, {
+            allowPrivilegedActions: isBoss(accepted.roleContext),
+            prependNewlines: false
+          });
+          response = prepared.responseText;
+          const finalMsgIds = await sendPreparedDisplayText(channel, prepared.displayText);
+          responseMessageIds.push(...finalMsgIds);
+          responseMessageIds.push(...prepared.actionMessageIds);
+        }
+      }
+    } catch (err) {
+      const candidateKey = `${message.id}:${message.channelId}`;
+      runtimeStore.workflowResponseCandidates.delete(candidateKey);
+      throw err;
+    } finally {
+      if (isWorkflow) {
+        runtimeStore.activeWorkflowRuns.delete(message.channelId);
+      }
     }
     if (response.trim().length > 0 || responseMessageIds.length > 0) {
       await persistExchange();
@@ -91309,6 +91711,18 @@ init_channels();
 init_log();
 init_runtime();
 init_task_validation();
+init_thread_manifest();
+
+// src/daemon/workflow/policy.ts
+function isExplicitSendToCurrentThread(userContent) {
+  const normalized = userContent.toLowerCase();
+  if (normalized.includes("reply with") || normalized.includes("reply only") || normalized.includes("reply with only") || normalized.includes("reply to this with") || normalized.includes("reply back")) {
+    return false;
+  }
+  return normalized.includes("send") || normalized.includes("post") || normalized.includes("publish");
+}
+
+// src/daemon/api/messages.ts
 init_api_utils();
 async function handleMessageRoutes(req, res, pathname, parsed, deps) {
   const { config, memory, extensionDir: extensionDir2 } = deps;
@@ -91360,6 +91774,22 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
         return true;
       }
       const silent = parsed["silent"] === true;
+      if (channelId && isWorkflowThread(extensionDir2, channelId)) {
+        const activeRun = runtimeStore.activeWorkflowRuns.get(channelId);
+        if (activeRun && !isExplicitSendToCurrentThread(activeRun.userContent)) {
+          const key = `${activeRun.requestMessageId}:${channelId}`;
+          runtimeStore.workflowResponseCandidates.set(key, content);
+          respond(res, 200, {
+            ok: true,
+            intercepted: true,
+            chunks: 0,
+            messageIds: [],
+            channel_id: channelId,
+            note: "Captured as final response candidate for current workflow thread; no Discord send was performed."
+          });
+          return true;
+        }
+      }
       const messageIds = await sendDiscordMessage(channel, content, chunkMessage, { files, silent });
       const sessionKey = resolveConversationSessionKey(
         config,
@@ -91417,8 +91847,24 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
         respond(res, 403, { error: `Channel ${channelId} is not allowed for replies` });
         return true;
       }
-      const msg = await channel.messages.fetch(messageId);
       const silent = parsed["silent"] === true;
+      const msg = await channel.messages.fetch(messageId);
+      if (channelId && isWorkflowThread(extensionDir2, channelId)) {
+        const activeRun = runtimeStore.activeWorkflowRuns.get(channelId);
+        if (activeRun && !isExplicitSendToCurrentThread(activeRun.userContent)) {
+          const key = `${activeRun.requestMessageId}:${channelId}`;
+          runtimeStore.workflowResponseCandidates.set(key, content);
+          respond(res, 200, {
+            ok: true,
+            intercepted: true,
+            chunks: 0,
+            messageIds: [],
+            channel_id: channelId,
+            note: "Captured as final response candidate for current workflow thread; no Discord send was performed."
+          });
+          return true;
+        }
+      }
       const messageIds = await sendDiscordMessage(channel, content, chunkMessage, { replyTo: msg, files, silent });
       const sessionKey = resolveConversationSessionKey(
         config,
@@ -92434,6 +92880,7 @@ function redactTraceText(result, maxLength = 12e3) {
 }
 
 // src/daemon/workflow/trace-normalizer.ts
+init_runtime();
 function stringifyTraceValue(value, toolName) {
   if (value === null || value === void 0) return "";
   if (typeof value === "string") return value;
@@ -92657,6 +93104,23 @@ function normalizeAcpUpdate(sessionUpdate, updatePayload, activeToolTimers) {
       const durationMs2 = resolveDuration(id2, statusInfo.type, timestamp, activeToolTimers);
       const redactedResult = redactTraceResult(resultText, 200);
       const redactedDetail = redactTraceText(resultText, 12e3);
+      const isDiscordMessage2 = toolEntry2.canonical === "discord_message";
+      let policySuppressed2 = false;
+      let intercepted2 = false;
+      if (isDiscordMessage2) {
+        const targetChannelId = String(rawArgs2["channel_id"] || rawArgs2["channelId"] || "");
+        const activeRun = targetChannelId ? runtimeStore.activeWorkflowRuns.get(targetChannelId) : null;
+        if (activeRun) {
+          if (!isExplicitSendToCurrentThread(activeRun.userContent)) {
+            policySuppressed2 = true;
+          }
+        }
+        const rawOutput = updatePayload["rawOutput"];
+        if (rawOutput && typeof rawOutput === "object" && rawOutput.intercepted === true) {
+          intercepted2 = true;
+          policySuppressed2 = true;
+        }
+      }
       return {
         type: statusInfo.type,
         timestamp,
@@ -92669,6 +93133,8 @@ function normalizeAcpUpdate(sessionUpdate, updatePayload, activeToolTimers) {
         durationMs: durationMs2,
         resultSummary: redactedResult.summary || null,
         resultDetail: redactedDetail.text || redactedResult.summary || null,
+        policySuppressed: policySuppressed2,
+        intercepted: intercepted2,
         artifactRef: null,
         redactionMetadata: {
           fieldsRedacted: fieldsRedacted2,
@@ -92745,6 +93211,22 @@ function normalizeAcpUpdate(sessionUpdate, updatePayload, activeToolTimers) {
         artifactRef = redactFilePath(pathVal);
       }
     }
+    const isDiscordMessage = name === "discord_message" || toolEntry.canonical === "discord_message";
+    let policySuppressed = false;
+    let intercepted = false;
+    if (isDiscordMessage) {
+      const targetChannelId = String(rawArgs["channel_id"] || rawArgs["channelId"] || "");
+      const activeRun = targetChannelId ? runtimeStore.activeWorkflowRuns.get(targetChannelId) : null;
+      if (activeRun) {
+        if (!isExplicitSendToCurrentThread(activeRun.userContent)) {
+          policySuppressed = true;
+        }
+      }
+      if (result && typeof result === "object" && result.intercepted === true) {
+        intercepted = true;
+        policySuppressed = true;
+      }
+    }
     return {
       type,
       timestamp,
@@ -92757,6 +93239,8 @@ function normalizeAcpUpdate(sessionUpdate, updatePayload, activeToolTimers) {
       durationMs,
       resultSummary,
       resultDetail,
+      policySuppressed,
+      intercepted,
       artifactRef,
       redactionMetadata: {
         fieldsRedacted,

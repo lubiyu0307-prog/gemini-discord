@@ -13,15 +13,62 @@ export class TraceDispatcher {
   private seenToolCallIds = new Set<string>();
   private hasTraceEvents = false;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private fallbackCounters = new Map<string, number>();
+  private lastEditTimes = new Map<string, number>();
+  private renderedTopic = false;
+  private topicMessage: Message | null = null;
 
   constructor(
     private threadChannel: ThreadChannel | TextChannel,
     private registry: TraceRendererRegistry,
   ) {}
 
+  private getEffectiveToolCallId(event: TraceEvent): string | null {
+    const id = resolveToolCallId(event);
+    if (id) return id;
+    if (!event.canonicalToolName) return null;
+
+    const baseKey = `fallback:${event.canonicalToolName}`;
+    if (!this.fallbackCounters.has(baseKey)) {
+      this.fallbackCounters.set(baseKey, 1);
+    }
+    let count = this.fallbackCounters.get(baseKey)!;
+    if (event.status === 'started' || event.type === 'tool_started') {
+      if (this.activeMessages.has(`${baseKey}:${count}`)) {
+        count += 1;
+        this.fallbackCounters.set(baseKey, count);
+      }
+    }
+    return `${baseKey}:${count}`;
+  }
+
   async dispatch(event: TraceEvent): Promise<void> {
     try {
+      if (event.policySuppressed) {
+        this.hasTraceEvents = true;
+        if (event.displayName || event.toolName) {
+          this.currentStep = event.displayName || event.toolName;
+        }
+        await this.updateRunHeader('running');
+        return;
+      }
+
       const rendered = this.registry.render(event);
+
+      const isUpdateTopic = event.canonicalToolName === 'update_topic' ||
+        event.toolName === 'update_topic' ||
+        event.displayName?.toLowerCase().includes('update topic') ||
+        event.displayName?.toLowerCase().includes('updatetopic');
+
+      if (isUpdateTopic) {
+        if (!rendered.suppressed) {
+          if (this.renderedTopic) {
+            return;
+          }
+          this.renderedTopic = true;
+        }
+      }
+
       if (rendered.suppressed) {
         this.hasTraceEvents = true;
         if (event.displayName || event.toolName) {
@@ -38,8 +85,8 @@ export class TraceDispatcher {
       };
 
       this.hasTraceEvents = true;
-      const toolCallId = resolveToolCallId(event);
-      if (toolCallId ? !this.seenToolCallIds.has(toolCallId) : event.type === 'tool_started') {
+      const toolCallId = this.getEffectiveToolCallId(event);
+      if (!isUpdateTopic && (toolCallId ? !this.seenToolCallIds.has(toolCallId) : event.type === 'tool_started')) {
         this.toolCallCount += 1;
         if (toolCallId) {
           this.seenToolCallIds.add(toolCallId);
@@ -55,11 +102,16 @@ export class TraceDispatcher {
         
         if (existingMessage) {
           if (event.status === 'progress') {
-            await existingMessage.edit(payload);
+            const lastEdit = this.lastEditTimes.get(toolCallId) ?? 0;
+            if (Date.now() - lastEdit >= 1000) {
+              await existingMessage.edit(payload);
+              this.lastEditTimes.set(toolCallId, Date.now());
+            }
             return;
           } else if (event.status === 'completed' || event.status === 'failed' || event.status === 'cancelled') {
             await existingMessage.edit(payload);
             this.activeMessages.delete(toolCallId);
+            this.lastEditTimes.delete(toolCallId);
             return;
           }
         }
@@ -67,8 +119,11 @@ export class TraceDispatcher {
 
       const sent = await this.threadChannel.send(payload);
       
-      if (toolCallId && (event.status === 'started' || event.status === 'progress')) {
+      if (isUpdateTopic) {
+        this.topicMessage = sent;
+      } else if (toolCallId && (event.status === 'started' || event.status === 'progress')) {
         this.activeMessages.set(toolCallId, sent);
+        this.lastEditTimes.set(toolCallId, Date.now());
       }
     } catch (error) {
       log.warn('Failed to dispatch trace event to Discord', { error: String(error) });
@@ -82,6 +137,8 @@ export class TraceDispatcher {
       this.currentStep = null;
       this.seenToolCallIds.clear();
       this.hasTraceEvents = false;
+      this.renderedTopic = false;
+      this.topicMessage = null;
       this.headerMessage = await this.threadChannel.send({
         content: `◌ **Queued** · ${this.formatTask(manifest.taskSummary)}`,
       });
@@ -95,12 +152,27 @@ export class TraceDispatcher {
   async dispatchRunComplete(): Promise<void> {
     this.stopHeartbeat();
     await this.updateRunHeader('complete');
+    await this.cleanupSimpleWorkflowTopic();
   }
 
   async dispatchRunFailed(error: unknown): Promise<void> {
     this.stopHeartbeat();
     const message = error instanceof Error ? error.message : String(error);
     await this.updateRunHeader('failed', message);
+    await this.cleanupSimpleWorkflowTopic();
+  }
+
+  private async cleanupSimpleWorkflowTopic(): Promise<void> {
+    if (this.toolCallCount <= 1 && this.topicMessage) {
+      try {
+        if (typeof this.topicMessage.delete === 'function') {
+          await this.topicMessage.delete();
+        }
+      } catch (error) {
+        log.warn('Failed to delete topic message for simple workflow', { error: String(error) });
+      }
+      this.topicMessage = null;
+    }
   }
 
   async dispatchFinalResponse(response: string): Promise<void> {
@@ -119,10 +191,10 @@ export class TraceDispatcher {
     const elapsed = this.formatElapsed(Date.now() - this.startedAt);
     let content: string;
     if (state === 'complete') {
-      content = `✓ **Complete** \`${elapsed}\` · \`${this.toolCallCount}\` tool calls`;
+      content = `✓ **Complete** \`${elapsed}\` · \`${this.toolCallCount}\` tool call${this.toolCallCount === 1 ? '' : 's'}`;
     } else if (state === 'failed') {
       const suffix = detail ? ` · ${detail.slice(0, 160)}` : '';
-      content = `✗ **Failed** \`${elapsed}\` · \`${this.toolCallCount}\` tool calls${suffix}`;
+      content = `✗ **Failed** \`${elapsed}\` · \`${this.toolCallCount}\` tool call${this.toolCallCount === 1 ? '' : 's'}${suffix}`;
     } else {
       const suffix = this.currentStep
         ? ` · current step: \`${this.currentStep}\``
