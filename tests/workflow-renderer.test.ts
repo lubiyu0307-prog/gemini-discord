@@ -5,7 +5,7 @@ import type { TraceEvent } from '../src/daemon/workflow/trace-event.js';
 describe('trace renderers', () => {
   const registry = new TraceRendererRegistry();
 
-  it('renders shell commands correctly', () => {
+  it('suppresses shell starts until output is available', () => {
     const event: TraceEvent = {
       type: 'tool_started',
       timestamp: Date.now(),
@@ -22,9 +22,30 @@ describe('trace renderers', () => {
     };
 
     const rendered = registry.render(event);
+    expect(rendered.suppressed).toBe(true);
+  });
+
+  it('renders completed shell commands without duplicating title commands', () => {
+    const event: TraceEvent = {
+      type: 'tool_completed',
+      timestamp: Date.now(),
+      toolName: 'acp_execute',
+      canonicalToolName: 'acp_execute',
+      displayName: 'go run triangle.go',
+      toolFamily: 'shell',
+      args: { command: 'go run triangle.go' },
+      status: 'completed',
+      durationMs: 120,
+      resultSummary: 'Right-angled Triangle:\n*\n* *',
+      resultDetail: 'Right-angled Triangle:\n*\n* *',
+      artifactRef: null,
+      redactionMetadata: { fieldsRedacted: [], truncated: false },
+    };
+
+    const rendered = registry.render(event);
     expect(rendered.density).toBe('panel');
-    expect(rendered.content).toContain('Shell');
-    expect(rendered.content).toContain('ls -la');
+    expect(rendered.content.match(/go run triangle\.go/g)).toHaveLength(1);
+    expect(rendered.content).toContain('```txt');
     expect(rendered.embeds).toBeUndefined();
     expect(rendered.flags).toEqual({
       source: 'trace_renderer',
@@ -33,7 +54,7 @@ describe('trace renderers', () => {
     });
   });
 
-  it('renders filesystem operations correctly', () => {
+  it('renders filesystem writes as code previews instead of inline diffs', () => {
     const event: TraceEvent = {
       type: 'tool_completed',
       timestamp: Date.now(),
@@ -41,20 +62,51 @@ describe('trace renderers', () => {
       canonicalToolName: 'write_file',
       displayName: 'WriteFile',
       toolFamily: 'filesystem',
-      args: { path: '/tmp/test.txt' },
+      args: { path: '/tmp/triangle.go' },
       status: 'completed',
       durationMs: 120,
-      resultSummary: 'Wrote 15 bytes',
-      artifactRef: '/tmp/test.txt',
+      resultSummary: 'Accepted (+14, -0)',
+      resultDetail: 'Diff: /tmp/triangle.go\n+++ new\npackage main\n\nimport "fmt"\n',
+      artifactRef: '/tmp/triangle.go',
       redactionMetadata: { fieldsRedacted: [], truncated: false },
     };
 
     const rendered = registry.render(event);
     expect(rendered.density).toBe('card');
     expect(rendered.content).toContain('WriteFile');
-    expect(rendered.content).toContain('/tmp/test.txt');
-    expect(rendered.content).toContain('Wrote 15 bytes');
+    expect(rendered.content).toContain('/tmp/triangle.go');
+    expect(rendered.content).toContain('```go');
+    expect(rendered.content).toContain('package main');
+    expect(rendered.content).not.toContain('+++ new');
     expect(rendered.embeds).toBeUndefined();
+  });
+
+  it('collapses topic updates into compact terminal phase lines', () => {
+    const started: TraceEvent = {
+      type: 'tool_started',
+      timestamp: Date.now(),
+      toolName: 'update_topic',
+      canonicalToolName: 'update_topic',
+      displayName: 'UpdateTopic',
+      toolFamily: 'planning',
+      args: { topic: 'Creating Go Triangle Script' },
+      status: 'started',
+      durationMs: null,
+      resultSummary: null,
+      artifactRef: null,
+      redactionMetadata: { fieldsRedacted: [], truncated: false },
+    };
+    const completed: TraceEvent = {
+      ...started,
+      type: 'tool_completed',
+      status: 'completed',
+      resultSummary: 'Topic: Creating Go Triangle Script\n\nSummary:\nLarge verbose summary',
+    };
+
+    expect(registry.render(started).suppressed).toBe(true);
+    const rendered = registry.render(completed);
+    expect(rendered.content).toBe('**Topic:** Creating Go Triangle Script');
+    expect(rendered.content).not.toContain('Summary');
   });
 
   it('renders planning phases correctly', () => {

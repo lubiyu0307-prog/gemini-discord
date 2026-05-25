@@ -203,16 +203,17 @@ describe('workflow trace events & renderer integration', () => {
     const dispatcher = new TraceDispatcher(mockChannel, registry);
 
     const event: TraceEvent = {
-      type: 'tool_started',
+      type: 'tool_completed',
       timestamp: Date.now(),
       toolName: 'run_shell_command',
       canonicalToolName: 'run_shell_command',
       displayName: 'Shell',
       toolFamily: 'shell',
       args: { commandLine: 'git status' },
-      status: 'started',
-      durationMs: null,
-      resultSummary: null,
+      status: 'completed',
+      durationMs: 25,
+      resultSummary: 'clean',
+      resultDetail: 'clean',
       artifactRef: null,
       redactionMetadata: { fieldsRedacted: [], truncated: false },
     };
@@ -226,25 +227,52 @@ describe('workflow trace events & renderer integration', () => {
   });
 
   it('derives shell commands from top-level ACP titles when raw input is absent', () => {
-    const event = normalizeAcpUpdate('tool_call', {
-      sessionUpdate: 'tool_call',
+    const event = normalizeAcpUpdate('tool_call_update', {
+      sessionUpdate: 'tool_call_update',
       toolCallId: 'shell-title-1',
-      status: 'in_progress',
+      status: 'completed',
       title: 'Shell cd /tmp && npm test',
       kind: 'execute',
-      content: [],
+      content: [
+        { type: 'content', content: { type: 'text', text: 'passed' } },
+      ],
     }, new Map());
 
     expect(event).toMatchObject({
-      type: 'tool_started',
-      status: 'started',
+      type: 'tool_completed',
+      status: 'completed',
       toolFamily: 'shell',
     });
     expect(event!.args.command).toBe('cd /tmp && npm test');
 
     const rendered = new TraceRendererRegistry().render(event!);
     expect(rendered.content).toContain('Shell cd /tmp && npm test');
+    expect(rendered.content).toContain('passed');
     expect(rendered.embeds).toBeUndefined();
+  });
+
+  it('does not send suppressed trace events', async () => {
+    const mockChannel = {
+      send: vi.fn().mockResolvedValue({ id: 'sent-msg-1' }),
+    } as any;
+
+    const dispatcher = new TraceDispatcher(mockChannel, new TraceRendererRegistry());
+    await dispatcher.dispatch({
+      type: 'tool_started',
+      timestamp: Date.now(),
+      toolName: 'write_file',
+      canonicalToolName: 'write_file',
+      displayName: 'WriteFile',
+      toolFamily: 'filesystem',
+      args: { path: 'triangle.go' },
+      status: 'started',
+      durationMs: null,
+      resultSummary: null,
+      artifactRef: null,
+      redactionMetadata: { fieldsRedacted: [], truncated: false },
+    });
+
+    expect(mockChannel.send).not.toHaveBeenCalled();
   });
 
   it('edits one run header across workflow lifecycle', async () => {
@@ -273,16 +301,16 @@ describe('workflow trace events & renderer integration', () => {
     });
 
     await dispatcher.dispatch({
-      type: 'tool_started',
+      type: 'tool_completed',
       timestamp: Date.now(),
       toolName: 'grep_search',
       canonicalToolName: 'grep_search',
       displayName: 'SearchText',
       toolFamily: 'search',
       args: { pattern: 'routing' },
-      status: 'started',
-      durationMs: null,
-      resultSummary: null,
+      status: 'completed',
+      durationMs: 25,
+      resultSummary: 'Found 2 matches',
       artifactRef: null,
       redactionMetadata: { fieldsRedacted: [], truncated: false },
       raw: { toolCall: { id: 'call-1' } },
@@ -355,7 +383,7 @@ describe('workflow trace events & renderer integration', () => {
     await dispatcher.dispatchRunComplete();
 
     expect(mockChannel.send).toHaveBeenCalledTimes(2);
-    expect(toolMessage.edit).toHaveBeenCalledTimes(1);
+    expect(toolMessage.edit).not.toHaveBeenCalled();
     expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('`1` tool calls'));
   });
 });

@@ -22,6 +22,15 @@ export class TraceDispatcher {
   async dispatch(event: TraceEvent): Promise<void> {
     try {
       const rendered = this.registry.render(event);
+      if (rendered.suppressed) {
+        this.hasTraceEvents = true;
+        if (event.displayName || event.toolName) {
+          this.currentStep = event.displayName || event.toolName;
+        }
+        await this.updateRunHeader('running');
+        return;
+      }
+
       const payload = {
         content: rendered.content,
         embeds: rendered.embeds,

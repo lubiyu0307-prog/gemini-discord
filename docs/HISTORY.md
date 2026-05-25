@@ -6,6 +6,9 @@ Aligned monitored workflow traces with the Gemini CLI terminal presentation insi
 
 ### Changed
 - **Transcript Renderer**: Normal trace messages now use plain Discord markdown rows and fenced output blocks instead of chunky embed cards.
+- **Trace Noise Reduction**: Started/progress-only tool messages are suppressed while the live run header still tracks the current step.
+- **File Write Preview**: File edits and writes now show compact syntax-highlighted code previews from diffs instead of long inline diff blobs.
+- **Compact Topic Lines**: Topic updates collapse into short phase-style lines rather than rendering verbose topic summary cards.
 - **Hidden Trace Metadata**: Internal trace non-persistence is kept in code, but the visible `trace:doNotPersist` marker is no longer posted into workflow threads.
 - **Shell Command Titles**: Top-level ACP shell events can derive command text from their title when raw tool input is absent, keeping Discord output close to the terminal trace.
 

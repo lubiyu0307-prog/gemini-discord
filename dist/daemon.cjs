@@ -1450,9 +1450,9 @@ var init_tslib_es6 = __esm({
       };
       return ownKeys(o);
     };
-    _SuppressedError = typeof SuppressedError === "function" ? SuppressedError : function(error, suppressed, message) {
+    _SuppressedError = typeof SuppressedError === "function" ? SuppressedError : function(error, suppressed2, message) {
       var e = new Error(message);
-      return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed, e;
+      return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed2, e;
     };
     tslib_es6_default = {
       __extends,
@@ -51649,8 +51649,8 @@ var require_VoiceState = __commonJS({
        * voiceState.setSuppressed(true);
        * @returns {Promise<VoiceState>}
        */
-      setSuppressed(suppressed = true) {
-        return this.edit({ suppressed });
+      setSuppressed(suppressed2 = true) {
+        return this.edit({ suppressed: suppressed2 });
       }
       toJSON() {
         return super.toJSON({
@@ -89688,6 +89688,14 @@ var init_onboarding = __esm({
 function flags() {
   return { source: "trace_renderer", doNotRoute: true, doNotPersist: true };
 }
+function suppressed() {
+  return {
+    content: "",
+    density: "row",
+    suppressed: true,
+    flags: flags()
+  };
+}
 function statusGlyph(status) {
   switch (status) {
     case "started":
@@ -89731,6 +89739,9 @@ function truncate2(text, maxLength) {
   if (text.length <= maxLength) return text;
   return `${text.slice(0, maxLength)}...`;
 }
+function oneLine(text, maxLength = 180) {
+  return truncate2(text.replace(/\s+/g, " ").trim(), maxLength);
+}
 function inlineCode(text) {
   const safe = text.replace(/`/g, "'");
   return `\`${truncate2(safe, 180)}\``;
@@ -89768,7 +89779,7 @@ function compactArgs(args, preferred) {
 }
 function resultSuffix(event, fallback = "") {
   const result = event.resultSummary || fallback;
-  return result ? ` \u2192 ${truncate2(result.replace(/\s+/g, " "), 240)}` : "";
+  return result ? ` \u2192 ${oneLine(result, 240)}` : "";
 }
 function terminalLine(event, title, body = "") {
   const suffix = body.trim() ? ` ${body.trim()}` : "";
@@ -89778,9 +89789,54 @@ function outputBlock(language, text) {
   const value = text.trimEnd();
   return value ? codeBlock(language, value) : "";
 }
+function detailLines(detail, maxLines) {
+  const lines = detail.trimEnd().split(/\r?\n/);
+  const preview = lines.slice(0, maxLines).join("\n");
+  return lines.length > maxLines ? `${preview}
+...` : preview;
+}
+function languageForPath(path14) {
+  const ext = path14.split(".").pop()?.toLowerCase();
+  switch (ext) {
+    case "go":
+      return "go";
+    case "ts":
+    case "tsx":
+      return "ts";
+    case "js":
+    case "jsx":
+      return "js";
+    case "json":
+      return "json";
+    case "md":
+      return "md";
+    case "py":
+      return "py";
+    case "sh":
+      return "sh";
+    default:
+      return "txt";
+  }
+}
+function diffNewContent(detail) {
+  const marker = detail.match(/\+\+\+ new\n([\s\S]*)$/);
+  return marker?.[1]?.trimEnd() ?? "";
+}
+function cleanDisplayName(event, fallback) {
+  const display = event.displayName || fallback;
+  return display.replace(/\s+/g, " ").trim();
+}
+function shellTitle(event, command) {
+  const displayName = cleanDisplayName(event, "Shell");
+  if (!command) return displayName === "Shell command" ? "Shell" : displayName;
+  if (displayName === "Shell command" || displayName === "Shell") {
+    return `Shell ${truncate2(command, 140)}`;
+  }
+  return displayName.includes(command) ? displayName : `${displayName} ${truncate2(command, 140)}`;
+}
 function transcript(event, title, detail, language = "txt") {
   const attachment = attachmentFor(event, detail);
-  const preview = truncate2(detail || event.resultSummary || "", PANEL_INLINE_LIMIT);
+  const preview = truncate2(detailLines(detail || event.resultSummary || "", 24), PANEL_INLINE_LIMIT);
   const lines = [
     terminalLine(event, title),
     preview ? `
@@ -89845,14 +89901,13 @@ var init_trace_renderer = __esm({
       }
       render(event) {
         const command = shellCommand(event);
-        const displayName = event.displayName && event.displayName !== "Shell command" ? event.displayName : "Shell";
-        const title = command ? `${displayName} ${truncate2(command, 140)}` : displayName;
+        const title = shellTitle(event, command);
         if (boolArg(event.args, "is_background", "isBackground")) {
           const detail2 = event.status === "completed" ? "Command moved to background. Output hidden." : "Starting background command...";
           return panel(event, title, detail2);
         }
-        if (event.status === "started") {
-          return panel(event, title, "");
+        if (event.status === "started" || event.status === "progress") {
+          return suppressed();
         }
         const detail = event.resultDetail || event.resultSummary || "";
         return panel(event, title, detail);
@@ -89865,15 +89920,25 @@ var init_trace_renderer = __esm({
       render(event) {
         const canonical = event.canonicalToolName;
         const path14 = filePath(event);
+        if (event.status === "started" || event.status === "progress") {
+          return suppressed();
+        }
         if (canonical === "replace") {
           const added = intArg(event.args, "added", "lines_added");
           const removed = intArg(event.args, "removed", "lines_removed");
           const summary = event.resultSummary || "Accepted";
           const delta = added !== null || removed !== null ? ` (+${added ?? 0}, -${removed ?? 0})` : "";
-          return card(event, `Edit ${path14 ? inlineCode(shortPath(path14)) : ""} \u2192 ${summary}${delta}`, []);
+          const newContent = event.resultDetail ? diffNewContent(event.resultDetail) : "";
+          return card(event, `Edit ${path14 ? inlineCode(shortPath(path14)) : ""} \u2192 ${summary}${delta}`, [
+            newContent ? outputBlock(languageForPath(path14), detailLines(newContent, 28)) : ""
+          ]);
         }
         if (canonical === "write_file") {
-          return card(event, `WriteFile ${path14 ? inlineCode(shortPath(path14)) : ""}${resultSuffix(event, "Wrote file")}`, []);
+          const detail = event.resultDetail || "";
+          const newContent = diffNewContent(detail) || detail;
+          return card(event, `WriteFile ${path14 ? inlineCode(shortPath(path14)) : ""}${resultSuffix(event, "Accepted")}`, [
+            newContent ? outputBlock(languageForPath(path14), detailLines(newContent, 28)) : ""
+          ]);
         }
         if (canonical === "read_file") {
           return row(event, `${path14 ? inlineCode(shortPath(path14)) : ""} \u2192 ${readFileResult(event)}`);
@@ -89894,6 +89959,9 @@ var init_trace_renderer = __esm({
         return event.toolFamily === "search";
       }
       render(event) {
+        if (event.status === "started" || event.status === "progress") {
+          return suppressed();
+        }
         const query = searchTarget(event);
         const dir = stringArg(event.args, "dir_path", "path");
         const within = dir ? ` within ${inlineCode(shortPath(dir))}` : "";
@@ -89905,17 +89973,20 @@ var init_trace_renderer = __esm({
         return event.toolFamily === "web";
       }
       render(event) {
+        if (event.status === "started" || event.status === "progress") {
+          return suppressed();
+        }
         const query = stringArg(event.args, "query", "prompt", "url", "Url");
         const title = event.displayName || (event.canonicalToolName === "google_web_search" ? "GoogleSearch" : "Web");
         const action = event.canonicalToolName === "google_web_search" ? "Searching the web for:" : "Fetching";
-        const body = query ? `${action} "${truncate2(query.replace(/\s+/g, " "), 180)}"` : "";
+        const body = query ? `${action} "${oneLine(query, 180)}"` : "";
         if (event.resultDetail && event.resultDetail.length > 500) {
           return transcript(event, `${title} ${body}`.trim(), event.resultDetail);
         }
         return {
           content: [
             terminalLine(event, title, body),
-            event.resultSummary ? `\u21B3 ${truncate2(event.resultSummary.replace(/\s+/g, " "), 240)}` : ""
+            event.resultSummary ? `\u21B3 ${oneLine(event.resultSummary, 240)}` : ""
           ].filter(Boolean).join("\n"),
           density: "card",
           flags: flags()
@@ -89927,6 +89998,18 @@ var init_trace_renderer = __esm({
         return event.toolFamily === "planning" || event.type === "phase_started";
       }
       render(event) {
+        if (event.canonicalToolName === "update_topic") {
+          if (event.status === "started" || event.status === "progress") {
+            return suppressed();
+          }
+          const title = stringArg(event.args, "topic", "title") || event.resultSummary?.match(/Topic:\s*([^\n]+)/)?.[1] || "";
+          return {
+            content: title ? `**Topic:** ${oneLine(title, 120)}` : "",
+            density: "row",
+            suppressed: !title,
+            flags: flags()
+          };
+        }
         const summary = event.resultSummary || compactArgs(event.args, ["title", "summary", "reason", "taskId"]);
         if (event.type === "phase_started") {
           const phase = summary || "Planning next step";
@@ -89944,6 +90027,9 @@ var init_trace_renderer = __esm({
         return event.toolFamily === "mcp";
       }
       render(event) {
+        if (event.status === "started" || event.status === "progress") {
+          return suppressed();
+        }
         const args = compactArgs(event.args, ["namespace", "query", "name", "path", "uri"]);
         const result = event.resultSummary ? `\u2192 ${event.resultSummary}` : "";
         return card(event, event.displayName || event.toolName || "MCP", [args, result]);
@@ -89954,6 +90040,9 @@ var init_trace_renderer = __esm({
         return event.toolFamily === "interaction";
       }
       render(event) {
+        if (event.status === "started" || event.status === "progress") {
+          return suppressed();
+        }
         const prompt = stringArg(event.args, "prompt", "question");
         return card(event, event.displayName || "AskUser", [prompt ? inlineCode(prompt) : "? clarification needed"]);
       }
@@ -89963,6 +90052,9 @@ var init_trace_renderer = __esm({
         return true;
       }
       render(event) {
+        if (event.status === "started" || event.status === "progress") {
+          return suppressed();
+        }
         const args = compactArgs(event.args, Object.keys(event.args));
         const title = event.displayName || event.toolName || "Tool";
         if (event.resultDetail && event.resultDetail.length > 500) {
@@ -90031,6 +90123,14 @@ var init_trace_dispatcher = __esm({
       async dispatch(event) {
         try {
           const rendered = this.registry.render(event);
+          if (rendered.suppressed) {
+            this.hasTraceEvents = true;
+            if (event.displayName || event.toolName) {
+              this.currentStep = event.displayName || event.toolName;
+            }
+            await this.updateRunHeader("running");
+            return;
+          }
           const payload = {
             content: rendered.content,
             embeds: rendered.embeds,
