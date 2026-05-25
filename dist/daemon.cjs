@@ -43417,7 +43417,7 @@ var require_dist8 = __commonJS({
       ContextMenuCommandAssertions: () => Assertions_exports11,
       ContextMenuCommandBuilder: () => ContextMenuCommandBuilder,
       EmbedAssertions: () => Assertions_exports,
-      EmbedBuilder: () => EmbedBuilder2,
+      EmbedBuilder: () => EmbedBuilder,
       FileBuilder: () => FileBuilder,
       FileUploadAssertions: () => Assertions_exports4,
       FileUploadBuilder: () => FileUploadBuilder,
@@ -43546,7 +43546,7 @@ var require_dist8 = __commonJS({
       return arr;
     }
     __name(normalizeArray, "normalizeArray");
-    var EmbedBuilder2 = class {
+    var EmbedBuilder = class {
       static {
         __name(this, "EmbedBuilder");
       }
@@ -75821,7 +75821,7 @@ var require_EmbedBuilder = __commonJS({
     var { isJSONEncodable } = require_dist();
     var { toSnakeCase } = require_Transformers();
     var { resolveColor } = require_Util();
-    var EmbedBuilder2 = class extends BuildersEmbed {
+    var EmbedBuilder = class extends BuildersEmbed {
       constructor(data) {
         super(toSnakeCase(data));
       }
@@ -75850,7 +75850,7 @@ var require_EmbedBuilder = __commonJS({
         return embedLength(this.data);
       }
     };
-    module2.exports = EmbedBuilder2;
+    module2.exports = EmbedBuilder;
   }
 });
 
@@ -76634,7 +76634,7 @@ function resolveSessionKey(memoryScope, channelId, dmUserId) {
 }
 function buildDiscordPrompt(options) {
   const history = options.history ?? [];
-  const { transcript, omittedCount } = buildTranscript(
+  const { transcript: transcript2, omittedCount } = buildTranscript(
     history,
     options.promptHistoryMessageLimit ?? DEFAULT_PROMPT_HISTORY_MESSAGE_LIMIT,
     options.promptHistoryCharBudget ?? DEFAULT_PROMPT_HISTORY_CHAR_BUDGET,
@@ -76642,7 +76642,7 @@ function buildDiscordPrompt(options) {
     options.ownerIds
   );
   const historyBlock = omittedCount > 0 ? `(${omittedCount} earlier messages omitted)
-${transcript}` : transcript;
+${transcript2}` : transcript2;
   const immediateContextBlock = formatImmediateMentionContextBlock(options.immediateContext, {
     bossUserId: options.bossUserId,
     allowedAgentIds: options.allowedAgentIds,
@@ -89702,17 +89702,6 @@ function statusGlyph(status) {
       return "\u26A0";
   }
 }
-function colorFor(event) {
-  if (event.status === "failed") return COLORS.error;
-  if (event.status === "cancelled") return COLORS.warning;
-  if (event.status === "completed") return COLORS.success;
-  if (event.toolFamily === "shell") return COLORS.shell;
-  if (event.toolFamily === "mcp") return COLORS.running;
-  if (event.canonicalToolName === "replace" || event.canonicalToolName === "write_file") return COLORS.edit;
-  if (event.toolFamily === "search" || event.toolFamily === "filesystem") return COLORS.read;
-  if (event.toolFamily === "planning") return COLORS.phase;
-  return COLORS.neutral;
-}
 function stringArg(args, ...keys) {
   for (const key of keys) {
     const value = args[key];
@@ -89781,41 +89770,46 @@ function resultSuffix(event, fallback = "") {
   const result = event.resultSummary || fallback;
   return result ? ` \u2192 ${truncate2(result.replace(/\s+/g, " "), 240)}` : "";
 }
-function row(event, body) {
-  return {
-    content: `${statusGlyph(event.status)} **${event.displayName || event.toolName || "Tool"}** ${body}`.trim(),
-    density: "row",
-    flags: flags()
-  };
+function terminalLine(event, title, body = "") {
+  const suffix = body.trim() ? ` ${body.trim()}` : "";
+  return `${statusGlyph(event.status)} **${title}**${suffix}`.trim();
 }
-function panel(event, title, detail, language = "txt") {
+function outputBlock(language, text) {
+  const value = text.trimEnd();
+  return value ? codeBlock(language, value) : "";
+}
+function transcript(event, title, detail, language = "txt") {
   const attachment = attachmentFor(event, detail);
   const preview = truncate2(detail || event.resultSummary || "", PANEL_INLINE_LIMIT);
-  const description = [
-    preview ? codeBlock(language, preview) : null,
-    attachment ? "\u21B3 full output attached" : null
-  ].filter(Boolean).join("\n");
+  const lines = [
+    terminalLine(event, title),
+    preview ? `
+${outputBlock(language, preview)}` : "",
+    attachment ? "\u21B3 full output attached" : ""
+  ].filter(Boolean);
   return {
-    content: "",
-    embeds: [
-      new import_discord7.EmbedBuilder().setColor(colorFor(event)).setDescription(`**${statusGlyph(event.status)} ${title}**${description ? `
-
-${description}` : ""}`)
-    ],
+    content: lines.join("\n"),
     files: attachment ? [attachment] : void 0,
     density: "panel",
     flags: flags()
   };
 }
+function row(event, body) {
+  return {
+    content: terminalLine(event, event.displayName || event.toolName || "Tool", body),
+    density: "row",
+    flags: flags()
+  };
+}
+function panel(event, title, detail, language = "txt") {
+  return transcript(event, title, detail, language);
+}
 function card(event, title, lines) {
   return {
-    content: "",
-    embeds: [
-      new import_discord7.EmbedBuilder().setColor(colorFor(event)).setDescription([
-        `**${statusGlyph(event.status)} ${title}**`,
-        ...lines.filter(Boolean).slice(0, 4)
-      ].join("\n"))
-    ],
+    content: [
+      terminalLine(event, title),
+      ...lines.filter(Boolean).slice(0, 4)
+    ].join("\n"),
     density: "card",
     flags: flags()
   };
@@ -89837,7 +89831,7 @@ function readFileResult(event) {
   if (start !== null && limit !== null) return `Read lines ${start}-${start + limit}`;
   return event.resultSummary ? truncate2(event.resultSummary.replace(/\s+/g, " "), 180) : "Read file";
 }
-var import_discord7, TRACE_LIMIT, PANEL_INLINE_LIMIT, ATTACHMENT_THRESHOLD, COLORS, ShellRenderer, FilesystemRenderer, SearchRenderer, WebRenderer, PlanningRenderer, McpRenderer, InteractionRenderer, GenericFallbackRenderer, TraceRendererRegistry;
+var import_discord7, TRACE_LIMIT, PANEL_INLINE_LIMIT, ATTACHMENT_THRESHOLD, ShellRenderer, FilesystemRenderer, SearchRenderer, WebRenderer, PlanningRenderer, McpRenderer, InteractionRenderer, GenericFallbackRenderer, TraceRendererRegistry;
 var init_trace_renderer = __esm({
   "src/daemon/workflow/trace-renderer.ts"() {
     "use strict";
@@ -89845,25 +89839,14 @@ var init_trace_renderer = __esm({
     TRACE_LIMIT = 1900;
     PANEL_INLINE_LIMIT = 900;
     ATTACHMENT_THRESHOLD = 1200;
-    COLORS = {
-      phase: 5793266,
-      read: 6740463,
-      running: 15774258,
-      shell: 16096779,
-      edit: 10181046,
-      success: 5763719,
-      warning: 15844367,
-      error: 15548997,
-      security: 10038562,
-      neutral: 5198940
-    };
     ShellRenderer = class {
       canRender(event) {
         return event.canonicalToolName === "run_shell_command" || event.toolFamily === "shell";
       }
       render(event) {
         const command = shellCommand(event);
-        const title = `Shell ${command ? truncate2(command, 140) : "command"}`;
+        const displayName = event.displayName && event.displayName !== "Shell command" ? event.displayName : "Shell";
+        const title = command ? `${displayName} ${truncate2(command, 140)}` : displayName;
         if (boolArg(event.args, "is_background", "isBackground")) {
           const detail2 = event.status === "completed" ? "Command moved to background. Output hidden." : "Starting background command...";
           return panel(event, title, detail2);
@@ -89871,7 +89854,7 @@ var init_trace_renderer = __esm({
         if (event.status === "started") {
           return panel(event, title, "");
         }
-        const detail = event.resultDetail || event.resultSummary || (event.status === "completed" ? "Command completed." : "");
+        const detail = event.resultDetail || event.resultSummary || "";
         return panel(event, title, detail);
       }
     };
@@ -89923,12 +89906,20 @@ var init_trace_renderer = __esm({
       }
       render(event) {
         const query = stringArg(event.args, "query", "prompt", "url", "Url");
-        const action = event.canonicalToolName === "google_web_search" ? "Searching the web for" : "Fetching";
-        const title = `${event.displayName || "Web"} ${query ? `${action} ${inlineCode(query)}` : ""}`;
+        const title = event.displayName || (event.canonicalToolName === "google_web_search" ? "GoogleSearch" : "Web");
+        const action = event.canonicalToolName === "google_web_search" ? "Searching the web for:" : "Fetching";
+        const body = query ? `${action} "${truncate2(query.replace(/\s+/g, " "), 180)}"` : "";
         if (event.resultDetail && event.resultDetail.length > 500) {
-          return panel(event, title, event.resultDetail);
+          return transcript(event, `${title} ${body}`.trim(), event.resultDetail);
         }
-        return card(event, title, event.resultSummary ? [`\u2192 ${event.resultSummary}`] : []);
+        return {
+          content: [
+            terminalLine(event, title, body),
+            event.resultSummary ? `\u21B3 ${truncate2(event.resultSummary.replace(/\s+/g, " "), 240)}` : ""
+          ].filter(Boolean).join("\n"),
+          density: "card",
+          flags: flags()
+        };
       }
     };
     PlanningRenderer = class {
@@ -90019,12 +90010,11 @@ function resolveToolCallId(event) {
   const toolCall = event.raw?.toolCall;
   return typeof toolCall?.id === "string" ? toolCall.id : null;
 }
-var TRACE_MARKER, TraceDispatcher;
+var TraceDispatcher;
 var init_trace_dispatcher = __esm({
   "src/daemon/workflow/trace-dispatcher.ts"() {
     "use strict";
     init_log();
-    TRACE_MARKER = "<!-- trace:doNotPersist -->";
     TraceDispatcher = class {
       constructor(threadChannel, registry) {
         this.threadChannel = threadChannel;
@@ -90042,8 +90032,7 @@ var init_trace_dispatcher = __esm({
         try {
           const rendered = this.registry.render(event);
           const payload = {
-            content: `${rendered.content ? `${rendered.content}
-` : ""}${TRACE_MARKER}`,
+            content: rendered.content,
             embeds: rendered.embeds,
             files: rendered.files
           };
@@ -90088,8 +90077,7 @@ var init_trace_dispatcher = __esm({
           this.seenToolCallIds.clear();
           this.hasTraceEvents = false;
           this.headerMessage = await this.threadChannel.send({
-            content: `\u25CC **Queued** \xB7 ${this.formatTask(manifest.taskSummary)}
-${TRACE_MARKER}`
+            content: `\u25CC **Queued** \xB7 ${this.formatTask(manifest.taskSummary)}`
           });
           this.startHeartbeat();
           await this.updateRunHeader("running");
@@ -90129,8 +90117,7 @@ ${TRACE_MARKER}`
           content = `\u2301 **Running** \`${elapsed}\`${suffix}`;
         }
         try {
-          await this.headerMessage.edit(`${content}
-${TRACE_MARKER}`);
+          await this.headerMessage.edit(content);
         } catch (error) {
           log.warn("Failed to update trace run header", { error: String(error) });
         }
@@ -92504,6 +92491,12 @@ function rawInputArgs(rawInput) {
   }
   return record;
 }
+function argsWithTitleCommand(args, toolEntry, title) {
+  if (toolEntry.family !== "shell") return args;
+  if (firstString(args["command"], args["commandLine"], args["CommandLine"])) return args;
+  const command = title.replace(/^Shell(?:\s+command)?\s*/i, "").trim();
+  return command ? { ...args, command } : args;
+}
 function normalizeAcpUpdate(sessionUpdate, updatePayload, activeToolTimers) {
   const timestamp = Date.now();
   if (sessionUpdate === "plan") {
@@ -92555,7 +92548,7 @@ function normalizeAcpUpdate(sessionUpdate, updatePayload, activeToolTimers) {
       const title = firstString(updatePayload["title"]) ?? "";
       if (!id2 || !title) return null;
       const toolEntry2 = resolveTopLevelToolEntry(updatePayload);
-      const rawArgs2 = rawInputArgs(updatePayload["rawInput"]);
+      const rawArgs2 = argsWithTitleCommand(rawInputArgs(updatePayload["rawInput"]), toolEntry2, title);
       const { redacted: redactedArgs2, fieldsRedacted: fieldsRedacted2 } = redactTraceArgs(rawArgs2);
       const contentText = extractToolContentText(updatePayload["content"]);
       const outputText = stringifyTraceValue(updatePayload["rawOutput"], toolEntry2.canonical);

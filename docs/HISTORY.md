@@ -1,5 +1,14 @@
 # Change History
 
+## [2026-05-25] Terminal-Style Workflow Trace Visuals
+
+Aligned monitored workflow traces with the Gemini CLI terminal presentation inside Discord.
+
+### Changed
+- **Transcript Renderer**: Normal trace messages now use plain Discord markdown rows and fenced output blocks instead of chunky embed cards.
+- **Hidden Trace Metadata**: Internal trace non-persistence is kept in code, but the visible `trace:doNotPersist` marker is no longer posted into workflow threads.
+- **Shell Command Titles**: Top-level ACP shell events can derive command text from their title when raw tool input is absent, keeping Discord output close to the terminal trace.
+
 ## [2026-05-25] Reliable Workflow Thread Traces
 
 Fixed monitored workflow traces for current Gemini CLI ACP payloads and tightened workflow task validation.
@@ -25,7 +34,7 @@ Refined monitored workflow thread traces to match a compact Gemini CLI/Codex-sty
 ### Added Features
 - **Editable Run Header**: Workflow runs now keep one live header that moves from queued to running to complete or failed, including elapsed time, current step, and tool-call count.
 - **CLI-Style Trace Rows**: Simple file reads, searches, globs, and directory listings render as compact rows with fixed status glyphs and `→` result summaries.
-- **Sparse Panels**: Shell output, edits, web/MCP calls, errors, and long meaningful results render as compact Discord embeds. Long sanitized output is attached as text instead of pasted inline.
+- **Sparse Panels**: Shell output, edits, web/MCP calls, errors, and long meaningful results render as compact trace messages. Long sanitized output is attached as text instead of pasted inline.
 - **Canonical Tool Mapping**: Built-in Gemini CLI tools use canonical names and argument keys from the Gemini CLI tool reference while MCP/custom/future tools keep a safe generic fallback.
 - **Native Thinking Indicator**: The renderer no longer posts literal thinking cards; Discord's native typing indicator represents thinking state.
 

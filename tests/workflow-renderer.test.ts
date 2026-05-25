@@ -23,9 +23,9 @@ describe('trace renderers', () => {
 
     const rendered = registry.render(event);
     expect(rendered.density).toBe('panel');
-    const embed = rendered.embeds?.[0]?.toJSON();
-    expect(embed?.description).toContain('Shell');
-    expect(embed?.description).toContain('ls -la');
+    expect(rendered.content).toContain('Shell');
+    expect(rendered.content).toContain('ls -la');
+    expect(rendered.embeds).toBeUndefined();
     expect(rendered.flags).toEqual({
       source: 'trace_renderer',
       doNotRoute: true,
@@ -51,10 +51,10 @@ describe('trace renderers', () => {
 
     const rendered = registry.render(event);
     expect(rendered.density).toBe('card');
-    const embed = rendered.embeds?.[0]?.toJSON();
-    expect(embed?.description).toContain('WriteFile');
-    expect(embed?.description).toContain('/tmp/test.txt');
-    expect(embed?.description).toContain('Wrote 15 bytes');
+    expect(rendered.content).toContain('WriteFile');
+    expect(rendered.content).toContain('/tmp/test.txt');
+    expect(rendered.content).toContain('Wrote 15 bytes');
+    expect(rendered.embeds).toBeUndefined();
   });
 
   it('renders planning phases correctly', () => {
@@ -119,8 +119,9 @@ describe('trace renderers', () => {
     };
 
     const rendered = registry.render(event);
-    const embed = rendered.embeds?.[0]?.toJSON();
     expect(rendered.files).toHaveLength(1);
-    expect(embed?.description).toContain('full output attached');
+    expect(rendered.content).toContain('full output attached');
+    expect(rendered.content).toContain('```txt');
+    expect(rendered.embeds).toBeUndefined();
   });
 });

@@ -221,8 +221,30 @@ describe('workflow trace events & renderer integration', () => {
 
     expect(mockChannel.send).toHaveBeenCalledTimes(1);
     const sentArgs = mockChannel.send.mock.calls[0][0];
-    expect(sentArgs.embeds[0].toJSON().description).toContain('git status');
-    expect(sentArgs.content).toContain('<!-- trace:doNotPersist -->');
+    expect(sentArgs.content).toContain('git status');
+    expect(sentArgs.content).not.toContain('<!-- trace:doNotPersist -->');
+  });
+
+  it('derives shell commands from top-level ACP titles when raw input is absent', () => {
+    const event = normalizeAcpUpdate('tool_call', {
+      sessionUpdate: 'tool_call',
+      toolCallId: 'shell-title-1',
+      status: 'in_progress',
+      title: 'Shell cd /tmp && npm test',
+      kind: 'execute',
+      content: [],
+    }, new Map());
+
+    expect(event).toMatchObject({
+      type: 'tool_started',
+      status: 'started',
+      toolFamily: 'shell',
+    });
+    expect(event!.args.command).toBe('cd /tmp && npm test');
+
+    const rendered = new TraceRendererRegistry().render(event!);
+    expect(rendered.content).toContain('Shell cd /tmp && npm test');
+    expect(rendered.embeds).toBeUndefined();
   });
 
   it('edits one run header across workflow lifecycle', async () => {

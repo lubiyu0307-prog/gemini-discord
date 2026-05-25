@@ -1,22 +1,9 @@
-import { AttachmentBuilder, EmbedBuilder } from 'discord.js';
+import { AttachmentBuilder, type EmbedBuilder } from 'discord.js';
 import type { TraceEvent } from './trace-event.js';
 
 const TRACE_LIMIT = 1900;
 const PANEL_INLINE_LIMIT = 900;
 const ATTACHMENT_THRESHOLD = 1200;
-
-const COLORS = {
-  phase: 0x5865f2,
-  read: 0x66d9ef,
-  running: 0xf0b232,
-  shell: 0xf59e0b,
-  edit: 0x9b59b6,
-  success: 0x57f287,
-  warning: 0xf1c40f,
-  error: 0xed4245,
-  security: 0x992d22,
-  neutral: 0x4f545c,
-};
 
 type TraceDensity = 'row' | 'card' | 'panel';
 
@@ -54,18 +41,6 @@ export function statusGlyph(status: TraceEvent['status']): string {
     case 'cancelled':
       return '⚠';
   }
-}
-
-function colorFor(event: TraceEvent): number {
-  if (event.status === 'failed') return COLORS.error;
-  if (event.status === 'cancelled') return COLORS.warning;
-  if (event.status === 'completed') return COLORS.success;
-  if (event.toolFamily === 'shell') return COLORS.shell;
-  if (event.toolFamily === 'mcp') return COLORS.running;
-  if (event.canonicalToolName === 'replace' || event.canonicalToolName === 'write_file') return COLORS.edit;
-  if (event.toolFamily === 'search' || event.toolFamily === 'filesystem') return COLORS.read;
-  if (event.toolFamily === 'planning') return COLORS.phase;
-  return COLORS.neutral;
 }
 
 function stringArg(args: Record<string, unknown>, ...keys: string[]): string {
@@ -145,46 +120,51 @@ function resultSuffix(event: TraceEvent, fallback = ''): string {
   return result ? ` → ${truncate(result.replace(/\s+/g, ' '), 240)}` : '';
 }
 
-function row(event: TraceEvent, body: string): RenderedTrace {
-  return {
-    content: `${statusGlyph(event.status)} **${event.displayName || event.toolName || 'Tool'}** ${body}`.trim(),
-    density: 'row',
-    flags: flags(),
-  };
+function terminalLine(event: TraceEvent, title: string, body = ''): string {
+  const suffix = body.trim() ? ` ${body.trim()}` : '';
+  return `${statusGlyph(event.status)} **${title}**${suffix}`.trim();
 }
 
-function panel(event: TraceEvent, title: string, detail: string, language = 'txt'): RenderedTrace {
+function outputBlock(language: string, text: string): string {
+  const value = text.trimEnd();
+  return value ? codeBlock(language, value) : '';
+}
+
+function transcript(event: TraceEvent, title: string, detail: string, language = 'txt'): RenderedTrace {
   const attachment = attachmentFor(event, detail);
   const preview = truncate(detail || event.resultSummary || '', PANEL_INLINE_LIMIT);
-  const description = [
-    preview ? codeBlock(language, preview) : null,
-    attachment ? '↳ full output attached' : null,
-  ].filter(Boolean).join('\n');
+  const lines = [
+    terminalLine(event, title),
+    preview ? `\n${outputBlock(language, preview)}` : '',
+    attachment ? '↳ full output attached' : '',
+  ].filter(Boolean);
 
   return {
-    content: '',
-    embeds: [
-      new EmbedBuilder()
-        .setColor(colorFor(event))
-        .setDescription(`**${statusGlyph(event.status)} ${title}**${description ? `\n\n${description}` : ''}`),
-    ],
+    content: lines.join('\n'),
     files: attachment ? [attachment] : undefined,
     density: 'panel',
     flags: flags(),
   };
 }
 
+function row(event: TraceEvent, body: string): RenderedTrace {
+  return {
+    content: terminalLine(event, event.displayName || event.toolName || 'Tool', body),
+    density: 'row',
+    flags: flags(),
+  };
+}
+
+function panel(event: TraceEvent, title: string, detail: string, language = 'txt'): RenderedTrace {
+  return transcript(event, title, detail, language);
+}
+
 function card(event: TraceEvent, title: string, lines: string[]): RenderedTrace {
   return {
-    content: '',
-    embeds: [
-      new EmbedBuilder()
-        .setColor(colorFor(event))
-        .setDescription([
-          `**${statusGlyph(event.status)} ${title}**`,
-          ...lines.filter(Boolean).slice(0, 4),
-        ].join('\n')),
-    ],
+    content: [
+      terminalLine(event, title),
+      ...lines.filter(Boolean).slice(0, 4),
+    ].join('\n'),
     density: 'card',
     flags: flags(),
   };
@@ -218,7 +198,10 @@ export class ShellRenderer implements ToolRenderer {
 
   render(event: TraceEvent): RenderedTrace {
     const command = shellCommand(event);
-    const title = `Shell ${command ? truncate(command, 140) : 'command'}`;
+    const displayName = event.displayName && event.displayName !== 'Shell command'
+      ? event.displayName
+      : 'Shell';
+    const title = command ? `${displayName} ${truncate(command, 140)}` : displayName;
     if (boolArg(event.args, 'is_background', 'isBackground')) {
       const detail = event.status === 'completed'
         ? 'Command moved to background. Output hidden.'
@@ -230,7 +213,7 @@ export class ShellRenderer implements ToolRenderer {
       return panel(event, title, '');
     }
 
-    const detail = event.resultDetail || event.resultSummary || (event.status === 'completed' ? 'Command completed.' : '');
+    const detail = event.resultDetail || event.resultSummary || '';
     return panel(event, title, detail);
   }
 }
@@ -294,12 +277,20 @@ export class WebRenderer implements ToolRenderer {
 
   render(event: TraceEvent): RenderedTrace {
     const query = stringArg(event.args, 'query', 'prompt', 'url', 'Url');
-    const action = event.canonicalToolName === 'google_web_search' ? 'Searching the web for' : 'Fetching';
-    const title = `${event.displayName || 'Web'} ${query ? `${action} ${inlineCode(query)}` : ''}`;
+    const title = event.displayName || (event.canonicalToolName === 'google_web_search' ? 'GoogleSearch' : 'Web');
+    const action = event.canonicalToolName === 'google_web_search' ? 'Searching the web for:' : 'Fetching';
+    const body = query ? `${action} "${truncate(query.replace(/\s+/g, ' '), 180)}"` : '';
     if (event.resultDetail && event.resultDetail.length > 500) {
-      return panel(event, title, event.resultDetail);
+      return transcript(event, `${title} ${body}`.trim(), event.resultDetail);
     }
-    return card(event, title, event.resultSummary ? [`→ ${event.resultSummary}`] : []);
+    return {
+      content: [
+        terminalLine(event, title, body),
+        event.resultSummary ? `↳ ${truncate(event.resultSummary.replace(/\s+/g, ' '), 240)}` : '',
+      ].filter(Boolean).join('\n'),
+      density: 'card',
+      flags: flags(),
+    };
   }
 }
 

@@ -4,8 +4,6 @@ import { TraceRendererRegistry } from './trace-renderer.js';
 import type { ThreadManifest } from './thread-manifest.js';
 import { log } from '../log.js';
 
-const TRACE_MARKER = '<!-- trace:doNotPersist -->';
-
 export class TraceDispatcher {
   private activeMessages = new Map<string, Message>();
   private headerMessage: Message | null = null;
@@ -25,7 +23,7 @@ export class TraceDispatcher {
     try {
       const rendered = this.registry.render(event);
       const payload = {
-        content: `${rendered.content ? `${rendered.content}\n` : ''}${TRACE_MARKER}`,
+        content: rendered.content,
         embeds: rendered.embeds,
         files: rendered.files,
       };
@@ -76,7 +74,7 @@ export class TraceDispatcher {
       this.seenToolCallIds.clear();
       this.hasTraceEvents = false;
       this.headerMessage = await this.threadChannel.send({
-        content: `◌ **Queued** · ${this.formatTask(manifest.taskSummary)}\n${TRACE_MARKER}`,
+        content: `◌ **Queued** · ${this.formatTask(manifest.taskSummary)}`,
       });
       this.startHeartbeat();
       await this.updateRunHeader('running');
@@ -124,7 +122,7 @@ export class TraceDispatcher {
     }
 
     try {
-      await this.headerMessage.edit(`${content}\n${TRACE_MARKER}`);
+      await this.headerMessage.edit(content);
     } catch (error) {
       log.warn('Failed to update trace run header', { error: String(error) });
     }

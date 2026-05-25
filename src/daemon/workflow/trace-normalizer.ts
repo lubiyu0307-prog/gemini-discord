@@ -201,6 +201,16 @@ function rawInputArgs(rawInput: unknown): Record<string, unknown> {
   return record;
 }
 
+function argsWithTitleCommand(args: Record<string, unknown>, toolEntry: ReturnType<typeof resolveToolEntry>, title: string): Record<string, unknown> {
+  if (toolEntry.family !== 'shell') return args;
+  if (firstString(args['command'], args['commandLine'], args['CommandLine'])) return args;
+
+  const command = title
+    .replace(/^Shell(?:\s+command)?\s*/i, '')
+    .trim();
+  return command ? { ...args, command } : args;
+}
+
 export function normalizeAcpUpdate(
   sessionUpdate: string,
   updatePayload: Record<string, unknown>,
@@ -261,7 +271,7 @@ export function normalizeAcpUpdate(
       if (!id || !title) return null;
 
       const toolEntry = resolveTopLevelToolEntry(updatePayload);
-      const rawArgs = rawInputArgs(updatePayload['rawInput']);
+      const rawArgs = argsWithTitleCommand(rawInputArgs(updatePayload['rawInput']), toolEntry, title);
       const { redacted: redactedArgs, fieldsRedacted } = redactTraceArgs(rawArgs);
       const contentText = extractToolContentText(updatePayload['content']);
       const outputText = stringifyTraceValue(updatePayload['rawOutput'], toolEntry.canonical);
