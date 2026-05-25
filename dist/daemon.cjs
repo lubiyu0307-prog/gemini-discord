@@ -91210,7 +91210,7 @@ async function processMessage(message, accepted, config, memory, state2, process
         if (response.trim().length > 0) {
           const prepared = await finalizeAssistantResponse(response, message, {
             allowPrivilegedActions: isBoss(accepted.roleContext),
-            prependNewlines: false
+            prependNewlines: true
           });
           response = prepared.responseText;
           const finalMsgIds = await sendPreparedDisplayText(channel, prepared.displayText);

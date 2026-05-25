@@ -308,6 +308,22 @@ describe('Workflow Thread Policy & Interception', () => {
       expect(res.responseText).toBe('✦1183');
     });
 
+    it('keeps grouped workflow final answers readable with leading spacing', async () => {
+      const mockMessage = {
+        client: {
+          channels: { fetch: vi.fn() },
+        },
+      } as any;
+
+      const res = await finalizeAssistantResponse('✦1183', mockMessage, {
+        allowPrivilegedActions: true,
+        prependNewlines: true,
+      });
+
+      expect(res.displayText).toBe('\n\n✦ 1183');
+      expect(res.responseText).toBe('✦1183');
+    });
+
     it('prepends newlines when prependNewlines is true', async () => {
       const mockMessage = {
         client: {

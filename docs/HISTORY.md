@@ -8,6 +8,7 @@ Tightened monitored workflow Discord rendering without changing agent behavior.
 - **Web Search Rows**: Google search traces keep the canonical `GoogleSearch` label and render completed results on a `↳` sub-result line.
 - **Final Answer Spacing**: Single-line workflow final answers normalize the sparkle prefix so compact results render as `✦ 1183` instead of `✦1183`.
 - **Current-Thread Sends**: MCP-suffixed `discord_message` tool names are normalized before workflow policy checks, so accidental current-thread sends stay hidden and uncounted unless the user explicitly requested a Discord send action.
+- **Grouped Final Replies**: Workflow final answers sent after trace finalization include leading blank spacing so Discord's visual message grouping still reads as a separate bridge reply.
 
 ## [2026-05-25] Terminal-Style Workflow Trace Visuals
 

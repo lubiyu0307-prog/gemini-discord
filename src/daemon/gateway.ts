@@ -782,7 +782,7 @@ async function processMessage(
         if (response.trim().length > 0) {
           const prepared = await finalizeAssistantResponse(response, message, {
             allowPrivilegedActions: isBoss(accepted.roleContext),
-            prependNewlines: false,
+            prependNewlines: true,
           });
           response = prepared.responseText;
           const finalMsgIds = await sendPreparedDisplayText(channel as any, prepared.displayText);
