@@ -49,5 +49,7 @@ Before any trace output is sent to Discord, it passes through a multi-stage rege
 - **Command Flags**: Strips auth or sensitive flags from executed terminal commands.
 
 ### 3. Rendering & Dispatcher
-- **Compact Layout**: In v1, the trace output is compacted to fit nicely within Discord's message size limits (2000 chars) and avoid excessive scrolling.
-- **Discord Message Edits**: To stay within Discord rate limits, the `TraceDispatcher` keeps track of the active tool message and updates it in place using `.edit()` as the tool executes (e.g., pending, updating progress, and completed status).
+- **Console Layout**: Trace output uses a Gemini CLI-style rhythm inside Discord: prompt echo, phase line, one editable run header, compact tool rows, sparse panels, and a separate final assistant answer.
+- **Density Selection**: Simple reads, searches, globs, and directory listings render as one-line rows. Shell output, diffs, logs, errors, MCP calls, edits, writes, web fetches, and meaningful results render as compact embeds. Long sanitized output is attached as a text file instead of pasted inline.
+- **Discord Message Edits**: To stay within Discord rate limits, the `TraceDispatcher` keeps track of the run header and active tool messages and updates them in place as the workflow transitions from queued to running to complete or failed.
+- **Native Thinking State**: The bridge relies on Discord's native typing indicator for model thinking and does not emit separate "Thinking..." trace cards.

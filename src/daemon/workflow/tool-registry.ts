@@ -4,20 +4,21 @@ export interface ToolRegistryEntry {
   family: string;
 }
 
-// Built-in Gemini CLI tools
+// Built-in Gemini CLI tools, aligned with docs/reference/tools.md.
 const BUILTIN_TOOL_REGISTRY: Record<string, ToolRegistryEntry> = {
   'run_shell_command':      { canonical: 'run_shell_command',      displayName: 'Shell',          family: 'shell' },
+  'glob':                   { canonical: 'glob',                   displayName: 'Glob',           family: 'search' },
   'grep_search':            { canonical: 'grep_search',            displayName: 'SearchText',     family: 'search' },
+  'list_directory':         { canonical: 'list_directory',         displayName: 'ListDirectory',  family: 'filesystem' },
   'read_file':              { canonical: 'read_file',              displayName: 'ReadFile',       family: 'filesystem' },
   'read_many_files':        { canonical: 'read_many_files',        displayName: 'ReadManyFiles',  family: 'filesystem' },
   'replace':                { canonical: 'replace',                displayName: 'Edit',           family: 'filesystem' },
   'write_file':             { canonical: 'write_file',             displayName: 'WriteFile',      family: 'filesystem' },
-  'list_directory':         { canonical: 'list_directory',         displayName: 'ListDirectory',  family: 'filesystem' },
-  'glob':                   { canonical: 'glob',                   displayName: 'Glob',           family: 'search' },
   'google_web_search':      { canonical: 'google_web_search',      displayName: 'GoogleSearch',   family: 'web' },
   'web_fetch':              { canonical: 'web_fetch',              displayName: 'WebFetch',       family: 'web' },
   'ask_user':               { canonical: 'ask_user',               displayName: 'AskUser',        family: 'interaction' },
   'write_todos':            { canonical: 'write_todos',            displayName: 'TodoWrite',      family: 'planning' },
+  'save_memory':            { canonical: 'save_memory',            displayName: 'SaveMemory',     family: 'planning' },
   'tracker_create_task':    { canonical: 'tracker_create_task',    displayName: 'CreateTask',     family: 'planning' },
   'tracker_update_task':    { canonical: 'tracker_update_task',    displayName: 'UpdateTask',     family: 'planning' },
   'tracker_get_task':       { canonical: 'tracker_get_task',       displayName: 'GetTask',        family: 'planning' },
@@ -39,7 +40,7 @@ export function isBuiltinTool(name: string): boolean {
 }
 
 export function isMcpTool(name: string): boolean {
-  return name.includes('/') || name.startsWith('mcp_');
+  return name.includes('/') || name.startsWith('mcp_') || name.includes('__');
 }
 
 export function resolveToolEntry(rawToolName: string): ToolRegistryEntry {
@@ -51,8 +52,8 @@ export function resolveToolEntry(rawToolName: string): ToolRegistryEntry {
   
   // Format MCP display name: e.g., 'gitserver/git-status' -> 'GitStatus' (or just clean title)
   let displayName = rawToolName;
-  if (rawToolName.includes('/')) {
-    const parts = rawToolName.split('/');
+  if (rawToolName.includes('/') || rawToolName.includes('__')) {
+    const parts = rawToolName.split(/[\/]+|__/);
     const toolPart = parts[parts.length - 1];
     displayName = toolPart
       .split(/[-_]/)

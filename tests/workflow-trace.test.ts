@@ -56,7 +56,23 @@ describe('workflow trace events & renderer integration', () => {
     expect(eventCompleted!.resultSummary).toContain('build ok');
     expect(eventCompleted!.durationMs).toBeGreaterThanOrEqual(500);
 
-    // 4. Plan/Thought Update
+    // 4. Tool Call Update Completed
+    timers.set('call-3', Date.now() - 50);
+    const updateCompletedPayload = {
+      sessionUpdate: 'tool_call_update',
+      toolCall: {
+        id: 'call-3',
+        name: 'read_file',
+        arguments: { file_path: '/Users/yamato/project/src/index.ts', start_line: 1, end_line: 10 },
+        result: 'file contents',
+      },
+    };
+    const eventUpdateCompleted = normalizeAcpUpdate('tool_call_update', updateCompletedPayload, timers);
+    expect(eventUpdateCompleted).not.toBeNull();
+    expect(eventUpdateCompleted!.type).toBe('tool_completed');
+    expect(eventUpdateCompleted!.args.file_path).toBe('~/project/src/index.ts');
+
+    // 5. Plan/Thought Update
     const planPayload = {
       sessionUpdate: 'plan',
       plan: 'Determine next steps',
@@ -94,7 +110,55 @@ describe('workflow trace events & renderer integration', () => {
 
     expect(mockChannel.send).toHaveBeenCalledTimes(1);
     const sentArgs = mockChannel.send.mock.calls[0][0];
-    expect(sentArgs.content).toContain('git status');
+    expect(sentArgs.embeds[0].toJSON().description).toContain('git status');
     expect(sentArgs.content).toContain('<!-- trace:doNotPersist -->');
+  });
+
+  it('edits one run header across workflow lifecycle', async () => {
+    const header = { id: 'header', edit: vi.fn().mockResolvedValue(undefined) };
+    const toolMessage = { id: 'tool-1', edit: vi.fn().mockResolvedValue(undefined) };
+    const mockChannel = {
+      send: vi.fn()
+        .mockResolvedValueOnce(header)
+        .mockResolvedValueOnce(toolMessage),
+    } as any;
+
+    const registry = new TraceRendererRegistry();
+    const dispatcher = new TraceDispatcher(mockChannel, registry);
+
+    await dispatcher.dispatchRunHeader({
+      threadId: 'thread-1',
+      parentChannelId: 'parent-1',
+      guildId: 'guild-1',
+      creatorUserId: 'user-1',
+      starterMessageId: 'message-1',
+      createdAt: new Date().toISOString(),
+      mode: 'monitored_workflow',
+      taskSummary: 'Fix routing',
+      traceMode: 'compact',
+      originContext: { type: 'channel', sourceChannelId: 'parent-1' },
+    });
+
+    await dispatcher.dispatch({
+      type: 'tool_started',
+      timestamp: Date.now(),
+      toolName: 'grep_search',
+      canonicalToolName: 'grep_search',
+      displayName: 'SearchText',
+      toolFamily: 'search',
+      args: { pattern: 'routing' },
+      status: 'started',
+      durationMs: null,
+      resultSummary: null,
+      artifactRef: null,
+      redactionMetadata: { fieldsRedacted: [], truncated: false },
+      raw: { toolCall: { id: 'call-1' } },
+    });
+
+    await dispatcher.dispatchRunComplete();
+
+    expect(mockChannel.send).toHaveBeenCalledTimes(2);
+    expect(header.edit).toHaveBeenCalledWith(expect.stringContaining('⌁ **Running**'));
+    expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('✓ **Complete**'));
   });
 });

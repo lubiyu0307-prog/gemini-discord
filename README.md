@@ -72,6 +72,7 @@ npm run setup
 **From Discord, you can:**
 - Chat with your agent in any channel, thread, or DM
 - Send attachments — images, video, audio, PDFs, text, Markdown, JSON, source files — and the agent receives them in-session
+- Create monitored workflow threads that show compact Gemini CLI-style tool traces while the final answer stays as a normal assistant message
 - Trigger scheduled tasks and cron jobs
 - Search local media files and post them back when authorized
 
@@ -94,6 +95,7 @@ npm run setup
 | `/model` | Switch Gemini model (boss only) |
 | `/pool` | Process pool state (boss only) |
 | `/kill` | Kill a pooled process (boss only) |
+| `/workflow` | Create a monitored workflow thread for a task (boss only) |
 | `/ping` | Round-trip latency |
 
 ---
@@ -109,6 +111,8 @@ Two roles: `BOSS` and `GUEST`.
 All message sends require an explicit target. If a target can't be proven, the action fails — there is no fallback channel.
 
 Credentials and runtime state stay local. Do not commit `.env`, `.gemini-discord/`, logs, databases, tokens, or real Discord IDs.
+
+Workflow thread traces are generated only from observed Gemini CLI/ACP events. Simple reads and searches render as single compact rows; shell output, diffs, errors, MCP calls, and meaningful results render as small Discord embeds with long sanitized output attached instead of pasted inline. Discord's native typing indicator represents thinking state, so the bot does not post separate "thinking" trace cards.
 
 ---
 

@@ -80,12 +80,12 @@ var init_runtime_paths = __esm({
 });
 
 // src/shared/managed-config.ts
-function readManagedConfigFile(filePath) {
-  if (!fs2.existsSync(filePath)) {
+function readManagedConfigFile(filePath2) {
+  if (!fs2.existsSync(filePath2)) {
     return createManagedConfigFile();
   }
   try {
-    const parsed = JSON.parse(fs2.readFileSync(filePath, "utf-8"));
+    const parsed = JSON.parse(fs2.readFileSync(filePath2, "utf-8"));
     if (parsed.version === 1 && typeof parsed.values === "object" && parsed.values !== null) {
       return createManagedConfigFile(coerceStringMap(parsed.values));
     }
@@ -101,20 +101,20 @@ function readManagedConfigFile(filePath) {
   }
   return createManagedConfigFile();
 }
-function writeManagedConfigFile(filePath, config) {
+function writeManagedConfigFile(filePath2, config) {
   const payload = {
     version: MANAGED_CONFIG_VERSION,
     updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
     env: coerceStringMap(config.env),
     discord: coerceDiscordMetadata(config.discord)
   };
-  fs2.mkdirSync(path2.dirname(filePath), { recursive: true });
-  fs2.writeFileSync(filePath, JSON.stringify(payload, null, 2), { mode: 384 });
-  fs2.chmodSync(filePath, 384);
+  fs2.mkdirSync(path2.dirname(filePath2), { recursive: true });
+  fs2.writeFileSync(filePath2, JSON.stringify(payload, null, 2), { mode: 384 });
+  fs2.chmodSync(filePath2, 384);
 }
-function updateManagedConfigFile(filePath, updater) {
-  const next = updater(readManagedConfigFile(filePath));
-  writeManagedConfigFile(filePath, next);
+function updateManagedConfigFile(filePath2, updater) {
+  const next = updater(readManagedConfigFile(filePath2));
+  writeManagedConfigFile(filePath2, next);
   return next;
 }
 function createManagedConfigFile(env = {}) {
@@ -274,10 +274,10 @@ var init_config_vars = __esm({
 });
 
 // src/shared/config.ts
-function parseEnvFile(filePath) {
+function parseEnvFile(filePath2) {
   const result = {};
-  if (!fs3.existsSync(filePath)) return result;
-  const content = fs3.readFileSync(filePath, "utf-8");
+  if (!fs3.existsSync(filePath2)) return result;
+  const content = fs3.readFileSync(filePath2, "utf-8");
   for (const line of content.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
@@ -511,8 +511,8 @@ function persistDiscordMetadata(extensionDir2, updates) {
     }
   }));
 }
-function persistManagedConfig(filePath, current, values) {
-  updateManagedConfigFile(filePath, () => ({
+function persistManagedConfig(filePath2, current, values) {
+  updateManagedConfigFile(filePath2, () => ({
     ...current,
     env: normalizeConfigMap(values)
   }));
@@ -27043,23 +27043,23 @@ Emitted 'error' event${ctorInfo} at:
       return signal?.reason;
     }
     __name(getReason, "getReason");
-    function eventTargetAgnosticRemoveListener(emitter, name, listener, flags) {
+    function eventTargetAgnosticRemoveListener(emitter, name, listener, flags2) {
       if (typeof emitter.off === "function") {
         emitter.off(name, listener);
       } else if (typeof emitter.removeEventListener === "function") {
-        emitter.removeEventListener(name, listener, flags);
+        emitter.removeEventListener(name, listener, flags2);
       }
     }
     __name(eventTargetAgnosticRemoveListener, "eventTargetAgnosticRemoveListener");
-    function eventTargetAgnosticAddListener(emitter, name, listener, flags) {
+    function eventTargetAgnosticAddListener(emitter, name, listener, flags2) {
       if (typeof emitter.on === "function") {
-        if (flags?.once) {
+        if (flags2?.once) {
           emitter.once(name, listener);
         } else {
           emitter.on(name, listener);
         }
       } else if (typeof emitter.addEventListener === "function") {
-        emitter.addEventListener(name, listener, flags);
+        emitter.addEventListener(name, listener, flags2);
       }
     }
     __name(eventTargetAgnosticAddListener, "eventTargetAgnosticAddListener");
@@ -31713,7 +31713,7 @@ var require_dist7 = __commonJS({
       channelLink: () => channelLink,
       channelMention: () => channelMention,
       chatInputApplicationCommandMention: () => chatInputApplicationCommandMention,
-      codeBlock: () => codeBlock,
+      codeBlock: () => codeBlock2,
       email: () => email,
       escapeBold: () => escapeBold,
       escapeBulletedList: () => escapeBulletedList,
@@ -31732,7 +31732,7 @@ var require_dist7 = __commonJS({
       heading: () => heading,
       hideLinkEmbed: () => hideLinkEmbed,
       hyperlink: () => hyperlink,
-      inlineCode: () => inlineCode,
+      inlineCode: () => inlineCode2,
       italic: () => italic,
       linkedRoleMention: () => linkedRoleMention,
       messageLink: () => messageLink,
@@ -31753,8 +31753,8 @@ var require_dist7 = __commonJS({
     module2.exports = __toCommonJS2(index_exports);
     function escapeMarkdown(text, options = {}) {
       const {
-        codeBlock: codeBlock2 = true,
-        inlineCode: inlineCode2 = true,
+        codeBlock: codeBlock22 = true,
+        inlineCode: inlineCode22 = true,
         bold: bold2 = true,
         italic: italic2 = true,
         underline: underline2 = true,
@@ -31772,7 +31772,7 @@ var require_dist7 = __commonJS({
         return text.split("```").map((subString, index, array) => {
           if (index % 2 && index !== array.length - 1) return subString;
           return escapeMarkdown(subString, {
-            inlineCode: inlineCode2,
+            inlineCode: inlineCode22,
             bold: bold2,
             italic: italic2,
             underline: underline2,
@@ -31785,13 +31785,13 @@ var require_dist7 = __commonJS({
             numberedList,
             maskedLink
           });
-        }).join(codeBlock2 ? "\\`\\`\\`" : "```");
+        }).join(codeBlock22 ? "\\`\\`\\`" : "```");
       }
       if (!inlineCodeContent) {
         return text.split(/(?<=^|[^`])`(?=[^`]|$)/g).map((subString, index, array) => {
           if (index % 2 && index !== array.length - 1) return subString;
           return escapeMarkdown(subString, {
-            codeBlock: codeBlock2,
+            codeBlock: codeBlock22,
             bold: bold2,
             italic: italic2,
             underline: underline2,
@@ -31803,12 +31803,12 @@ var require_dist7 = __commonJS({
             numberedList,
             maskedLink
           });
-        }).join(inlineCode2 ? "\\`" : "`");
+        }).join(inlineCode22 ? "\\`" : "`");
       }
       let res = text;
       if (escape2) res = escapeEscape(res);
-      if (inlineCode2) res = escapeInlineCode(res);
-      if (codeBlock2) res = escapeCodeBlock(res);
+      if (inlineCode22) res = escapeInlineCode(res);
+      if (codeBlock22) res = escapeCodeBlock(res);
       if (italic2) res = escapeItalic(res);
       if (bold2) res = escapeBold(res);
       if (underline2) res = escapeUnderline(res);
@@ -31892,18 +31892,18 @@ var require_dist7 = __commonJS({
       return text.replaceAll(/\[.+]\(.+\)/gm, "\\$&");
     }
     __name(escapeMaskedLink, "escapeMaskedLink");
-    function codeBlock(language, content) {
+    function codeBlock2(language, content) {
       return content === void 0 ? `\`\`\`
 ${language}
 \`\`\`` : `\`\`\`${language}
 ${content}
 \`\`\``;
     }
-    __name(codeBlock, "codeBlock");
-    function inlineCode(content) {
+    __name(codeBlock2, "codeBlock");
+    function inlineCode2(content) {
       return `\`${content}\``;
     }
-    __name(inlineCode, "inlineCode");
+    __name(inlineCode2, "inlineCode");
     function italic(content) {
       return `_${content}_`;
     }
@@ -38676,7 +38676,7 @@ var require_ClientApplication = __commonJS({
         description,
         roleConnectionsVerificationURL,
         installParams,
-        flags,
+        flags: flags2,
         icon,
         coverImage,
         interactionsEndpointURL,
@@ -38691,7 +38691,7 @@ var require_ClientApplication = __commonJS({
             description,
             role_connections_verification_url: roleConnectionsVerificationURL,
             install_params: installParams,
-            flags: flags === void 0 ? void 0 : ApplicationFlagsBitField.resolve(flags),
+            flags: flags2 === void 0 ? void 0 : ApplicationFlagsBitField.resolve(flags2),
             icon: icon && await resolveImage(icon),
             cover_image: coverImage && await resolveImage(coverImage),
             interactions_endpoint_url: interactionsEndpointURL,
@@ -43035,10 +43035,10 @@ var require_proxy = __commonJS({
       while (protosAreLeftToSearch) {
         protosAreLeftToSearch = false;
         for (let i = ingredients.length - 1; i >= 0; i--) {
-          const searchTarget = protoChains[i][protoDepth];
-          if (searchTarget !== void 0 && searchTarget !== null) {
+          const searchTarget2 = protoChains[i][protoDepth];
+          if (searchTarget2 !== void 0 && searchTarget2 !== null) {
             protosAreLeftToSearch = true;
-            if (Object.getOwnPropertyDescriptor(searchTarget, prop) != void 0) {
+            if (Object.getOwnPropertyDescriptor(searchTarget2, prop) != void 0) {
               return protoChains[i][0];
             }
           }
@@ -43417,7 +43417,7 @@ var require_dist8 = __commonJS({
       ContextMenuCommandAssertions: () => Assertions_exports11,
       ContextMenuCommandBuilder: () => ContextMenuCommandBuilder,
       EmbedAssertions: () => Assertions_exports,
-      EmbedBuilder: () => EmbedBuilder,
+      EmbedBuilder: () => EmbedBuilder2,
       FileBuilder: () => FileBuilder,
       FileUploadAssertions: () => Assertions_exports4,
       FileUploadBuilder: () => FileUploadBuilder,
@@ -43546,7 +43546,7 @@ var require_dist8 = __commonJS({
       return arr;
     }
     __name(normalizeArray, "normalizeArray");
-    var EmbedBuilder = class {
+    var EmbedBuilder2 = class {
       static {
         __name(this, "EmbedBuilder");
       }
@@ -46632,7 +46632,7 @@ var require_dist8 = __commonJS({
        */
       addTextDisplayComponents(...components) {
         const normalized = normalizeArray(components);
-        const resolved = normalized.map((row) => resolveBuilder(row, TextDisplayBuilder));
+        const resolved = normalized.map((row2) => resolveBuilder(row2, TextDisplayBuilder));
         this.components.push(...resolved);
         return this;
       }
@@ -46644,7 +46644,7 @@ var require_dist8 = __commonJS({
        */
       addActionRowComponents(...components) {
         const normalized = normalizeArray(components);
-        const resolved = normalized.map((row) => resolveBuilder(row, ActionRowBuilder));
+        const resolved = normalized.map((row2) => resolveBuilder(row2, ActionRowBuilder));
         this.components.push(...resolved);
         return this;
       }
@@ -50887,13 +50887,13 @@ var require_Message = __commonJS({
        * @returns {Promise<Message>}
        */
       suppressEmbeds(suppress = true) {
-        const flags = new MessageFlagsBitField(this.flags.bitfield);
+        const flags2 = new MessageFlagsBitField(this.flags.bitfield);
         if (suppress) {
-          flags.add(MessageFlags2.SuppressEmbeds);
+          flags2.add(MessageFlags2.SuppressEmbeds);
         } else {
-          flags.remove(MessageFlags2.SuppressEmbeds);
+          flags2.remove(MessageFlags2.SuppressEmbeds);
         }
-        return this.edit({ flags });
+        return this.edit({ flags: flags2 });
       }
       /**
        * Removes the attachments from this message.
@@ -52175,8 +52175,8 @@ var require_GuildMember = __commonJS({
        * @param {string} [reason] Reason for setting the flags
        * @returns {Promise<GuildMember>}
        */
-      setFlags(flags, reason) {
-        return this.edit({ flags, reason });
+      setFlags(flags2, reason) {
+        return this.edit({ flags: flags2, reason });
       }
       /**
        * Sets the nickname for this member.
@@ -52801,15 +52801,15 @@ var require_MessagePayload = __commonJS({
           if (this.options.threadName) threadName = this.options.threadName;
           if (this.options.appliedTags) appliedTags = this.options.appliedTags;
         }
-        let flags;
+        let flags2;
         if (
           // eslint-disable-next-line eqeqeq
           this.options.flags != null
         ) {
-          flags = new MessageFlagsBitField(this.options.flags).bitfield;
+          flags2 = new MessageFlagsBitField(this.options.flags).bitfield;
         }
         if (isInteraction && this.options.ephemeral) {
-          flags |= MessageFlags2.Ephemeral;
+          flags2 |= MessageFlags2.Ephemeral;
         }
         let allowedMentions = this.options.allowedMentions === void 0 ? this.target.client.options.allowedMentions : this.options.allowedMentions;
         if (allowedMentions?.repliedUser !== void 0) {
@@ -52877,7 +52877,7 @@ var require_MessagePayload = __commonJS({
           username,
           avatar_url: avatarURL,
           allowed_mentions: this.isMessage && message_reference === void 0 && this.target.author.id !== this.target.client.user.id ? void 0 : allowedMentions,
-          flags,
+          flags: flags2,
           message_reference,
           attachments: this.options.attachments,
           sticker_ids: this.options.stickers?.map((sticker) => sticker.id ?? sticker),
@@ -58656,22 +58656,22 @@ var require_InteractionResponses = __commonJS({
             deprecationEmittedForFetchReplyOption = true;
           }
         }
-        const flags = new MessageFlagsBitField(options.flags);
+        const flags2 = new MessageFlagsBitField(options.flags);
         if (options.ephemeral) {
-          flags.add(MessageFlags2.Ephemeral);
+          flags2.add(MessageFlags2.Ephemeral);
         }
         const response = await this.client.rest.post(Routes3.interactionCallback(this.id, this.token), {
           body: {
             type: InteractionResponseType.DeferredChannelMessageWithSource,
             data: {
-              flags: flags.bitfield
+              flags: flags2.bitfield
             }
           },
           auth: false,
           query: makeURLSearchParams2({ with_response: options.withResponse ?? false })
         });
         this.deferred = true;
-        this.ephemeral = flags.has(MessageFlags2.Ephemeral);
+        this.ephemeral = flags2.has(MessageFlags2.Ephemeral);
         return options.withResponse ? new InteractionCallbackResponse(this.client, response) : options.fetchReply ? this.fetchReply() : new InteractionResponse(this);
       }
       /**
@@ -75586,11 +75586,11 @@ var require_Formatters = __commonJS({
       blockQuote,
       bold,
       channelMention,
-      codeBlock,
+      codeBlock: codeBlock2,
       formatEmoji,
       hideLinkEmbed,
       hyperlink,
-      inlineCode,
+      inlineCode: inlineCode2,
       italic,
       quote,
       roleMention,
@@ -75649,7 +75649,7 @@ var require_Formatters = __commonJS({
        * @deprecated Import this method directly from discord.js instead.
        */
       static codeBlock = deprecate(
-        codeBlock,
+        codeBlock2,
         "Formatters.codeBlock() is deprecated. Import this method directly from discord.js instead."
       );
       /**
@@ -75700,7 +75700,7 @@ var require_Formatters = __commonJS({
        * @deprecated Import this method directly from discord.js instead.
        */
       static inlineCode = deprecate(
-        inlineCode,
+        inlineCode2,
         "Formatters.inlineCode() is deprecated. Import this method directly from discord.js instead."
       );
       /**
@@ -75821,7 +75821,7 @@ var require_EmbedBuilder = __commonJS({
     var { isJSONEncodable } = require_dist();
     var { toSnakeCase } = require_Transformers();
     var { resolveColor } = require_Util();
-    var EmbedBuilder = class extends BuildersEmbed {
+    var EmbedBuilder2 = class extends BuildersEmbed {
       constructor(data) {
         super(toSnakeCase(data));
       }
@@ -75850,7 +75850,7 @@ var require_EmbedBuilder = __commonJS({
         return embedLength(this.data);
       }
     };
-    module2.exports = EmbedBuilder;
+    module2.exports = EmbedBuilder2;
   }
 });
 
@@ -75859,7 +75859,7 @@ var require_AttachmentBuilder = __commonJS({
   "node_modules/discord.js/src/structures/AttachmentBuilder.js"(exports2, module2) {
     "use strict";
     var { basename: basename5, flatten } = require_Util();
-    var AttachmentBuilder2 = class _AttachmentBuilder {
+    var AttachmentBuilder3 = class _AttachmentBuilder {
       /**
        * @param {BufferResolvable|Stream} attachment The file
        * @param {AttachmentData} [data] Extra data
@@ -75935,7 +75935,7 @@ var require_AttachmentBuilder = __commonJS({
         });
       }
     };
-    module2.exports = AttachmentBuilder2;
+    module2.exports = AttachmentBuilder3;
   }
 });
 
@@ -77155,9 +77155,9 @@ function truncateText(value, maxChars) {
   }
   return `${value.slice(0, Math.max(0, maxChars - 1))}\u2026`;
 }
-function parentDir(filePath) {
-  const slashIndex = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
-  return slashIndex === -1 ? "." : filePath.slice(0, slashIndex);
+function parentDir(filePath2) {
+  const slashIndex = Math.max(filePath2.lastIndexOf("/"), filePath2.lastIndexOf("\\"));
+  return slashIndex === -1 ? "." : filePath2.slice(0, slashIndex);
 }
 var fs4, fsPromises, MEMORY_FILE_VERSION, SESSION_TTL_MS, MAX_SESSIONS, MAX_ARCHIVED_CONVERSATIONS_PER_SESSION, EVICTION_INTERVAL_MS, DEFAULT_PROMPT_HISTORY_MESSAGE_LIMIT, DEFAULT_PROMPT_HISTORY_CHAR_BUDGET, TRANSCRIPT_ENTRY_CHAR_LIMIT, REPLY_CONTEXT_CHAR_LIMIT, ACTIVE_PARTICIPANT_LIMIT, ConversationMemory;
 var init_memory = __esm({
@@ -77406,10 +77406,10 @@ var init_memory = __esm({
         }
         return { store: /* @__PURE__ */ new Map(), archives: /* @__PURE__ */ new Map() };
       }
-      tryParseFile(filePath) {
+      tryParseFile(filePath2) {
         try {
-          if (!fs4.existsSync(filePath)) return null;
-          const raw = fs4.readFileSync(filePath, "utf-8");
+          if (!fs4.existsSync(filePath2)) return null;
+          const raw = fs4.readFileSync(filePath2, "utf-8");
           const parsed = JSON.parse(raw);
           if (isMemoryFileV4(parsed)) {
             return {
@@ -77448,13 +77448,13 @@ var init_memory = __esm({
 function pairingsPath(extensionDir2) {
   return resolveRuntimePaths(extensionDir2).dmPairingsFile;
 }
-function ensureParentDir(filePath) {
-  fs5.mkdirSync(path4.dirname(filePath), { recursive: true });
+function ensureParentDir(filePath2) {
+  fs5.mkdirSync(path4.dirname(filePath2), { recursive: true });
 }
 function loadPairingMap(extensionDir2) {
-  const filePath = pairingsPath(extensionDir2);
+  const filePath2 = pairingsPath(extensionDir2);
   try {
-    const parsed = JSON.parse(fs5.readFileSync(filePath, "utf-8"));
+    const parsed = JSON.parse(fs5.readFileSync(filePath2, "utf-8"));
     const pairings = Array.isArray(parsed.pairings) ? parsed.pairings : [];
     return new Map(
       pairings.filter((entry) => Boolean(entry && typeof entry.userId === "string" && typeof entry.channelId === "string")).map((entry) => [entry.userId, entry])
@@ -77464,13 +77464,13 @@ function loadPairingMap(extensionDir2) {
   }
 }
 function savePairingMap(extensionDir2, pairings) {
-  const filePath = pairingsPath(extensionDir2);
-  ensureParentDir(filePath);
+  const filePath2 = pairingsPath(extensionDir2);
+  ensureParentDir(filePath2);
   const payload = {
     version: 1,
     pairings: [...pairings.values()].sort((left, right) => left.userId.localeCompare(right.userId))
   };
-  fs5.writeFileSync(filePath, JSON.stringify(payload, null, 2), { mode: 384 });
+  fs5.writeFileSync(filePath2, JSON.stringify(payload, null, 2), { mode: 384 });
 }
 function resolveDmPairingKey(userId) {
   return `dm:${userId}`;
@@ -86965,9 +86965,9 @@ var require_CronFileParser = __commonJS({
        * @returns Promise resolving to parse results
        * @throws If file cannot be read
        */
-      static async parseFile(filePath) {
+      static async parseFile(filePath2) {
         const { readFile } = await Promise.resolve().then(() => __importStar2(require("fs/promises")));
-        const data = await readFile(filePath, "utf8");
+        const data = await readFile(filePath2, "utf8");
         return _CronFileParser.#parseContent(data);
       }
       /**
@@ -86976,9 +86976,9 @@ var require_CronFileParser = __commonJS({
        * @returns Parse results
        * @throws If file cannot be read
        */
-      static parseFileSync(filePath) {
+      static parseFileSync(filePath2) {
         const { readFileSync: readFileSync8 } = require("fs");
-        const data = readFileSync8(filePath, "utf8");
+        const data = readFileSync8(filePath2, "utf8");
         return _CronFileParser.#parseContent(data);
       }
       /**
@@ -87275,18 +87275,18 @@ async function buildAttachments(files) {
   if (!files || files.length === 0) {
     return [];
   }
-  return Promise.all(files.map(async (filePath) => {
+  return Promise.all(files.map(async (filePath2) => {
     let stat3;
     try {
-      stat3 = await fsp.stat(filePath);
-      await fsp.access(filePath, fs7.constants.R_OK);
+      stat3 = await fsp.stat(filePath2);
+      await fsp.access(filePath2, fs7.constants.R_OK);
     } catch (err) {
-      throw new Error(`Attachment file is not readable: ${filePath} (${err instanceof Error ? err.message : String(err)})`);
+      throw new Error(`Attachment file is not readable: ${filePath2} (${err instanceof Error ? err.message : String(err)})`);
     }
     if (!stat3.isFile()) {
-      throw new Error(`Attachment path is not a file: ${filePath}`);
+      throw new Error(`Attachment path is not a file: ${filePath2}`);
     }
-    return new import_discord2.AttachmentBuilder(filePath, { name: path6.basename(filePath) });
+    return new import_discord2.AttachmentBuilder(filePath2, { name: path6.basename(filePath2) });
   }));
 }
 var fs7, fsp, path6, import_discord2;
@@ -88262,16 +88262,16 @@ function saveThreadManifest(extensionDir2, manifest) {
   if (!fs12.existsSync(dir)) {
     fs12.mkdirSync(dir, { recursive: true });
   }
-  const filePath = getManifestPath(extensionDir2, manifest.threadId);
-  fs12.writeFileSync(filePath, JSON.stringify(manifest, null, 2), "utf8");
+  const filePath2 = getManifestPath(extensionDir2, manifest.threadId);
+  fs12.writeFileSync(filePath2, JSON.stringify(manifest, null, 2), "utf8");
 }
 function loadThreadManifest(extensionDir2, threadId) {
-  const filePath = getManifestPath(extensionDir2, threadId);
-  if (!fs12.existsSync(filePath)) {
+  const filePath2 = getManifestPath(extensionDir2, threadId);
+  if (!fs12.existsSync(filePath2)) {
     return null;
   }
   try {
-    const data = fs12.readFileSync(filePath, "utf8");
+    const data = fs12.readFileSync(filePath2, "utf8");
     return JSON.parse(data);
   } catch {
     return null;
@@ -88336,9 +88336,9 @@ async function createWorkflowThread(client, config, extensionDir2, opts) {
     });
   }
   const seedMsg = await thread.send({
-    content: `\u{1F916} **Monitored Workflow Thread Started**
-**Goal**: ${taskSummary}
-**Requested by**: <@${creatorUserId}>`
+    content: `> ${taskSummary}
+
+\u25CC **Workflow queued** \xB7 requested by <@${creatorUserId}>`
   });
   const manifest = {
     threadId: thread.id,
@@ -89620,39 +89620,194 @@ var init_onboarding = __esm({
 });
 
 // src/daemon/workflow/trace-renderer.ts
-var ShellRenderer, FilesystemRenderer, SearchRenderer, WebRenderer, PlanningRenderer, McpRenderer, InteractionRenderer, GenericFallbackRenderer, TraceRendererRegistry;
+function flags() {
+  return { source: "trace_renderer", doNotRoute: true, doNotPersist: true };
+}
+function statusGlyph(status) {
+  switch (status) {
+    case "started":
+      return "\u2301";
+    case "progress":
+      return "\u21BB";
+    case "completed":
+      return "\u2713";
+    case "failed":
+      return "\u2717";
+    case "cancelled":
+      return "\u26A0";
+  }
+}
+function colorFor(event) {
+  if (event.status === "failed") return COLORS.error;
+  if (event.status === "cancelled") return COLORS.warning;
+  if (event.status === "completed") return COLORS.success;
+  if (event.toolFamily === "shell") return COLORS.shell;
+  if (event.toolFamily === "mcp") return COLORS.running;
+  if (event.canonicalToolName === "replace" || event.canonicalToolName === "write_file") return COLORS.edit;
+  if (event.toolFamily === "search" || event.toolFamily === "filesystem") return COLORS.read;
+  if (event.toolFamily === "planning") return COLORS.phase;
+  return COLORS.neutral;
+}
+function stringArg(args, ...keys) {
+  for (const key of keys) {
+    const value = args[key];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return "";
+}
+function boolArg(args, ...keys) {
+  return keys.some((key) => args[key] === true || args[key] === "true");
+}
+function intArg(args, ...keys) {
+  for (const key of keys) {
+    const value = args[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && /^\d+$/.test(value)) return Number(value);
+  }
+  return null;
+}
+function shortPath(path14) {
+  if (!path14) return "";
+  const normalized = path14.replace(/\\/g, "/");
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length <= 4) return normalized;
+  return `${parts[0]}/.../${parts.slice(-2).join("/")}`;
+}
+function truncate2(text, maxLength) {
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength)}...`;
+}
+function inlineCode(text) {
+  const safe = text.replace(/`/g, "'");
+  return `\`${truncate2(safe, 180)}\``;
+}
+function codeBlock(language, text) {
+  const safe = text.replace(/```/g, "'''");
+  return `\`\`\`${language}
+${safe}
+\`\`\``;
+}
+function filenameFor(event) {
+  const rawName = event.displayName || event.toolName || "tool-output";
+  const safeName = rawName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "tool-output";
+  return `workflow-${safeName}-${event.timestamp}.txt`;
+}
+function attachmentFor(event, detail) {
+  if (detail.length < ATTACHMENT_THRESHOLD) return null;
+  return new import_discord7.AttachmentBuilder(Buffer.from(detail, "utf8"), { name: filenameFor(event) });
+}
+function compactArgs(args, preferred) {
+  const parts = [];
+  for (const key of preferred) {
+    const value = args[key];
+    if (value === void 0 || value === null || value === "") continue;
+    if (typeof value === "string") {
+      parts.push(`${key}: ${truncate2(value, 80)}`);
+    } else if (typeof value === "number" || typeof value === "boolean") {
+      parts.push(`${key}: ${String(value)}`);
+    } else {
+      parts.push(`${key}: ${truncate2(JSON.stringify(value), 80)}`);
+    }
+    if (parts.length >= 3) break;
+  }
+  return parts.join(", ");
+}
+function resultSuffix(event, fallback = "") {
+  const result = event.resultSummary || fallback;
+  return result ? ` \u2192 ${truncate2(result.replace(/\s+/g, " "), 240)}` : "";
+}
+function row(event, body) {
+  return {
+    content: `${statusGlyph(event.status)} **${event.displayName || event.toolName || "Tool"}** ${body}`.trim(),
+    density: "row",
+    flags: flags()
+  };
+}
+function panel(event, title, detail, language = "txt") {
+  const attachment = attachmentFor(event, detail);
+  const preview = truncate2(detail || event.resultSummary || "", PANEL_INLINE_LIMIT);
+  const description = [
+    preview ? codeBlock(language, preview) : null,
+    attachment ? "\u21B3 full output attached" : null
+  ].filter(Boolean).join("\n");
+  return {
+    content: "",
+    embeds: [
+      new import_discord7.EmbedBuilder().setColor(colorFor(event)).setDescription(`**${statusGlyph(event.status)} ${title}**${description ? `
+
+${description}` : ""}`)
+    ],
+    files: attachment ? [attachment] : void 0,
+    density: "panel",
+    flags: flags()
+  };
+}
+function card(event, title, lines) {
+  return {
+    content: "",
+    embeds: [
+      new import_discord7.EmbedBuilder().setColor(colorFor(event)).setDescription([
+        `**${statusGlyph(event.status)} ${title}**`,
+        ...lines.filter(Boolean).slice(0, 4)
+      ].join("\n"))
+    ],
+    density: "card",
+    flags: flags()
+  };
+}
+function shellCommand(event) {
+  return stringArg(event.args, "command", "commandLine", "CommandLine");
+}
+function filePath(event) {
+  return stringArg(event.args, "file_path", "path", "filePath", "TargetFile");
+}
+function searchTarget(event) {
+  return stringArg(event.args, "pattern", "query", "Query", "include");
+}
+function readFileResult(event) {
+  const start = intArg(event.args, "start_line", "startLine", "offset");
+  const end = intArg(event.args, "end_line", "endLine");
+  const limit = intArg(event.args, "limit");
+  if (start !== null && end !== null) return `Read lines ${start}-${end}`;
+  if (start !== null && limit !== null) return `Read lines ${start}-${start + limit}`;
+  return event.resultSummary ? truncate2(event.resultSummary.replace(/\s+/g, " "), 180) : "Read file";
+}
+var import_discord7, TRACE_LIMIT, PANEL_INLINE_LIMIT, ATTACHMENT_THRESHOLD, COLORS, ShellRenderer, FilesystemRenderer, SearchRenderer, WebRenderer, PlanningRenderer, McpRenderer, InteractionRenderer, GenericFallbackRenderer, TraceRendererRegistry;
 var init_trace_renderer = __esm({
   "src/daemon/workflow/trace-renderer.ts"() {
     "use strict";
+    import_discord7 = __toESM(require_src(), 1);
+    TRACE_LIMIT = 1900;
+    PANEL_INLINE_LIMIT = 900;
+    ATTACHMENT_THRESHOLD = 1200;
+    COLORS = {
+      phase: 5793266,
+      read: 6740463,
+      running: 15774258,
+      shell: 16096779,
+      edit: 10181046,
+      success: 5763719,
+      warning: 15844367,
+      error: 15548997,
+      security: 10038562,
+      neutral: 5198940
+    };
     ShellRenderer = class {
       canRender(event) {
         return event.canonicalToolName === "run_shell_command";
       }
       render(event) {
-        const cmd = event.args.commandLine || event.args.CommandLine || event.args.command || "";
-        const duration = event.durationMs !== null ? `${event.durationMs}ms` : "running";
-        let output = "";
-        if (event.status === "completed") {
-          output = `
-\`\`\`
-${event.resultSummary || "Success"}
-\`\`\``;
-        } else if (event.status === "failed") {
-          output = `
-\u26A0\uFE0F **Failed**:
-\`\`\`
-${event.resultSummary || "Error"}
-\`\`\``;
-        } else if (event.status === "progress") {
-          output = `
-\`\`\`
-${event.resultSummary || ""}
-\`\`\``;
+        const command = shellCommand(event);
+        const title = `Shell ${command ? truncate2(command, 140) : "command"}`;
+        if (boolArg(event.args, "is_background", "isBackground")) {
+          const detail2 = event.status === "completed" ? "Command moved to background. Output hidden." : "Starting background command...";
+          return panel(event, title, detail2);
         }
-        return {
-          content: `\u{1F4BB} **Shell**: \`${cmd}\` (${duration})${output}`,
-          flags: { source: "trace_renderer", doNotRoute: true, doNotPersist: true }
-        };
+        if (event.status === "started") {
+          return panel(event, title, "");
+        }
+        const detail = event.resultDetail || event.resultSummary || (event.status === "completed" ? "Command completed." : "");
+        return panel(event, title, detail);
       }
     };
     FilesystemRenderer = class {
@@ -89660,15 +89815,30 @@ ${event.resultSummary || ""}
         return event.toolFamily === "filesystem";
       }
       render(event) {
-        const path14 = event.args.path || event.args.TargetFile || event.args.filePath || "";
-        const details = event.resultSummary ? `
-\`\`\`
-${event.resultSummary}
-\`\`\`` : "";
-        return {
-          content: `\u{1F4C1} **File [${event.displayName}]**: \`${path14}\` (${event.status})${details}`,
-          flags: { source: "trace_renderer", doNotRoute: true, doNotPersist: true }
-        };
+        const canonical = event.canonicalToolName;
+        const path14 = filePath(event);
+        if (canonical === "replace") {
+          const added = intArg(event.args, "added", "lines_added");
+          const removed = intArg(event.args, "removed", "lines_removed");
+          const summary = event.resultSummary || "Accepted";
+          const delta = added !== null || removed !== null ? ` (+${added ?? 0}, -${removed ?? 0})` : "";
+          return card(event, `Edit ${path14 ? inlineCode(shortPath(path14)) : ""} \u2192 ${summary}${delta}`, []);
+        }
+        if (canonical === "write_file") {
+          return card(event, `WriteFile ${path14 ? inlineCode(shortPath(path14)) : ""}${resultSuffix(event, "Wrote file")}`, []);
+        }
+        if (canonical === "read_file") {
+          return row(event, `${path14 ? inlineCode(shortPath(path14)) : ""} \u2192 ${readFileResult(event)}`);
+        }
+        if (canonical === "read_many_files") {
+          const include = stringArg(event.args, "include");
+          return row(event, `${include ? inlineCode(include) : "files"}${resultSuffix(event, "Read files")}`);
+        }
+        if (canonical === "list_directory") {
+          const dir = stringArg(event.args, "dir_path", "path");
+          return row(event, `${dir ? inlineCode(shortPath(dir)) : "directory"}${resultSuffix(event, "Listed directory")}`);
+        }
+        return row(event, `${path14 ? inlineCode(shortPath(path14)) : ""}${resultSuffix(event)}`);
       }
     };
     SearchRenderer = class {
@@ -89676,13 +89846,10 @@ ${event.resultSummary}
         return event.toolFamily === "search";
       }
       render(event) {
-        const query = event.args.query || event.args.Query || "";
-        const details = event.resultSummary ? `
-Results: ${event.resultSummary}` : "";
-        return {
-          content: `\u{1F50D} **Search [${event.displayName}]**: \`${query}\` (${event.status})${details}`,
-          flags: { source: "trace_renderer", doNotRoute: true, doNotPersist: true }
-        };
+        const query = searchTarget(event);
+        const dir = stringArg(event.args, "dir_path", "path");
+        const within = dir ? ` within ${inlineCode(shortPath(dir))}` : "";
+        return row(event, `${query ? inlineCode(query) : ""}${within}${resultSuffix(event)}`);
       }
     };
     WebRenderer = class {
@@ -89690,13 +89857,13 @@ Results: ${event.resultSummary}` : "";
         return event.toolFamily === "web";
       }
       render(event) {
-        const url = event.args.url || event.args.Url || event.args.query || "";
-        const details = event.resultSummary ? `
-Result: ${event.resultSummary}` : "";
-        return {
-          content: `\u{1F310} **Web [${event.displayName}]**: \`${url}\` (${event.status})${details}`,
-          flags: { source: "trace_renderer", doNotRoute: true, doNotPersist: true }
-        };
+        const query = stringArg(event.args, "query", "prompt", "url", "Url");
+        const action = event.canonicalToolName === "google_web_search" ? "Searching the web for" : "Fetching";
+        const title = `${event.displayName || "Web"} ${query ? `${action} ${inlineCode(query)}` : ""}`;
+        if (event.resultDetail && event.resultDetail.length > 500) {
+          return panel(event, title, event.resultDetail);
+        }
+        return card(event, title, event.resultSummary ? [`\u2192 ${event.resultSummary}`] : []);
       }
     };
     PlanningRenderer = class {
@@ -89704,12 +89871,16 @@ Result: ${event.resultSummary}` : "";
         return event.toolFamily === "planning" || event.type === "phase_started";
       }
       render(event) {
-        const details = event.resultSummary ? `
-> ${event.resultSummary}` : "";
-        return {
-          content: `\u{1F4CC} **Planning [${event.displayName || "Phase"}]** (${event.status})${details}`,
-          flags: { source: "trace_renderer", doNotRoute: true, doNotPersist: true }
-        };
+        const summary = event.resultSummary || compactArgs(event.args, ["title", "summary", "reason", "taskId"]);
+        if (event.type === "phase_started") {
+          const phase = summary || "Planning next step";
+          return {
+            content: phase.includes(":") ? `**${phase.split(":")[0]}:**${phase.slice(phase.indexOf(":") + 1)}` : `**Phase:** ${phase}`,
+            density: "row",
+            flags: flags()
+          };
+        }
+        return card(event, event.displayName || "Planning", summary ? [summary] : []);
       }
     };
     McpRenderer = class {
@@ -89717,10 +89888,9 @@ Result: ${event.resultSummary}` : "";
         return event.toolFamily === "mcp";
       }
       render(event) {
-        return {
-          content: `\u{1F50C} **MCP [${event.displayName}]**: ${event.status}`,
-          flags: { source: "trace_renderer", doNotRoute: true, doNotPersist: true }
-        };
+        const args = compactArgs(event.args, ["namespace", "query", "name", "path", "uri"]);
+        const result = event.resultSummary ? `\u2192 ${event.resultSummary}` : "";
+        return card(event, event.displayName || event.toolName || "MCP", [args, result]);
       }
     };
     InteractionRenderer = class {
@@ -89728,11 +89898,8 @@ Result: ${event.resultSummary}` : "";
         return event.toolFamily === "interaction";
       }
       render(event) {
-        const prompt = event.args.prompt || event.args.question || "";
-        return {
-          content: `\u{1F464} **Interaction [${event.displayName}]**: \`${prompt}\` (${event.status})`,
-          flags: { source: "trace_renderer", doNotRoute: true, doNotPersist: true }
-        };
+        const prompt = stringArg(event.args, "prompt", "question");
+        return card(event, event.displayName || "AskUser", [prompt ? inlineCode(prompt) : "? clarification needed"]);
       }
     };
     GenericFallbackRenderer = class {
@@ -89740,10 +89907,12 @@ Result: ${event.resultSummary}` : "";
         return true;
       }
       render(event) {
-        return {
-          content: `\u{1F6E0}\uFE0F **Tool [${event.displayName || event.toolName || "Unknown"}]** (${event.status}): ${event.resultSummary || "N/A"}`,
-          flags: { source: "trace_renderer", doNotRoute: true, doNotPersist: true }
-        };
+        const args = compactArgs(event.args, Object.keys(event.args));
+        const title = event.displayName || event.toolName || "Tool";
+        if (event.resultDetail && event.resultDetail.length > 500) {
+          return panel(event, title, event.resultDetail);
+        }
+        return card(event, title, [args, event.resultSummary ? `\u2192 ${event.resultSummary}` : ""]);
       }
     };
     TraceRendererRegistry = class {
@@ -89764,7 +89933,11 @@ Result: ${event.resultSummary}` : "";
       render(event) {
         for (const renderer of this.renderers) {
           if (renderer.canRender(event)) {
-            return renderer.render(event);
+            const rendered = renderer.render(event);
+            if (rendered.content.length > TRACE_LIMIT) {
+              rendered.content = truncate2(rendered.content, TRACE_LIMIT);
+            }
+            return rendered;
           }
         }
         return this.fallbackRenderer.render(event);
@@ -89774,38 +89947,54 @@ Result: ${event.resultSummary}` : "";
 });
 
 // src/daemon/workflow/trace-dispatcher.ts
-var TraceDispatcher;
+var TRACE_MARKER, TraceDispatcher;
 var init_trace_dispatcher = __esm({
   "src/daemon/workflow/trace-dispatcher.ts"() {
     "use strict";
     init_log();
+    TRACE_MARKER = "<!-- trace:doNotPersist -->";
     TraceDispatcher = class {
       constructor(threadChannel, registry) {
         this.threadChannel = threadChannel;
         this.registry = registry;
       }
       activeMessages = /* @__PURE__ */ new Map();
+      headerMessage = null;
+      startedAt = Date.now();
+      toolCallCount = 0;
+      currentStep = null;
       async dispatch(event) {
         try {
           const rendered = this.registry.render(event);
-          const content = `${rendered.content}
-<!-- trace:doNotPersist -->`;
+          const payload = {
+            content: `${rendered.content ? `${rendered.content}
+` : ""}${TRACE_MARKER}`,
+            embeds: rendered.embeds,
+            files: rendered.files
+          };
           const toolCall = event.raw?.toolCall;
           const toolCallId = typeof toolCall?.id === "string" ? toolCall.id : null;
+          if (event.type === "tool_started") {
+            this.toolCallCount += 1;
+          }
+          if (event.displayName || event.toolName) {
+            this.currentStep = event.displayName || event.toolName;
+          }
+          await this.updateRunHeader("running");
           if (toolCallId) {
             const existingMessage = this.activeMessages.get(toolCallId);
             if (existingMessage) {
               if (event.status === "progress") {
-                await existingMessage.edit(content);
+                await existingMessage.edit(payload);
                 return;
               } else if (event.status === "completed" || event.status === "failed" || event.status === "cancelled") {
-                await existingMessage.edit(content);
+                await existingMessage.edit(payload);
                 this.activeMessages.delete(toolCallId);
                 return;
               }
             }
           }
-          const sent = await this.threadChannel.send({ content });
+          const sent = await this.threadChannel.send(payload);
           if (toolCallId && event.status === "started") {
             this.activeMessages.set(toolCallId, sent);
           }
@@ -89815,14 +90004,23 @@ var init_trace_dispatcher = __esm({
       }
       async dispatchRunHeader(manifest) {
         try {
-          await this.threadChannel.send({
-            content: `\u26A1 **Running workflow task**: "${manifest.taskSummary}"
-*Starting execution engine...*
-<!-- trace:doNotPersist -->`
+          this.startedAt = Date.now();
+          this.toolCallCount = 0;
+          this.currentStep = null;
+          this.headerMessage = await this.threadChannel.send({
+            content: `\u25CC **Queued** \xB7 ${this.formatTask(manifest.taskSummary)}
+${TRACE_MARKER}`
           });
         } catch (error) {
           log.warn("Failed to dispatch run header", { error: String(error) });
         }
+      }
+      async dispatchRunComplete() {
+        await this.updateRunHeader("complete");
+      }
+      async dispatchRunFailed(error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await this.updateRunHeader("failed", message);
       }
       async dispatchFinalResponse(response) {
         try {
@@ -89832,6 +90030,36 @@ var init_trace_dispatcher = __esm({
         } catch (error) {
           log.warn("Failed to dispatch final response", { error: String(error) });
         }
+      }
+      async updateRunHeader(state2, detail) {
+        if (!this.headerMessage) return;
+        const elapsed = this.formatElapsed(Date.now() - this.startedAt);
+        let content;
+        if (state2 === "complete") {
+          content = `\u2713 **Complete** \`${elapsed}\` \xB7 \`${this.toolCallCount}\` tool calls`;
+        } else if (state2 === "failed") {
+          const suffix = detail ? ` \xB7 ${detail.slice(0, 160)}` : "";
+          content = `\u2717 **Failed** \`${elapsed}\` \xB7 \`${this.toolCallCount}\` tool calls${suffix}`;
+        } else {
+          const suffix = this.currentStep ? ` \xB7 current step: \`${this.currentStep}\`` : "";
+          content = `\u2301 **Running** \`${elapsed}\`${suffix}`;
+        }
+        try {
+          await this.headerMessage.edit(`${content}
+${TRACE_MARKER}`);
+        } catch (error) {
+          log.warn("Failed to update trace run header", { error: String(error) });
+        }
+      }
+      formatElapsed(ms) {
+        const seconds = Math.max(0, Math.round(ms / 1e3));
+        const minutes = Math.floor(seconds / 60);
+        const remainder = seconds % 60;
+        return minutes > 0 ? `${minutes}m ${remainder}s` : `${seconds}s`;
+      }
+      formatTask(task) {
+        const trimmed = task.trim().replace(/\s+/g, " ");
+        return trimmed.length > 120 ? `${trimmed.slice(0, 117)}...` : trimmed;
       }
     };
   }
@@ -90108,6 +90336,7 @@ async function processMessage(message, accepted, config, memory, state2, process
   let response = "";
   let responseMessageIds = [];
   let geminiSessionId;
+  let traceDispatcher;
   try {
     if (turnDecision.decision !== "allow") {
       response = formatPermissionDenial(turnDecision);
@@ -90125,7 +90354,6 @@ async function processMessage(message, accepted, config, memory, state2, process
       return;
     }
     const isWorkflow = isWorkflowThread(extensionDir2, message.channelId);
-    let traceDispatcher;
     if (isWorkflow) {
       const registry = new TraceRendererRegistry();
       traceDispatcher = new TraceDispatcher(channel, registry);
@@ -90156,6 +90384,9 @@ async function processMessage(message, accepted, config, memory, state2, process
     responseMessageIds = result.messageIds;
     effectiveAttachmentMetadata = result.attachments ?? attachmentMetadata;
     geminiSessionId = result.sessionId;
+    if (traceDispatcher) {
+      await traceDispatcher.dispatchRunComplete();
+    }
     if (response.trim().length > 0 || responseMessageIds.length > 0) {
       await persistExchange();
     } else {
@@ -90167,6 +90398,9 @@ async function processMessage(message, accepted, config, memory, state2, process
     }
   } catch (err) {
     state2.lastError = err instanceof Error ? err.message : String(err);
+    if (traceDispatcher) {
+      await traceDispatcher.dispatchRunFailed(err);
+    }
     const errorMsg = formatError(err);
     await retrySend(() => channel.send(errorMsg)).catch(() => {
     });
@@ -91542,17 +91776,18 @@ init_permissions();
 // src/daemon/workflow/tool-registry.ts
 var BUILTIN_TOOL_REGISTRY = {
   "run_shell_command": { canonical: "run_shell_command", displayName: "Shell", family: "shell" },
+  "glob": { canonical: "glob", displayName: "Glob", family: "search" },
   "grep_search": { canonical: "grep_search", displayName: "SearchText", family: "search" },
+  "list_directory": { canonical: "list_directory", displayName: "ListDirectory", family: "filesystem" },
   "read_file": { canonical: "read_file", displayName: "ReadFile", family: "filesystem" },
   "read_many_files": { canonical: "read_many_files", displayName: "ReadManyFiles", family: "filesystem" },
   "replace": { canonical: "replace", displayName: "Edit", family: "filesystem" },
   "write_file": { canonical: "write_file", displayName: "WriteFile", family: "filesystem" },
-  "list_directory": { canonical: "list_directory", displayName: "ListDirectory", family: "filesystem" },
-  "glob": { canonical: "glob", displayName: "Glob", family: "search" },
   "google_web_search": { canonical: "google_web_search", displayName: "GoogleSearch", family: "web" },
   "web_fetch": { canonical: "web_fetch", displayName: "WebFetch", family: "web" },
   "ask_user": { canonical: "ask_user", displayName: "AskUser", family: "interaction" },
   "write_todos": { canonical: "write_todos", displayName: "TodoWrite", family: "planning" },
+  "save_memory": { canonical: "save_memory", displayName: "SaveMemory", family: "planning" },
   "tracker_create_task": { canonical: "tracker_create_task", displayName: "CreateTask", family: "planning" },
   "tracker_update_task": { canonical: "tracker_update_task", displayName: "UpdateTask", family: "planning" },
   "tracker_get_task": { canonical: "tracker_get_task", displayName: "GetTask", family: "planning" },
@@ -91572,7 +91807,7 @@ function isBuiltinTool(name) {
   return name in BUILTIN_TOOL_REGISTRY;
 }
 function isMcpTool(name) {
-  return name.includes("/") || name.startsWith("mcp_");
+  return name.includes("/") || name.startsWith("mcp_") || name.includes("__");
 }
 function resolveToolEntry(rawToolName) {
   if (isBuiltinTool(rawToolName)) {
@@ -91580,8 +91815,8 @@ function resolveToolEntry(rawToolName) {
   }
   const family = isMcpTool(rawToolName) ? "mcp" : "unknown";
   let displayName = rawToolName;
-  if (rawToolName.includes("/")) {
-    const parts = rawToolName.split("/");
+  if (rawToolName.includes("/") || rawToolName.includes("__")) {
+    const parts = rawToolName.split(/[\/]+|__/);
     const toolPart = parts[parts.length - 1];
     displayName = toolPart.split(/[-_]/).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join("");
   }
@@ -91685,8 +91920,52 @@ function redactTraceResult(result, maxLength = 200) {
     truncated: true
   };
 }
+function redactTraceText(result, maxLength = 12e3) {
+  if (typeof result !== "string") {
+    return { text: "", truncated: false };
+  }
+  let s = redactFilePath(result);
+  s = redactDiscordId(s);
+  s = redactIpAddresses(s);
+  if (s.length <= maxLength) {
+    return { text: s, truncated: false };
+  }
+  return {
+    text: `${s.slice(0, maxLength)}
+... [${s.length - maxLength} chars truncated]`,
+    truncated: true
+  };
+}
 
 // src/daemon/workflow/trace-normalizer.ts
+function stringifyTraceValue(value, toolName) {
+  if (value === null || value === void 0) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object" && toolName === "run_shell_command") {
+    const resObj = value;
+    const exitCode = resObj["exitCode"] ?? resObj["exit_code"] ?? resObj["code"];
+    const stdout = String(resObj["stdout"] ?? resObj["output"] ?? "");
+    const stderr = String(resObj["stderr"] ?? "");
+    const lines = [];
+    if (exitCode !== void 0) lines.push(`exit code: ${String(exitCode)}`);
+    if (stdout) lines.push(`stdout:
+${stdout}`);
+    if (stderr) lines.push(`stderr:
+${stderr}`);
+    return lines.join("\n");
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+function firstString(...values) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return null;
+}
 function normalizeAcpUpdate(sessionUpdate, updatePayload, activeToolTimers) {
   const timestamp = Date.now();
   if (sessionUpdate === "plan") {
@@ -91719,6 +91998,7 @@ function normalizeAcpUpdate(sessionUpdate, updatePayload, activeToolTimers) {
       status: "started",
       durationMs: null,
       resultSummary: redacted.summary,
+      resultDetail: redacted.summary,
       artifactRef: null,
       redactionMetadata: {
         fieldsRedacted: [],
@@ -91734,27 +92014,31 @@ function normalizeAcpUpdate(sessionUpdate, updatePayload, activeToolTimers) {
     const name = typeof toolCall["name"] === "string" ? toolCall["name"] : "";
     if (!name) return null;
     const toolEntry = resolveToolEntry(name);
-    const rawArgs = toolCall["arguments"] || toolCall["args"] || {};
+    const rawArgs = toolCall["arguments"] ?? toolCall["args"] ?? {};
     const { redacted: redactedArgs, fieldsRedacted } = redactTraceArgs(rawArgs);
     let type = "tool_started";
     let status = "started";
     let durationMs = null;
     let resultSummary = null;
+    let resultDetail = null;
     let truncated = false;
     const progress = toolCall["progress"];
-    const result = toolCall["result"] || toolCall["response"];
-    const error = toolCall["error"] || toolCall["errorMessage"];
-    if (sessionUpdate === "tool_call_update" || progress !== void 0 && progress !== null) {
-      type = "tool_progress";
-      status = "progress";
+    const result = toolCall["result"] ?? toolCall["response"];
+    const error = toolCall["error"] ?? toolCall["errorMessage"];
+    if (error !== void 0 && error !== null) {
+      type = "tool_failed";
+      status = "failed";
       const start = activeToolTimers.get(id);
       if (start) {
         durationMs = timestamp - start;
+        activeToolTimers.delete(id);
       }
-      const progressStr = typeof progress === "string" ? progress : JSON.stringify(progress);
-      const redactedProgress = redactTraceResult(progressStr, 200);
-      resultSummary = redactedProgress.summary;
-      truncated = redactedProgress.truncated;
+      const errorStr = stringifyTraceValue(error, name);
+      const redactedError = redactTraceResult(errorStr, 200);
+      const redactedErrorDetail = redactTraceText(errorStr, 12e3);
+      resultSummary = redactedError.summary;
+      resultDetail = redactedErrorDetail.text || resultSummary;
+      truncated = redactedError.truncated || redactedErrorDetail.truncated;
     } else if (result !== void 0 && result !== null) {
       type = "tool_completed";
       status = "completed";
@@ -91763,39 +92047,25 @@ function normalizeAcpUpdate(sessionUpdate, updatePayload, activeToolTimers) {
         durationMs = timestamp - start;
         activeToolTimers.delete(id);
       }
-      let resultStr = "";
-      if (typeof result === "string") {
-        resultStr = result;
-      } else if (typeof result === "object") {
-        if (name === "run_shell_command") {
-          const resObj = result;
-          const exitCode = resObj["exitCode"];
-          const stdout = String(resObj["stdout"] || "");
-          const stderr = String(resObj["stderr"] || "");
-          resultStr = `exit code: ${exitCode}
-stdout:
-${stdout}
-stderr:
-${stderr}`;
-        } else {
-          resultStr = JSON.stringify(result);
-        }
-      }
+      const resultStr = stringifyTraceValue(result, name);
       const redactedResult = redactTraceResult(resultStr, 200);
+      const redactedDetail = redactTraceText(resultStr, 12e3);
       resultSummary = redactedResult.summary;
-      truncated = redactedResult.truncated;
-    } else if (error !== void 0 && error !== null) {
-      type = "tool_failed";
-      status = "failed";
+      resultDetail = redactedDetail.text || resultSummary;
+      truncated = redactedResult.truncated || redactedDetail.truncated;
+    } else if (sessionUpdate === "tool_call_update" || progress !== void 0 && progress !== null) {
+      type = "tool_progress";
+      status = "progress";
       const start = activeToolTimers.get(id);
       if (start) {
         durationMs = timestamp - start;
-        activeToolTimers.delete(id);
       }
-      const errorStr = typeof error === "string" ? error : JSON.stringify(error);
-      const redactedError = redactTraceResult(errorStr, 200);
-      resultSummary = redactedError.summary;
-      truncated = redactedError.truncated;
+      const progressStr = stringifyTraceValue(progress, name);
+      const redactedProgress = redactTraceResult(progressStr, 200);
+      const redactedProgressDetail = redactTraceText(progressStr, 12e3);
+      resultSummary = redactedProgress.summary;
+      resultDetail = redactedProgressDetail.text || resultSummary;
+      truncated = redactedProgress.truncated || redactedProgressDetail.truncated;
     } else {
       type = "tool_started";
       status = "started";
@@ -91803,7 +92073,7 @@ ${stderr}`;
     }
     let artifactRef = null;
     if (name === "write_file" || name === "replace" || name === "write_to_file" || name === "replace_file_content") {
-      const pathVal = rawArgs["path"] || rawArgs["TargetFile"] || rawArgs["filePath"] || rawArgs["TargetFile"];
+      const pathVal = firstString(rawArgs["file_path"], rawArgs["path"], rawArgs["TargetFile"], rawArgs["filePath"]);
       if (typeof pathVal === "string") {
         artifactRef = redactFilePath(pathVal);
       }
@@ -91819,6 +92089,7 @@ ${stderr}`;
       status,
       durationMs,
       resultSummary,
+      resultDetail,
       artifactRef,
       redactionMetadata: {
         fieldsRedacted,
@@ -92484,13 +92755,13 @@ async function probeDiscordGateway(token) {
     let hasGuildMembers = false;
     if (appRes.ok) {
       const appBody = await appRes.json();
-      const flags = appBody.flags || 0;
+      const flags2 = appBody.flags || 0;
       const GATEWAY_GUILD_MEMBERS = 1 << 14;
       const GATEWAY_GUILD_MEMBERS_LIMITED = 1 << 15;
       const GATEWAY_MESSAGE_CONTENT = 1 << 18;
       const GATEWAY_MESSAGE_CONTENT_LIMITED = 1 << 19;
-      hasMessageContent = (flags & GATEWAY_MESSAGE_CONTENT) !== 0 || (flags & GATEWAY_MESSAGE_CONTENT_LIMITED) !== 0;
-      hasGuildMembers = (flags & GATEWAY_GUILD_MEMBERS) !== 0 || (flags & GATEWAY_GUILD_MEMBERS_LIMITED) !== 0;
+      hasMessageContent = (flags2 & GATEWAY_MESSAGE_CONTENT) !== 0 || (flags2 & GATEWAY_MESSAGE_CONTENT_LIMITED) !== 0;
+      hasGuildMembers = (flags2 & GATEWAY_GUILD_MEMBERS) !== 0 || (flags2 & GATEWAY_GUILD_MEMBERS_LIMITED) !== 0;
     } else {
       log.warn("Failed to fetch bot application intents. Proceeding without explicit verification.");
       hasMessageContent = true;

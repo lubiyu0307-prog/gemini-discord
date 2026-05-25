@@ -81,7 +81,7 @@ export async function createWorkflowThread(
 
   // 5. Post seed message in the thread
   const seedMsg = await thread.send({
-    content: `🤖 **Monitored Workflow Thread Started**\n**Goal**: ${taskSummary}\n**Requested by**: <@${creatorUserId}>`,
+    content: `> ${taskSummary}\n\n◌ **Workflow queued** · requested by <@${creatorUserId}>`,
   });
 
   // 6. Save manifest

@@ -1,8 +1,30 @@
+import { AttachmentBuilder, EmbedBuilder } from 'discord.js';
 import type { TraceEvent } from './trace-event.js';
+
+const TRACE_LIMIT = 1900;
+const PANEL_INLINE_LIMIT = 900;
+const ATTACHMENT_THRESHOLD = 1200;
+
+const COLORS = {
+  phase: 0x5865f2,
+  read: 0x66d9ef,
+  running: 0xf0b232,
+  shell: 0xf59e0b,
+  edit: 0x9b59b6,
+  success: 0x57f287,
+  warning: 0xf1c40f,
+  error: 0xed4245,
+  security: 0x992d22,
+  neutral: 0x4f545c,
+};
+
+type TraceDensity = 'row' | 'card' | 'panel';
 
 export interface RenderedTrace {
   content: string;
-  embed?: object;
+  embeds?: EmbedBuilder[];
+  files?: AttachmentBuilder[];
+  density: TraceDensity;
   flags: {
     source: 'trace_renderer';
     doNotRoute: true;
@@ -15,27 +37,201 @@ export interface ToolRenderer {
   render(event: TraceEvent): RenderedTrace;
 }
 
+function flags(): RenderedTrace['flags'] {
+  return { source: 'trace_renderer', doNotRoute: true, doNotPersist: true };
+}
+
+export function statusGlyph(status: TraceEvent['status']): string {
+  switch (status) {
+    case 'started':
+      return '⌁';
+    case 'progress':
+      return '↻';
+    case 'completed':
+      return '✓';
+    case 'failed':
+      return '✗';
+    case 'cancelled':
+      return '⚠';
+  }
+}
+
+function colorFor(event: TraceEvent): number {
+  if (event.status === 'failed') return COLORS.error;
+  if (event.status === 'cancelled') return COLORS.warning;
+  if (event.status === 'completed') return COLORS.success;
+  if (event.toolFamily === 'shell') return COLORS.shell;
+  if (event.toolFamily === 'mcp') return COLORS.running;
+  if (event.canonicalToolName === 'replace' || event.canonicalToolName === 'write_file') return COLORS.edit;
+  if (event.toolFamily === 'search' || event.toolFamily === 'filesystem') return COLORS.read;
+  if (event.toolFamily === 'planning') return COLORS.phase;
+  return COLORS.neutral;
+}
+
+function stringArg(args: Record<string, unknown>, ...keys: string[]): string {
+  for (const key of keys) {
+    const value = args[key];
+    if (typeof value === 'string' && value.trim()) return value;
+  }
+  return '';
+}
+
+function boolArg(args: Record<string, unknown>, ...keys: string[]): boolean {
+  return keys.some((key) => args[key] === true || args[key] === 'true');
+}
+
+function intArg(args: Record<string, unknown>, ...keys: string[]): number | null {
+  for (const key of keys) {
+    const value = args[key];
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value);
+  }
+  return null;
+}
+
+function shortPath(path: string): string {
+  if (!path) return '';
+  const normalized = path.replace(/\\/g, '/');
+  const parts = normalized.split('/').filter(Boolean);
+  if (parts.length <= 4) return normalized;
+  return `${parts[0]}/.../${parts.slice(-2).join('/')}`;
+}
+
+function truncate(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength)}...`;
+}
+
+function inlineCode(text: string): string {
+  const safe = text.replace(/`/g, '\'');
+  return `\`${truncate(safe, 180)}\``;
+}
+
+function codeBlock(language: string, text: string): string {
+  const safe = text.replace(/```/g, '\'\'\'');
+  return `\`\`\`${language}\n${safe}\n\`\`\``;
+}
+
+function filenameFor(event: TraceEvent): string {
+  const rawName = event.displayName || event.toolName || 'tool-output';
+  const safeName = rawName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'tool-output';
+  return `workflow-${safeName}-${event.timestamp}.txt`;
+}
+
+function attachmentFor(event: TraceEvent, detail: string): AttachmentBuilder | null {
+  if (detail.length < ATTACHMENT_THRESHOLD) return null;
+  return new AttachmentBuilder(Buffer.from(detail, 'utf8'), { name: filenameFor(event) });
+}
+
+function compactArgs(args: Record<string, unknown>, preferred: string[]): string {
+  const parts: string[] = [];
+  for (const key of preferred) {
+    const value = args[key];
+    if (value === undefined || value === null || value === '') continue;
+    if (typeof value === 'string') {
+      parts.push(`${key}: ${truncate(value, 80)}`);
+    } else if (typeof value === 'number' || typeof value === 'boolean') {
+      parts.push(`${key}: ${String(value)}`);
+    } else {
+      parts.push(`${key}: ${truncate(JSON.stringify(value), 80)}`);
+    }
+    if (parts.length >= 3) break;
+  }
+  return parts.join(', ');
+}
+
+function resultSuffix(event: TraceEvent, fallback = ''): string {
+  const result = event.resultSummary || fallback;
+  return result ? ` → ${truncate(result.replace(/\s+/g, ' '), 240)}` : '';
+}
+
+function row(event: TraceEvent, body: string): RenderedTrace {
+  return {
+    content: `${statusGlyph(event.status)} **${event.displayName || event.toolName || 'Tool'}** ${body}`.trim(),
+    density: 'row',
+    flags: flags(),
+  };
+}
+
+function panel(event: TraceEvent, title: string, detail: string, language = 'txt'): RenderedTrace {
+  const attachment = attachmentFor(event, detail);
+  const preview = truncate(detail || event.resultSummary || '', PANEL_INLINE_LIMIT);
+  const description = [
+    preview ? codeBlock(language, preview) : null,
+    attachment ? '↳ full output attached' : null,
+  ].filter(Boolean).join('\n');
+
+  return {
+    content: '',
+    embeds: [
+      new EmbedBuilder()
+        .setColor(colorFor(event))
+        .setDescription(`**${statusGlyph(event.status)} ${title}**${description ? `\n\n${description}` : ''}`),
+    ],
+    files: attachment ? [attachment] : undefined,
+    density: 'panel',
+    flags: flags(),
+  };
+}
+
+function card(event: TraceEvent, title: string, lines: string[]): RenderedTrace {
+  return {
+    content: '',
+    embeds: [
+      new EmbedBuilder()
+        .setColor(colorFor(event))
+        .setDescription([
+          `**${statusGlyph(event.status)} ${title}**`,
+          ...lines.filter(Boolean).slice(0, 4),
+        ].join('\n')),
+    ],
+    density: 'card',
+    flags: flags(),
+  };
+}
+
+function shellCommand(event: TraceEvent): string {
+  return stringArg(event.args, 'command', 'commandLine', 'CommandLine');
+}
+
+function filePath(event: TraceEvent): string {
+  return stringArg(event.args, 'file_path', 'path', 'filePath', 'TargetFile');
+}
+
+function searchTarget(event: TraceEvent): string {
+  return stringArg(event.args, 'pattern', 'query', 'Query', 'include');
+}
+
+function readFileResult(event: TraceEvent): string {
+  const start = intArg(event.args, 'start_line', 'startLine', 'offset');
+  const end = intArg(event.args, 'end_line', 'endLine');
+  const limit = intArg(event.args, 'limit');
+  if (start !== null && end !== null) return `Read lines ${start}-${end}`;
+  if (start !== null && limit !== null) return `Read lines ${start}-${start + limit}`;
+  return event.resultSummary ? truncate(event.resultSummary.replace(/\s+/g, ' '), 180) : 'Read file';
+}
+
 export class ShellRenderer implements ToolRenderer {
   canRender(event: TraceEvent): boolean {
     return event.canonicalToolName === 'run_shell_command';
   }
 
   render(event: TraceEvent): RenderedTrace {
-    const cmd = event.args.commandLine || event.args.CommandLine || event.args.command || '';
-    const duration = event.durationMs !== null ? `${event.durationMs}ms` : 'running';
-    let output = '';
-    if (event.status === 'completed') {
-      output = `\n\`\`\`\n${event.resultSummary || 'Success'}\n\`\`\``;
-    } else if (event.status === 'failed') {
-      output = `\n⚠️ **Failed**:\n\`\`\`\n${event.resultSummary || 'Error'}\n\`\`\``;
-    } else if (event.status === 'progress') {
-      output = `\n\`\`\`\n${event.resultSummary || ''}\n\`\`\``;
+    const command = shellCommand(event);
+    const title = `Shell ${command ? truncate(command, 140) : 'command'}`;
+    if (boolArg(event.args, 'is_background', 'isBackground')) {
+      const detail = event.status === 'completed'
+        ? 'Command moved to background. Output hidden.'
+        : 'Starting background command...';
+      return panel(event, title, detail);
     }
-    
-    return {
-      content: `💻 **Shell**: \`${cmd}\` (${duration})${output}`,
-      flags: { source: 'trace_renderer', doNotRoute: true, doNotPersist: true }
-    };
+
+    if (event.status === 'started') {
+      return panel(event, title, '');
+    }
+
+    const detail = event.resultDetail || event.resultSummary || (event.status === 'completed' ? 'Command completed.' : '');
+    return panel(event, title, detail);
   }
 }
 
@@ -45,12 +241,36 @@ export class FilesystemRenderer implements ToolRenderer {
   }
 
   render(event: TraceEvent): RenderedTrace {
-    const path = event.args.path || event.args.TargetFile || event.args.filePath || '';
-    const details = event.resultSummary ? `\n\`\`\`\n${event.resultSummary}\n\`\`\`` : '';
-    return {
-      content: `📁 **File [${event.displayName}]**: \`${path}\` (${event.status})${details}`,
-      flags: { source: 'trace_renderer', doNotRoute: true, doNotPersist: true }
-    };
+    const canonical = event.canonicalToolName;
+    const path = filePath(event);
+
+    if (canonical === 'replace') {
+      const added = intArg(event.args, 'added', 'lines_added');
+      const removed = intArg(event.args, 'removed', 'lines_removed');
+      const summary = event.resultSummary || 'Accepted';
+      const delta = added !== null || removed !== null ? ` (+${added ?? 0}, -${removed ?? 0})` : '';
+      return card(event, `Edit ${path ? inlineCode(shortPath(path)) : ''} → ${summary}${delta}`, []);
+    }
+
+    if (canonical === 'write_file') {
+      return card(event, `WriteFile ${path ? inlineCode(shortPath(path)) : ''}${resultSuffix(event, 'Wrote file')}`, []);
+    }
+
+    if (canonical === 'read_file') {
+      return row(event, `${path ? inlineCode(shortPath(path)) : ''} → ${readFileResult(event)}`);
+    }
+
+    if (canonical === 'read_many_files') {
+      const include = stringArg(event.args, 'include');
+      return row(event, `${include ? inlineCode(include) : 'files'}${resultSuffix(event, 'Read files')}`);
+    }
+
+    if (canonical === 'list_directory') {
+      const dir = stringArg(event.args, 'dir_path', 'path');
+      return row(event, `${dir ? inlineCode(shortPath(dir)) : 'directory'}${resultSuffix(event, 'Listed directory')}`);
+    }
+
+    return row(event, `${path ? inlineCode(shortPath(path)) : ''}${resultSuffix(event)}`);
   }
 }
 
@@ -60,12 +280,10 @@ export class SearchRenderer implements ToolRenderer {
   }
 
   render(event: TraceEvent): RenderedTrace {
-    const query = event.args.query || event.args.Query || '';
-    const details = event.resultSummary ? `\nResults: ${event.resultSummary}` : '';
-    return {
-      content: `🔍 **Search [${event.displayName}]**: \`${query}\` (${event.status})${details}`,
-      flags: { source: 'trace_renderer', doNotRoute: true, doNotPersist: true }
-    };
+    const query = searchTarget(event);
+    const dir = stringArg(event.args, 'dir_path', 'path');
+    const within = dir ? ` within ${inlineCode(shortPath(dir))}` : '';
+    return row(event, `${query ? inlineCode(query) : ''}${within}${resultSuffix(event)}`);
   }
 }
 
@@ -75,12 +293,13 @@ export class WebRenderer implements ToolRenderer {
   }
 
   render(event: TraceEvent): RenderedTrace {
-    const url = event.args.url || event.args.Url || event.args.query || '';
-    const details = event.resultSummary ? `\nResult: ${event.resultSummary}` : '';
-    return {
-      content: `🌐 **Web [${event.displayName}]**: \`${url}\` (${event.status})${details}`,
-      flags: { source: 'trace_renderer', doNotRoute: true, doNotPersist: true }
-    };
+    const query = stringArg(event.args, 'query', 'prompt', 'url', 'Url');
+    const action = event.canonicalToolName === 'google_web_search' ? 'Searching the web for' : 'Fetching';
+    const title = `${event.displayName || 'Web'} ${query ? `${action} ${inlineCode(query)}` : ''}`;
+    if (event.resultDetail && event.resultDetail.length > 500) {
+      return panel(event, title, event.resultDetail);
+    }
+    return card(event, title, event.resultSummary ? [`→ ${event.resultSummary}`] : []);
   }
 }
 
@@ -90,11 +309,16 @@ export class PlanningRenderer implements ToolRenderer {
   }
 
   render(event: TraceEvent): RenderedTrace {
-    const details = event.resultSummary ? `\n> ${event.resultSummary}` : '';
-    return {
-      content: `📌 **Planning [${event.displayName || 'Phase'}]** (${event.status})${details}`,
-      flags: { source: 'trace_renderer', doNotRoute: true, doNotPersist: true }
-    };
+    const summary = event.resultSummary || compactArgs(event.args, ['title', 'summary', 'reason', 'taskId']);
+    if (event.type === 'phase_started') {
+      const phase = summary || 'Planning next step';
+      return {
+        content: phase.includes(':') ? `**${phase.split(':')[0]}:**${phase.slice(phase.indexOf(':') + 1)}` : `**Phase:** ${phase}`,
+        density: 'row',
+        flags: flags(),
+      };
+    }
+    return card(event, event.displayName || 'Planning', summary ? [summary] : []);
   }
 }
 
@@ -104,10 +328,9 @@ export class McpRenderer implements ToolRenderer {
   }
 
   render(event: TraceEvent): RenderedTrace {
-    return {
-      content: `🔌 **MCP [${event.displayName}]**: ${event.status}`,
-      flags: { source: 'trace_renderer', doNotRoute: true, doNotPersist: true }
-    };
+    const args = compactArgs(event.args, ['namespace', 'query', 'name', 'path', 'uri']);
+    const result = event.resultSummary ? `→ ${event.resultSummary}` : '';
+    return card(event, event.displayName || event.toolName || 'MCP', [args, result]);
   }
 }
 
@@ -117,11 +340,8 @@ export class InteractionRenderer implements ToolRenderer {
   }
 
   render(event: TraceEvent): RenderedTrace {
-    const prompt = event.args.prompt || event.args.question || '';
-    return {
-      content: `👤 **Interaction [${event.displayName}]**: \`${prompt}\` (${event.status})`,
-      flags: { source: 'trace_renderer', doNotRoute: true, doNotPersist: true }
-    };
+    const prompt = stringArg(event.args, 'prompt', 'question');
+    return card(event, event.displayName || 'AskUser', [prompt ? inlineCode(prompt) : '? clarification needed']);
   }
 }
 
@@ -131,10 +351,12 @@ export class GenericFallbackRenderer implements ToolRenderer {
   }
 
   render(event: TraceEvent): RenderedTrace {
-    return {
-      content: `🛠️ **Tool [${event.displayName || event.toolName || 'Unknown'}]** (${event.status}): ${event.resultSummary || 'N/A'}`,
-      flags: { source: 'trace_renderer', doNotRoute: true, doNotPersist: true }
-    };
+    const args = compactArgs(event.args, Object.keys(event.args));
+    const title = event.displayName || event.toolName || 'Tool';
+    if (event.resultDetail && event.resultDetail.length > 500) {
+      return panel(event, title, event.resultDetail);
+    }
+    return card(event, title, [args, event.resultSummary ? `→ ${event.resultSummary}` : '']);
   }
 }
 
@@ -159,7 +381,11 @@ export class TraceRendererRegistry {
   render(event: TraceEvent): RenderedTrace {
     for (const renderer of this.renderers) {
       if (renderer.canRender(event)) {
-        return renderer.render(event);
+        const rendered = renderer.render(event);
+        if (rendered.content.length > TRACE_LIMIT) {
+          rendered.content = truncate(rendered.content, TRACE_LIMIT);
+        }
+        return rendered;
       }
     }
     return this.fallbackRenderer.render(event);

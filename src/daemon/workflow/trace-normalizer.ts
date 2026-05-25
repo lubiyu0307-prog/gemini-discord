@@ -1,6 +1,36 @@
 import type { TraceEvent, TraceEventType } from './trace-event.js';
 import { resolveToolEntry } from './tool-registry.js';
-import { redactTraceArgs, redactTraceResult, redactFilePath } from './redaction.js';
+import { redactTraceArgs, redactTraceResult, redactTraceText, redactFilePath } from './redaction.js';
+
+function stringifyTraceValue(value: unknown, toolName?: string): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+
+  if (typeof value === 'object' && toolName === 'run_shell_command') {
+    const resObj = value as Record<string, unknown>;
+    const exitCode = resObj['exitCode'] ?? resObj['exit_code'] ?? resObj['code'];
+    const stdout = String(resObj['stdout'] ?? resObj['output'] ?? '');
+    const stderr = String(resObj['stderr'] ?? '');
+    const lines: string[] = [];
+    if (exitCode !== undefined) lines.push(`exit code: ${String(exitCode)}`);
+    if (stdout) lines.push(`stdout:\n${stdout}`);
+    if (stderr) lines.push(`stderr:\n${stderr}`);
+    return lines.join('\n');
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function firstString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value;
+  }
+  return null;
+}
 
 export function normalizeAcpUpdate(
   sessionUpdate: string,
@@ -41,6 +71,7 @@ export function normalizeAcpUpdate(
       status: 'started',
       durationMs: null,
       resultSummary: redacted.summary,
+      resultDetail: redacted.summary,
       artifactRef: null,
       redactionMetadata: {
         fieldsRedacted: [],
@@ -61,33 +92,37 @@ export function normalizeAcpUpdate(
     const toolEntry = resolveToolEntry(name);
 
     // Extract args
-    const rawArgs = (toolCall['arguments'] || toolCall['args'] || {}) as Record<string, unknown>;
+    const rawArgs = (toolCall['arguments'] ?? toolCall['args'] ?? {}) as Record<string, unknown>;
     const { redacted: redactedArgs, fieldsRedacted } = redactTraceArgs(rawArgs);
 
     let type: TraceEventType = 'tool_started';
     let status: TraceEvent['status'] = 'started';
     let durationMs: number | null = null;
     let resultSummary: string | null = null;
+    let resultDetail: string | null = null;
     let truncated = false;
 
     // Check status based on presence of progress, result, or error
     const progress = toolCall['progress'];
-    const result = toolCall['result'] || toolCall['response'];
-    const error = toolCall['error'] || toolCall['errorMessage'];
+    const result = toolCall['result'] ?? toolCall['response'];
+    const error = toolCall['error'] ?? toolCall['errorMessage'];
 
-    if (sessionUpdate === 'tool_call_update' || (progress !== undefined && progress !== null)) {
-      type = 'tool_progress';
-      status = 'progress';
-      
+    if (error !== undefined && error !== null) {
+      type = 'tool_failed';
+      status = 'failed';
+
       const start = activeToolTimers.get(id);
       if (start) {
         durationMs = timestamp - start;
+        activeToolTimers.delete(id);
       }
 
-      const progressStr = typeof progress === 'string' ? progress : JSON.stringify(progress);
-      const redactedProgress = redactTraceResult(progressStr, 200);
-      resultSummary = redactedProgress.summary;
-      truncated = redactedProgress.truncated;
+      const errorStr = stringifyTraceValue(error, name);
+      const redactedError = redactTraceResult(errorStr, 200);
+      const redactedErrorDetail = redactTraceText(errorStr, 12000);
+      resultSummary = redactedError.summary;
+      resultDetail = redactedErrorDetail.text || resultSummary;
+      truncated = redactedError.truncated || redactedErrorDetail.truncated;
     } else if (result !== undefined && result !== null) {
       type = 'tool_completed';
       status = 'completed';
@@ -98,39 +133,28 @@ export function normalizeAcpUpdate(
         activeToolTimers.delete(id);
       }
 
-      // Format result
-      let resultStr = '';
-      if (typeof result === 'string') {
-        resultStr = result;
-      } else if (typeof result === 'object') {
-        if (name === 'run_shell_command') {
-          const resObj = result as Record<string, unknown>;
-          const exitCode = resObj['exitCode'];
-          const stdout = String(resObj['stdout'] || '');
-          const stderr = String(resObj['stderr'] || '');
-          resultStr = `exit code: ${exitCode}\nstdout:\n${stdout}\nstderr:\n${stderr}`;
-        } else {
-          resultStr = JSON.stringify(result);
-        }
-      }
+      const resultStr = stringifyTraceValue(result, name);
       
       const redactedResult = redactTraceResult(resultStr, 200);
+      const redactedDetail = redactTraceText(resultStr, 12000);
       resultSummary = redactedResult.summary;
-      truncated = redactedResult.truncated;
-    } else if (error !== undefined && error !== null) {
-      type = 'tool_failed';
-      status = 'failed';
-
+      resultDetail = redactedDetail.text || resultSummary;
+      truncated = redactedResult.truncated || redactedDetail.truncated;
+    } else if (sessionUpdate === 'tool_call_update' || (progress !== undefined && progress !== null)) {
+      type = 'tool_progress';
+      status = 'progress';
+      
       const start = activeToolTimers.get(id);
       if (start) {
         durationMs = timestamp - start;
-        activeToolTimers.delete(id);
       }
 
-      const errorStr = typeof error === 'string' ? error : JSON.stringify(error);
-      const redactedError = redactTraceResult(errorStr, 200);
-      resultSummary = redactedError.summary;
-      truncated = redactedError.truncated;
+      const progressStr = stringifyTraceValue(progress, name);
+      const redactedProgress = redactTraceResult(progressStr, 200);
+      const redactedProgressDetail = redactTraceText(progressStr, 12000);
+      resultSummary = redactedProgress.summary;
+      resultDetail = redactedProgressDetail.text || resultSummary;
+      truncated = redactedProgress.truncated || redactedProgressDetail.truncated;
     } else {
       type = 'tool_started';
       status = 'started';
@@ -140,9 +164,8 @@ export function normalizeAcpUpdate(
     // Attempt to extract artifact ref
     let artifactRef: string | null = null;
     if (name === 'write_file' || name === 'replace' || name === 'write_to_file' || name === 'replace_file_content') {
-      const pathVal = rawArgs['path'] || rawArgs['TargetFile'] || rawArgs['filePath'] || rawArgs['TargetFile'];
+      const pathVal = firstString(rawArgs['file_path'], rawArgs['path'], rawArgs['TargetFile'], rawArgs['filePath']);
       if (typeof pathVal === 'string') {
-        // Redact using same path rules
         artifactRef = redactFilePath(pathVal);
       }
     }
@@ -158,6 +181,7 @@ export function normalizeAcpUpdate(
       status,
       durationMs,
       resultSummary,
+      resultDetail,
       artifactRef,
       redactionMetadata: {
         fieldsRedacted,

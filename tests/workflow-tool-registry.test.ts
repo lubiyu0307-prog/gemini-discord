@@ -11,6 +11,7 @@ describe('tool registry', () => {
   it('identifies MCP tools correctly', () => {
     expect(isMcpTool('gitserver/git-status')).toBe(true);
     expect(isMcpTool('mcp_local_tool')).toBe(true);
+    expect(isMcpTool('sanctum__search')).toBe(true);
     expect(isMcpTool('run_shell_command')).toBe(false);
   });
 
@@ -35,6 +36,13 @@ describe('tool registry', () => {
       displayName: 'GoogleSearch',
       family: 'web',
     });
+
+    const saveMemory = resolveToolEntry('save_memory');
+    expect(saveMemory).toEqual({
+      canonical: 'save_memory',
+      displayName: 'SaveMemory',
+      family: 'planning',
+    });
   });
 
   it('resolves unknown tools to a generic fallback entry', () => {
@@ -58,6 +66,13 @@ describe('tool registry', () => {
     expect(mcpTool2).toEqual({
       canonical: 'sqlite-db/run_query',
       displayName: 'RunQuery',
+      family: 'mcp',
+    });
+
+    const mcpTool3 = resolveToolEntry('sanctum__search');
+    expect(mcpTool3).toEqual({
+      canonical: 'sanctum__search',
+      displayName: 'Search',
       family: 'mcp',
     });
   });

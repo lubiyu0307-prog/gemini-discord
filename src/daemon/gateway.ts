@@ -378,6 +378,7 @@ async function processMessage(
   let response = '';
   let responseMessageIds: string[] = [];
   let geminiSessionId: string | undefined;
+  let traceDispatcher: TraceDispatcher | undefined;
 
   try {
     if (turnDecision.decision !== 'allow') {
@@ -397,7 +398,6 @@ async function processMessage(
     }
 
     const isWorkflow = isWorkflowThread(extensionDir, message.channelId);
-    let traceDispatcher: TraceDispatcher | undefined;
     if (isWorkflow) {
       const registry = new TraceRendererRegistry();
       traceDispatcher = new TraceDispatcher(channel as any, registry);
@@ -421,6 +421,9 @@ async function processMessage(
     responseMessageIds = result.messageIds;
     effectiveAttachmentMetadata = result.attachments ?? attachmentMetadata;
     geminiSessionId = result.sessionId;
+    if (traceDispatcher) {
+      await traceDispatcher.dispatchRunComplete();
+    }
 
     if (response.trim().length > 0 || responseMessageIds.length > 0) {
       await persistExchange();
@@ -434,6 +437,9 @@ async function processMessage(
     }
   } catch (err) {
     state.lastError = err instanceof Error ? err.message : String(err);
+    if (traceDispatcher) {
+      await traceDispatcher.dispatchRunFailed(err);
+    }
     const errorMsg = formatError(err);
     await retrySend(() => channel.send(errorMsg)).catch(() => {});
     log.error('Message processing failed', {

@@ -26,6 +26,7 @@ These are auto-derived from the core settings above unless explicitly overridden
 | `DISCORD_ALLOWED_CHANNEL_IDS`| - | Comma-separated list of channel IDs where the bot is allowed to respond. Leave blank to allow all channels in `DISCORD_SERVER_ID`; this is not derived from `DISCORD_CHANNEL_ID`. |
 | `DISCORD_ALLOWED_USER_IDS` | - | Comma-separated list of human user IDs allowed to interact with the bot even when `DISCORD_ENABLE_GUESTS=false`. Empty means no allowlisted humans. |
 | `DISCORD_ALLOWED_AGENT_IDS` | - | Comma-separated list of peer bot IDs allowed to trigger this agent. |
+| `WORKFLOW_PARENT_CHANNEL_ID` | - | Optional guild text channel used when a monitored workflow thread is requested from a DM. The channel must be thread-capable and allowed by routing rules. |
 
 ## Engine Defaults
 

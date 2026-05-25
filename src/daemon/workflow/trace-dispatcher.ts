@@ -4,8 +4,14 @@ import { TraceRendererRegistry } from './trace-renderer.js';
 import type { ThreadManifest } from './thread-manifest.js';
 import { log } from '../log.js';
 
+const TRACE_MARKER = '<!-- trace:doNotPersist -->';
+
 export class TraceDispatcher {
   private activeMessages = new Map<string, Message>();
+  private headerMessage: Message | null = null;
+  private startedAt = Date.now();
+  private toolCallCount = 0;
+  private currentStep: string | null = null;
 
   constructor(
     private threadChannel: ThreadChannel | TextChannel,
@@ -15,27 +21,38 @@ export class TraceDispatcher {
   async dispatch(event: TraceEvent): Promise<void> {
     try {
       const rendered = this.registry.render(event);
-      const content = `${rendered.content}\n<!-- trace:doNotPersist -->`;
+      const payload = {
+        content: `${rendered.content ? `${rendered.content}\n` : ''}${TRACE_MARKER}`,
+        embeds: rendered.embeds,
+        files: rendered.files,
+      };
 
       const toolCall = event.raw?.toolCall as Record<string, unknown> | undefined;
       const toolCallId = typeof toolCall?.id === 'string' ? toolCall.id : null;
+      if (event.type === 'tool_started') {
+        this.toolCallCount += 1;
+      }
+      if (event.displayName || event.toolName) {
+        this.currentStep = event.displayName || event.toolName;
+      }
+      await this.updateRunHeader('running');
 
       if (toolCallId) {
         const existingMessage = this.activeMessages.get(toolCallId);
         
         if (existingMessage) {
           if (event.status === 'progress') {
-            await existingMessage.edit(content);
+            await existingMessage.edit(payload);
             return;
           } else if (event.status === 'completed' || event.status === 'failed' || event.status === 'cancelled') {
-            await existingMessage.edit(content);
+            await existingMessage.edit(payload);
             this.activeMessages.delete(toolCallId);
             return;
           }
         }
       }
 
-      const sent = await this.threadChannel.send({ content });
+      const sent = await this.threadChannel.send(payload);
       
       if (toolCallId && event.status === 'started') {
         this.activeMessages.set(toolCallId, sent);
@@ -47,12 +64,24 @@ export class TraceDispatcher {
 
   async dispatchRunHeader(manifest: ThreadManifest): Promise<void> {
     try {
-      await this.threadChannel.send({
-        content: `⚡ **Running workflow task**: "${manifest.taskSummary}"\n*Starting execution engine...*\n<!-- trace:doNotPersist -->`,
+      this.startedAt = Date.now();
+      this.toolCallCount = 0;
+      this.currentStep = null;
+      this.headerMessage = await this.threadChannel.send({
+        content: `◌ **Queued** · ${this.formatTask(manifest.taskSummary)}\n${TRACE_MARKER}`,
       });
     } catch (error) {
       log.warn('Failed to dispatch run header', { error: String(error) });
     }
+  }
+
+  async dispatchRunComplete(): Promise<void> {
+    await this.updateRunHeader('complete');
+  }
+
+  async dispatchRunFailed(error: unknown): Promise<void> {
+    const message = error instanceof Error ? error.message : String(error);
+    await this.updateRunHeader('failed', message);
   }
 
   async dispatchFinalResponse(response: string): Promise<void> {
@@ -63,5 +92,39 @@ export class TraceDispatcher {
     } catch (error) {
       log.warn('Failed to dispatch final response', { error: String(error) });
     }
+  }
+
+  private async updateRunHeader(state: 'running' | 'complete' | 'failed', detail?: string): Promise<void> {
+    if (!this.headerMessage) return;
+
+    const elapsed = this.formatElapsed(Date.now() - this.startedAt);
+    let content: string;
+    if (state === 'complete') {
+      content = `✓ **Complete** \`${elapsed}\` · \`${this.toolCallCount}\` tool calls`;
+    } else if (state === 'failed') {
+      const suffix = detail ? ` · ${detail.slice(0, 160)}` : '';
+      content = `✗ **Failed** \`${elapsed}\` · \`${this.toolCallCount}\` tool calls${suffix}`;
+    } else {
+      const suffix = this.currentStep ? ` · current step: \`${this.currentStep}\`` : '';
+      content = `⌁ **Running** \`${elapsed}\`${suffix}`;
+    }
+
+    try {
+      await this.headerMessage.edit(`${content}\n${TRACE_MARKER}`);
+    } catch (error) {
+      log.warn('Failed to update trace run header', { error: String(error) });
+    }
+  }
+
+  private formatElapsed(ms: number): string {
+    const seconds = Math.max(0, Math.round(ms / 1000));
+    const minutes = Math.floor(seconds / 60);
+    const remainder = seconds % 60;
+    return minutes > 0 ? `${minutes}m ${remainder}s` : `${seconds}s`;
+  }
+
+  private formatTask(task: string): string {
+    const trimmed = task.trim().replace(/\s+/g, ' ');
+    return trimmed.length > 120 ? `${trimmed.slice(0, 117)}...` : trimmed;
   }
 }

@@ -137,3 +137,25 @@ export function redactTraceResult(result: string, maxLength = 200): {
     truncated: true,
   };
 }
+
+export function redactTraceText(result: string, maxLength = 12000): {
+  text: string;
+  truncated: boolean;
+} {
+  if (typeof result !== 'string') {
+    return { text: '', truncated: false };
+  }
+
+  let s = redactFilePath(result);
+  s = redactDiscordId(s);
+  s = redactIpAddresses(s);
+
+  if (s.length <= maxLength) {
+    return { text: s, truncated: false };
+  }
+
+  return {
+    text: `${s.slice(0, maxLength)}\n... [${s.length - maxLength} chars truncated]`,
+    truncated: true,
+  };
+}

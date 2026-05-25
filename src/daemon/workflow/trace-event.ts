@@ -23,6 +23,7 @@ export interface TraceEvent {
   status: 'started' | 'progress' | 'completed' | 'failed' | 'cancelled';
   durationMs: number | null;
   resultSummary: string | null;      // short safe result text
+  resultDetail?: string | null;      // longer safe result text for panels/attachments
   artifactRef: string | null;        // optional file/log/diff reference
   redactionMetadata: {
     fieldsRedacted: string[];
