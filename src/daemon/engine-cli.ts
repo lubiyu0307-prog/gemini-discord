@@ -375,8 +375,10 @@ export async function finalizeAssistantResponse(
 
   let displayText = actionResult.cleanedResponse;
   const trimmed = displayText.trim();
-  if (trimmed && !trimmed.includes('\n') && !trimmed.startsWith('✦')) {
-    displayText = `✦ ${trimmed}`;
+  if (trimmed && !trimmed.includes('\n')) {
+    displayText = trimmed.startsWith('✦')
+      ? trimmed.replace(/^✦\s*/, '✦ ')
+      : `✦ ${trimmed}`;
   }
 
   if (options.prependNewlines && trimmed) {

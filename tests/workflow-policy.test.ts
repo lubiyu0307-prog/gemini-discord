@@ -193,6 +193,22 @@ describe('Workflow Thread Policy & Interception', () => {
       expect(res.displayText).toBe('✦ Hello World');
     });
 
+    it('normalizes compact sparkle-prefixed workflow final answers', async () => {
+      const mockMessage = {
+        client: {
+          channels: { fetch: vi.fn() },
+        },
+      } as any;
+
+      const res = await finalizeAssistantResponse('✦1183', mockMessage, {
+        allowPrivilegedActions: true,
+        prependNewlines: false,
+      });
+
+      expect(res.displayText).toBe('✦ 1183');
+      expect(res.responseText).toBe('✦1183');
+    });
+
     it('prepends newlines when prependNewlines is true', async () => {
       const mockMessage = {
         client: {

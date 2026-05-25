@@ -1,5 +1,13 @@
 # Change History
 
+## [2026-05-26] Workflow Trace Polish
+
+Tightened monitored workflow Discord rendering without changing agent behavior.
+
+### Changed
+- **Web Search Rows**: Google search traces keep the canonical `GoogleSearch` label and render completed results on a `↳` sub-result line.
+- **Final Answer Spacing**: Single-line workflow final answers normalize the sparkle prefix so compact results render as `✦ 1183` instead of `✦1183`.
+
 ## [2026-05-25] Terminal-Style Workflow Trace Visuals
 
 Aligned monitored workflow traces with the Gemini CLI terminal presentation inside Discord.

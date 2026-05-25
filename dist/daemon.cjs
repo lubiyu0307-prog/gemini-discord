@@ -89317,8 +89317,8 @@ async function finalizeAssistantResponse(rawResponse, message, options) {
   });
   let displayText = actionResult.cleanedResponse;
   const trimmed = displayText.trim();
-  if (trimmed && !trimmed.includes("\n") && !trimmed.startsWith("\u2726")) {
-    displayText = `\u2726 ${trimmed}`;
+  if (trimmed && !trimmed.includes("\n")) {
+    displayText = trimmed.startsWith("\u2726") ? trimmed.replace(/^✦\s*/, "\u2726 ") : `\u2726 ${trimmed}`;
   }
   if (options.prependNewlines && trimmed) {
     displayText = `
