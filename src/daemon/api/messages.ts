@@ -360,5 +360,42 @@ export async function handleMessageRoutes(
     return true;
   }
 
+  if (pathname === '/workflow') {
+    if (!authorizeApiAction(req, res, config, 'admin_command')) return true;
+    const task = String(parsed['task'] ?? '');
+    const creatorUserId = String(parsed['creator_user_id'] ?? '');
+    const sourceChannelId = String(parsed['source_channel_id'] ?? '');
+    const sourceMessageId = parsed['source_message_id'] == null ? undefined : String(parsed['source_message_id']);
+    const traceMode = (parsed['trace_mode'] as 'compact' | 'verbose' | undefined) ?? 'compact';
+
+    if (!task || !creatorUserId || !sourceChannelId) {
+      respond(res, 400, { error: 'task, creator_user_id, and source_channel_id are required' });
+      return true;
+    }
+
+    try {
+      if (!deps.client) { respond(res, 503, { error: 'Client not ready' }); return true; }
+      const { createWorkflowThread } = await import('../workflow/thread-creator.js');
+      const { threadId, thread } = await createWorkflowThread(
+        deps.client,
+        config,
+        extensionDir,
+        {
+          taskSummary: task,
+          creatorUserId,
+          sourceChannelId,
+          sourceMessageId,
+          traceMode,
+        }
+      );
+
+      // Return thread info
+      respond(res, 200, { ok: true, threadId, task });
+    } catch (err) {
+      respond(res, 500, { error: err instanceof Error ? err.message : String(err) });
+    }
+    return true;
+  }
+
   return false;
 }

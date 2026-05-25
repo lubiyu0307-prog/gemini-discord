@@ -586,7 +586,15 @@ async function processMessage(
 ): Promise<void> {
   const channel = message.channel as TextChannel | DMChannel | NewsChannel;
   const startTime = Date.now();
-  let requestedToolMode = accepted.trigger === 'cron' ? 'discord' : resolveToolMode(accepted.content);
+  let requestedToolMode: ToolMode;
+  if (accepted.trigger === 'cron') {
+    requestedToolMode = 'discord';
+  } else if (accepted.trigger === 'workflow') {
+    requestedToolMode = 'full';
+  } else {
+    requestedToolMode = resolveToolMode(accepted.content);
+  }
+
   if (requestedToolMode === 'chat' && shouldUseImmediateMentionContext(accepted.trigger, accepted.content)) {
     const immediateContext = selectImmediateMentionContext(memory.snapshot(processingContext.sessionKey), {
       channelId: message.channelId,

@@ -30,11 +30,13 @@ export function registerAdminTool(server: McpServer, config: Config): void {
       '• "kick" — remove a member from the server',
       '• "timeout" — apply a communication timeout (up to 28 days)',
       '• "remove_timeout" — remove an active timeout from a member',
+      '• "workflow" — start a monitored workflow thread for a task',
     ].join('\n'),
     {
-      action: z.enum(['status', 'restart', 'reset', 'channels', 'users', 'allowlist_add', 'allowlist_remove', 'set_presence', 'kick', 'timeout', 'remove_timeout']).describe('The administrative action to perform.'),
+      action: z.enum(['status', 'restart', 'reset', 'channels', 'users', 'allowlist_add', 'allowlist_remove', 'set_presence', 'kick', 'timeout', 'remove_timeout', 'workflow']).describe('The administrative action to perform.'),
       query: z.string().optional().describe('Optional channel/user name, mention, ID, or partial string to filter discovery actions.'),
-      channel_id: z.string().optional().describe('Explicit Discord channel ID for reset actions.'),
+      task: z.string().optional().describe('Description of the task for the workflow (required for workflow action).'),
+      channel_id: z.string().optional().describe('Explicit Discord channel ID for reset/workflow actions.'),
       status: z.enum(['online', 'idle', 'dnd', 'invisible']).optional().describe('Bot online status (only for set_presence).'),
       activity_type: z.enum(['playing', 'watching', 'listening', 'competing']).optional().describe('Activity type (only for set_presence).'),
       activity_name: z.string().optional().describe('Activity name, e.g. "with fire" (only for set_presence).'),
@@ -43,7 +45,7 @@ export function registerAdminTool(server: McpServer, config: Config): void {
       reason: z.string().optional().describe('Optional audit-log reason (only for kick/timeout/remove_timeout).'),
       duration_minutes: z.number().optional().describe('Timeout duration in minutes. Required for timeout. Maximum 40320 (28 days).'),
     },
-    async ({ action, query, channel_id, status, activity_type, activity_name, user_id, guild_id, reason, duration_minutes }) => {
+    async ({ action, query, task, channel_id, status, activity_type, activity_name, user_id, guild_id, reason, duration_minutes }) => {
       const permAction = action === 'status' ? 'status' as const
         : action === 'users' ? 'user_discovery' as const
         : ['kick', 'timeout', 'remove_timeout', 'allowlist_add', 'allowlist_remove'].includes(action) ? 'moderation' as const
@@ -335,6 +337,25 @@ export function registerAdminTool(server: McpServer, config: Config): void {
           if (action === 'kick') return text(`✅ Kicked user ${target}.`);
           if (action === 'timeout') return text(`✅ Timed out user ${target} for ${duration_minutes} minute${duration_minutes === 1 ? '' : 's'}.`);
           return text(`✅ Removed timeout for user ${target}.`);
+        }
+
+        case 'workflow': {
+          if (!task) {
+            return text('❌ Error: task is required for workflow.', true);
+          }
+          const body: Record<string, unknown> = {
+            task,
+            creator_user_id: config.discordBossUserId,
+            source_channel_id: channel_id || config.discordChannelId,
+          };
+          const res = await daemonRequest({ method: 'POST', path: '/workflow', config, body });
+
+          if (!res.ok) {
+            const error = String(res.data['error'] ?? 'unknown error');
+            return text(`❌ Workflow creation failed: ${error}`, true);
+          }
+
+          return text(`✅ Monitored workflow thread created: <#${res.data['threadId']}> for task: "${task}"`);
         }
 
         default:

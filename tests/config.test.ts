@@ -1,14 +1,10 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { loadConfig } from '../src/shared/config.js';
 import { readManagedConfigFile, writeManagedConfigFile } from '../src/shared/managed-config.js';
 import { resolveRuntimePaths } from '../src/shared/runtime-paths.js';
-
-afterEach(() => {
-  vi.unstubAllEnvs();
-});
 
 describe('loadConfig', () => {
   it('prefers extension process settings over local .env development defaults', () => {
