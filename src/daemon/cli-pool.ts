@@ -15,6 +15,8 @@ import { log } from './log.js';
 import { buildAcpPromptBlocks, type AcpPromptAttachment } from './acp-content.js';
 import { extractGeminiResultText, getGeminiTextDelta } from './gemini-output.js';
 import { resolveGeminiAllowedTools, roleEnv, type RoleContext } from './permissions.js';
+import type { TraceEvent } from './workflow/trace-event.js';
+import { normalizeAcpUpdate } from './workflow/trace-normalizer.js';
 
 const ACP_PROTOCOL_VERSION = 1;
 const SESSION_REQUEST_TIMEOUT_MS = 120_000;
@@ -25,6 +27,7 @@ const SESSION_REPLAY_MAX_WAIT_MS = 6_000;
 export interface StreamCallbacks {
   onToken: (token: string) => void;
   onThought?: () => void;
+  onTraceEvent?: (event: TraceEvent) => void;
 }
 
 export interface PoolSendOptions {
@@ -84,6 +87,7 @@ interface PersistentProcess {
   cwd: string | null;
   stderrTail: string;
   lastSessionUpdateAt: number;
+  activeToolTimers: Map<string, number>;
 }
 
 function buildPoolKey(bindingKey: string, allowedTools: string): string {
@@ -289,6 +293,7 @@ export class CliProcessPool {
       cwd: null,
       stderrTail: '',
       lastSessionUpdateAt: 0,
+      activeToolTimers: new Map(),
     };
 
     proc.stderr?.on('data', (chunk: Buffer) => {
@@ -634,6 +639,12 @@ export class CliProcessPool {
       || sessionUpdate === 'plan'
     ) {
       activePrompt.callbacks.onThought?.();
+      if (activePrompt.callbacks.onTraceEvent) {
+        const traceEvent = normalizeAcpUpdate(sessionUpdate, update, entry.activeToolTimers);
+        if (traceEvent) {
+          activePrompt.callbacks.onTraceEvent(traceEvent);
+        }
+      }
     }
   }
 

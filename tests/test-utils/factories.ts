@@ -36,6 +36,7 @@ export function createConfig(overrides: Partial<Config> = {}): Config {
     geminiSessionBindingScope: 'channel',
     cliIdleTimeoutMs: 300000,
     setupValidationPending: false,
+    workflowParentChannelId: '',
     ...overrides,
   };
 }

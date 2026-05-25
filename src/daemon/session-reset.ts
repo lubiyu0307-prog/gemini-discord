@@ -14,16 +14,22 @@ export function resetConversationSession(
   config: Config,
   memory: ConversationMemory,
   extensionDir: string,
-  context: { channelId: string; guildId: string | null; authorId?: string | null },
+  context: { channelId: string; guildId: string | null; authorId?: string | null; threadId?: string | null },
 ): SessionResetResult {
   const dmUserId = context.guildId ? null : (context.authorId ?? null);
-  const sessionKey = resolveSessionKey('channel', context.channelId, dmUserId);
+  
+  const sessionKey = context.threadId
+    ? `thread:${context.threadId}`
+    : resolveSessionKey('channel', context.channelId, dmUserId);
 
-  const bindingKey = resolveGeminiBindingKey('channel', {
-    guildId: context.guildId,
-    channelId: context.channelId,
-    dmUserId,
-  });
+  const bindingKey = context.threadId
+    ? `thread:${context.threadId}`
+    : resolveGeminiBindingKey('channel', {
+        guildId: context.guildId,
+        channelId: context.channelId,
+        dmUserId,
+      });
+
   const bindingWorkspace = ensureGeminiBindingWorkspace(extensionDir, bindingKey);
   const bindingState = loadGeminiBindingState(bindingWorkspace.bindingDir);
   memory.archiveAndReset(sessionKey, {
@@ -39,6 +45,7 @@ export function resetConversationSession(
     archivedGeminiSessionId: bindingState.lastSessionId,
     channelId: context.channelId,
     guildId: context.guildId,
+    threadId: context.threadId,
   });
 
   return {

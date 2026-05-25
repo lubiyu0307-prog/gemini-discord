@@ -39,6 +39,11 @@ import {
   rememberPrimaryChannelFromMessage,
 } from './onboarding.js';
 import { sanitizeAllowedUserIds } from '../shared/config-sanitize.js';
+import { isWorkflowThread, loadThreadManifest } from './workflow/thread-manifest.js';
+import { createWorkflowThread } from './workflow/thread-creator.js';
+import { TraceRendererRegistry } from './workflow/trace-renderer.js';
+import { TraceDispatcher } from './workflow/trace-dispatcher.js';
+import type { TraceEvent } from './workflow/trace-event.js';
 
 const MAX_AGENT_EXCHANGES = 6;
 
@@ -125,6 +130,28 @@ export async function initGateway(
   setupMessageHandler(client, config, {
     onMessage: (message: Message, accepted: AcceptedDiscordMessage) => {
       runtimeStore.lastInteractiveMessageAt = Date.now();
+      
+      const contentTrimmed = message.content.trim();
+      const isWorkflowTextCmd = contentTrimmed.startsWith('!thread ') || contentTrimmed.startsWith('!workflow ');
+      if (isWorkflowTextCmd && isBoss(accepted.roleContext)) {
+        const prefix = contentTrimmed.startsWith('!thread ') ? '!thread ' : '!workflow ';
+        const task = contentTrimmed.slice(prefix.length).trim();
+        if (task) {
+          createWorkflowThread(client, config, extensionDir, {
+            taskSummary: task,
+            creatorUserId: message.author.id,
+            sourceChannelId: message.channelId,
+            sourceMessageId: message.id,
+          }).then(({ threadId }) => {
+            retrySend(() => message.reply(`🧹 **Monitored Workflow Thread Created:** <#${threadId}>`)).catch(() => {});
+          }).catch((err) => {
+            log.error('Failed to create workflow thread from text command', { error: String(err) });
+            retrySend(() => message.reply(`❌ **Failed to create workflow thread:** ${err instanceof Error ? err.message : String(err)}`)).catch(() => {});
+          });
+          return;
+        }
+      }
+
       if (!message.guildId) {
         touchDmPairing(extensionDir, message.author.id, message.channelId);
       } else if (accepted.speakerKind === 'human' && isBoss(accepted.roleContext)) {
@@ -177,6 +204,7 @@ export async function initGateway(
           state,
           processingContext,
           runtimeStore.geminiSemaphore!,
+          extensionDir,
         );
       }) ?? false;
 
@@ -322,6 +350,7 @@ async function processMessage(
   state: DaemonState,
   processingContext: ProcessingContext,
   geminiSemaphore: Semaphore,
+  extensionDir: string,
 ): Promise<void> {
   const channel = message.channel as TextChannel | DMChannel | NewsChannel;
   const startTime = Date.now();
@@ -367,8 +396,26 @@ async function processMessage(
       return;
     }
 
+    const isWorkflow = isWorkflowThread(extensionDir, message.channelId);
+    let traceDispatcher: TraceDispatcher | undefined;
+    if (isWorkflow) {
+      const registry = new TraceRendererRegistry();
+      traceDispatcher = new TraceDispatcher(channel as any, registry);
+      
+      const manifest = loadThreadManifest(extensionDir, message.channelId);
+      if (manifest) {
+        await traceDispatcher.dispatchRunHeader(manifest);
+      }
+    }
+
+    const traceCallbacks = traceDispatcher ? {
+      onTraceEvent: (event: TraceEvent) => {
+        traceDispatcher!.dispatch(event).catch(() => {});
+      }
+    } : undefined;
+
     const result = await processViaCli(
-      message, accepted, config, memory, processingContext, geminiSemaphore, channel, toolMode,
+      message, accepted, config, memory, processingContext, geminiSemaphore, channel, toolMode, extensionDir, traceCallbacks,
     );
     response = result.response;
     responseMessageIds = result.messageIds;

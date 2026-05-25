@@ -56,6 +56,7 @@ function createConfig(): Config {
   return {
     discordBotToken: '',
     discordChannelId: '123',
+    workflowParentChannelId: '',
     discordServerId: '',
     discordServerName: '',
     discordBossUserId: '111111111111111111',

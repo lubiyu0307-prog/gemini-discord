@@ -25,6 +25,7 @@ import {
   type PermissionAction,
   type RoleContext,
 } from './permissions.js';
+import { createWorkflowThread } from './workflow/thread-creator.js';
 
 /**
  * Slash command definitions.
@@ -68,6 +69,21 @@ export const COMMANDS = [
         .setDescription('Pool key to kill')
         .setRequired(true)
     ),
+
+  new SlashCommandBuilder()
+    .setName('workflow')
+    .setDescription('Create a monitored workflow thread for a task.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addStringOption(option =>
+      option.setName('task')
+        .setDescription('Description of the task to execute')
+        .setRequired(true)
+    )
+    .addStringOption(option =>
+      option.setName('message_id')
+        .setDescription('Optional ID of a message to promote to a thread')
+        .setRequired(false)
+    ),
 ];
 
 export type CommandBuilder = (typeof COMMANDS)[number];
@@ -79,6 +95,7 @@ const DM_COMMAND_NAMES = new Set([
   'ping',
   'pool',
   'kill',
+  'workflow',
 ]);
 
 export function buildGuildCommandPayloads(
@@ -312,6 +329,34 @@ Confirmation: Gemini CLI verified connectivity.`);
         await interaction.editReply(`**Model switch failed.** 
 Error: \`${error instanceof Error ? error.message : String(error)}\`
 Action: Reverted to \`${oldModel}\`.`);
+      }
+      return;
+    }
+
+    if (commandName === 'workflow') {
+      if (!await authorizeInteraction(interaction, roleContext, 'admin_command')) return;
+
+      const task = interaction.options.getString('task', true);
+      const messageId = interaction.options.getString('message_id') ?? undefined;
+
+      await interaction.deferReply();
+
+      try {
+        const { threadId } = await createWorkflowThread(
+          client,
+          config,
+          extensionDir,
+          {
+            taskSummary: task,
+            creatorUserId: interaction.user.id,
+            sourceChannelId: interaction.channelId,
+            sourceMessageId: messageId,
+          }
+        );
+        await interaction.editReply(`🧹 **Monitored Workflow Thread Created:** <#${threadId}>`);
+      } catch (error) {
+        log.error('Failed to create workflow thread from slash command', { error: error instanceof Error ? error.message : String(error) });
+        await interaction.editReply(`❌ **Failed to create workflow thread:** ${error instanceof Error ? error.message : String(error)}`);
       }
       return;
     }

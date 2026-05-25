@@ -248,6 +248,7 @@ export function loadConfig(extensionDir: string): Config {
       get(ENV.SETUP_VALIDATION_PENDING, hasInstallSettings ? 'true' : 'false'),
       false,
     ),
+    workflowParentChannelId: get(ENV.WORKFLOW_PARENT_CHANNEL_ID, '').trim(),
   };
 
   return config;

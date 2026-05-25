@@ -11,7 +11,7 @@ describe('Slash Command Registration', () => {
     const globalPayloads = buildDmOnlyGlobalCommandPayloads();
     
     // Only includes approved DM commands
-    const expectedNames = new Set(['new', 'model', 'status', 'ping', 'pool', 'kill']);
+    const expectedNames = new Set(['new', 'model', 'status', 'ping', 'pool', 'kill', 'workflow']);
     expect(globalPayloads.length).toBe(expectedNames.size);
     
     globalPayloads.forEach(cmd => {

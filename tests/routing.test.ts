@@ -36,6 +36,7 @@ const baseConfig: Config = {
   geminiSessionBindingScope: 'server',
   cliIdleTimeoutMs: 300000,
   setupValidationPending: false,
+  workflowParentChannelId: '',
 };
 
 function route(overrides: Partial<Parameters<typeof shouldAcceptMessage>[0]> = {}, config: Config = baseConfig) {

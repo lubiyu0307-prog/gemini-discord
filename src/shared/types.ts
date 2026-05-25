@@ -104,6 +104,7 @@ export interface Config {
   geminiSessionBindingScope: GeminiSessionBindingScope;
   cliIdleTimeoutMs: number;
   setupValidationPending: boolean;
+  workflowParentChannelId: string;
 }
 
 /** A single conversation message stored in persistent memory */

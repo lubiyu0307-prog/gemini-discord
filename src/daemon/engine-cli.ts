@@ -40,6 +40,9 @@ import {
   resetGeminiBindingSession,
   resolveGeminiBindingKey,
 } from './binding.js';
+import { isWorkflowThread, loadThreadManifest } from './workflow/thread-manifest.js';
+import { buildWorkflowSeedContext } from './workflow/seed-context.js';
+import type { TraceEvent } from './workflow/trace-event.js';
 import {
   resolveBindingResumeSessionId,
   resolveGeminiProjectDir,
@@ -64,6 +67,8 @@ export async function processViaCli(
   geminiSemaphore: Semaphore,
   channel: TextChannel | DMChannel | NewsChannel,
   toolMode: ToolMode,
+  extensionDir: string,
+  traceCallbacks?: { onTraceEvent: (event: TraceEvent) => void },
 ): Promise<{ response: string; messageIds: string[]; attachments?: ConversationAttachment[]; sessionId?: string }> {
   let targetMessage = message;
 
@@ -140,6 +145,14 @@ export async function processViaCli(
     const immediateContext = shouldUseImmediateMentionContext(accepted.trigger, accepted.content)
       ? selectImmediateMentionContext(memory.snapshot(processingContext.sessionKey), incomingPrompt)
       : [];
+    const isWorkflow = isWorkflowThread(extensionDir, message.channelId);
+    let seedContextOverride: string | undefined;
+    if (isWorkflow && !resumeSessionId) {
+      const manifest = loadThreadManifest(extensionDir, message.channelId);
+      if (manifest) {
+        seedContextOverride = buildWorkflowSeedContext(manifest);
+      }
+    }
     prompt = buildSessionModePrompt({
       incoming: incomingPrompt,
       bossUserId: config.discordBossUserId,
@@ -148,6 +161,7 @@ export async function processViaCli(
       botUserId: message.client.user?.id ?? null,
       immediateContext,
       backgroundContext,
+      seedContextOverride,
     });
   } else {
     const fullHistorySnapshot = memory.snapshot(processingContext.sessionKey);
@@ -189,7 +203,7 @@ export async function processViaCli(
       throw new Error('CLI pool not initialized');
     }
 
-    const sendViaCli = async (callbacks: { onToken: (token: string) => void; onThought: () => void }): Promise<string> => {
+    const sendViaCli = async (callbacks: { onToken: (token: string) => void; onThought: () => void; onTraceEvent?: (event: TraceEvent) => void }): Promise<string> => {
       const baseOptions = {
         cwd: processingContext.geminiProjectDir,
         useResume: allowPersistentSession,
@@ -230,6 +244,7 @@ export async function processViaCli(
         {
           onToken: (token) => editor.feed(token),
           onThought: () => editor.feedThought(),
+          onTraceEvent: traceCallbacks?.onTraceEvent,
         },
       );
 
@@ -261,6 +276,7 @@ export async function processViaCli(
           {
             onToken: () => {},
             onThought: () => {},
+            onTraceEvent: traceCallbacks?.onTraceEvent,
           },
         );
         clearInterval(typingInterval);
@@ -358,6 +374,8 @@ export function resolveProcessingContext(
   accepted: AcceptedDiscordMessage,
   extensionDir: string,
 ): ProcessingContext {
+  const isWorkflow = isWorkflowThread(extensionDir, message.channelId);
+
   if (!isBoss(accepted.roleContext)) {
     const guestKey = message.guildId
       ? `guest:${message.author.id}:channel:${message.channelId}:message:${message.id}`
@@ -366,6 +384,18 @@ export function resolveProcessingContext(
     return {
       sessionKey: guestKey,
       bindingKey: guestKey,
+      bindingDir: bindingWorkspace.bindingDir,
+      attachmentsDir: bindingWorkspace.attachmentsDir,
+      geminiProjectDir: resolveGeminiProjectDir(extensionDir),
+    };
+  }
+
+  if (isWorkflow) {
+    const threadKey = `thread:${message.channelId}`;
+    const bindingWorkspace = ensureGeminiBindingWorkspace(extensionDir, threadKey);
+    return {
+      sessionKey: threadKey,
+      bindingKey: threadKey,
       bindingDir: bindingWorkspace.bindingDir,
       attachmentsDir: bindingWorkspace.attachmentsDir,
       geminiProjectDir: resolveGeminiProjectDir(extensionDir),

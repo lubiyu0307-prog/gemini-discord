@@ -209,7 +209,8 @@ var init_config_vars = __esm({
       USE_GEMINI_CLI_SESSIONS: "USE_GEMINI_CLI_SESSIONS",
       GEMINI_SESSION_BINDING_SCOPE: "GEMINI_SESSION_BINDING_SCOPE",
       CLI_IDLE_TIMEOUT_MS: "CLI_IDLE_TIMEOUT_MS",
-      SETUP_VALIDATION_PENDING: "SETUP_VALIDATION_PENDING"
+      SETUP_VALIDATION_PENDING: "SETUP_VALIDATION_PENDING",
+      WORKFLOW_PARENT_CHANNEL_ID: "WORKFLOW_PARENT_CHANNEL_ID"
     };
     CONFIG_ENV_KEYS = [
       ENV.DISCORD_BOT_TOKEN,
@@ -244,7 +245,8 @@ var init_config_vars = __esm({
       ENV.USE_GEMINI_CLI_SESSIONS,
       ENV.GEMINI_SESSION_BINDING_SCOPE,
       ENV.CLI_IDLE_TIMEOUT_MS,
-      ENV.SETUP_VALIDATION_PENDING
+      ENV.SETUP_VALIDATION_PENDING,
+      ENV.WORKFLOW_PARENT_CHANNEL_ID
     ];
     INSTALL_SETTING_ENV_KEYS = [
       ENV.DISCORD_BOT_TOKEN,
@@ -443,7 +445,8 @@ function loadConfig(extensionDir2) {
     setupValidationPending: parseBoolean(
       get(ENV.SETUP_VALIDATION_PENDING, hasInstallSettings ? "true" : "false"),
       false
-    )
+    ),
+    workflowParentChannelId: get(ENV.WORKFLOW_PARENT_CHANNEL_ID, "").trim()
   };
   return config;
 }
@@ -1392,13 +1395,13 @@ function __disposeResources(env) {
   }
   return next();
 }
-function __rewriteRelativeImportExtension(path13, preserveJsx) {
-  if (typeof path13 === "string" && /^\.\.?\//.test(path13)) {
-    return path13.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
+function __rewriteRelativeImportExtension(path14, preserveJsx) {
+  if (typeof path14 === "string" && /^\.\.?\//.test(path14)) {
+    return path14.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
       return tsx ? preserveJsx ? ".jsx" : ".js" : d && (!ext || !cm) ? m : d + ext + "." + cm.toLowerCase() + "js";
     });
   }
-  return path13;
+  return path14;
 }
 var extendStatics, __assign, __createBinding, __setModuleDefault, ownKeys, _SuppressedError, tslib_es6_default;
 var init_tslib_es6 = __esm({
@@ -2290,14 +2293,14 @@ var require_util = __commonJS({
         }
         const port = url.port != null ? url.port : url.protocol === "https:" ? 443 : 80;
         let origin = url.origin != null ? url.origin : `${url.protocol || ""}//${url.hostname || ""}:${port}`;
-        let path13 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
+        let path14 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
         if (origin[origin.length - 1] === "/") {
           origin = origin.slice(0, origin.length - 1);
         }
-        if (path13 && path13[0] !== "/") {
-          path13 = `/${path13}`;
+        if (path14 && path14[0] !== "/") {
+          path14 = `/${path14}`;
         }
-        return new URL(`${origin}${path13}`);
+        return new URL(`${origin}${path14}`);
       }
       if (!isHttpOrHttpsPrefixed(url.origin || url.protocol)) {
         throw new InvalidArgumentError("Invalid URL protocol: the URL must start with `http:` or `https:`.");
@@ -2748,39 +2751,39 @@ var require_diagnostics = __commonJS({
       });
       diagnosticsChannel.channel("undici:client:sendHeaders").subscribe((evt) => {
         const {
-          request: { method, path: path13, origin }
+          request: { method, path: path14, origin }
         } = evt;
-        debuglog("sending request to %s %s/%s", method, origin, path13);
+        debuglog("sending request to %s %s/%s", method, origin, path14);
       });
       diagnosticsChannel.channel("undici:request:headers").subscribe((evt) => {
         const {
-          request: { method, path: path13, origin },
+          request: { method, path: path14, origin },
           response: { statusCode }
         } = evt;
         debuglog(
           "received response to %s %s/%s - HTTP %d",
           method,
           origin,
-          path13,
+          path14,
           statusCode
         );
       });
       diagnosticsChannel.channel("undici:request:trailers").subscribe((evt) => {
         const {
-          request: { method, path: path13, origin }
+          request: { method, path: path14, origin }
         } = evt;
-        debuglog("trailers received from %s %s/%s", method, origin, path13);
+        debuglog("trailers received from %s %s/%s", method, origin, path14);
       });
       diagnosticsChannel.channel("undici:request:error").subscribe((evt) => {
         const {
-          request: { method, path: path13, origin },
+          request: { method, path: path14, origin },
           error
         } = evt;
         debuglog(
           "request to %s %s/%s errored - %s",
           method,
           origin,
-          path13,
+          path14,
           error.message
         );
       });
@@ -2829,9 +2832,9 @@ var require_diagnostics = __commonJS({
         });
         diagnosticsChannel.channel("undici:client:sendHeaders").subscribe((evt) => {
           const {
-            request: { method, path: path13, origin }
+            request: { method, path: path14, origin }
           } = evt;
-          debuglog("sending request to %s %s/%s", method, origin, path13);
+          debuglog("sending request to %s %s/%s", method, origin, path14);
         });
       }
       diagnosticsChannel.channel("undici:websocket:open").subscribe((evt) => {
@@ -2894,7 +2897,7 @@ var require_request = __commonJS({
     var kHandler = Symbol("handler");
     var Request = class {
       constructor(origin, {
-        path: path13,
+        path: path14,
         method,
         body,
         headers,
@@ -2909,11 +2912,11 @@ var require_request = __commonJS({
         expectContinue,
         servername
       }, handler) {
-        if (typeof path13 !== "string") {
+        if (typeof path14 !== "string") {
           throw new InvalidArgumentError("path must be a string");
-        } else if (path13[0] !== "/" && !(path13.startsWith("http://") || path13.startsWith("https://")) && method !== "CONNECT") {
+        } else if (path14[0] !== "/" && !(path14.startsWith("http://") || path14.startsWith("https://")) && method !== "CONNECT") {
           throw new InvalidArgumentError("path must be an absolute URL or start with a slash");
-        } else if (invalidPathRegex.test(path13)) {
+        } else if (invalidPathRegex.test(path14)) {
           throw new InvalidArgumentError("invalid request path");
         }
         if (typeof method !== "string") {
@@ -2979,7 +2982,7 @@ var require_request = __commonJS({
         this.completed = false;
         this.aborted = false;
         this.upgrade = upgrade || null;
-        this.path = query ? buildURL(path13, query) : path13;
+        this.path = query ? buildURL(path14, query) : path14;
         this.origin = origin;
         this.idempotent = idempotent == null ? method === "HEAD" || method === "GET" : idempotent;
         this.blocking = blocking == null ? false : blocking;
@@ -7498,7 +7501,7 @@ var require_client_h1 = __commonJS({
       return method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && method !== "TRACE" && method !== "CONNECT";
     }
     function writeH1(client, request) {
-      const { method, path: path13, host, upgrade, blocking, reset } = request;
+      const { method, path: path14, host, upgrade, blocking, reset } = request;
       let { body, headers, contentLength } = request;
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH" || method === "QUERY" || method === "PROPFIND" || method === "PROPPATCH";
       if (util.isFormDataLike(body)) {
@@ -7564,7 +7567,7 @@ var require_client_h1 = __commonJS({
       if (blocking) {
         socket[kBlocking] = true;
       }
-      let header = `${method} ${path13} HTTP/1.1\r
+      let header = `${method} ${path14} HTTP/1.1\r
 `;
       if (typeof host === "string") {
         header += `host: ${host}\r
@@ -8090,7 +8093,7 @@ var require_client_h2 = __commonJS({
     }
     function writeH2(client, request) {
       const session = client[kHTTP2Session];
-      const { method, path: path13, host, upgrade, expectContinue, signal, headers: reqHeaders } = request;
+      const { method, path: path14, host, upgrade, expectContinue, signal, headers: reqHeaders } = request;
       let { body } = request;
       if (upgrade) {
         util.errorRequest(client, request, new Error("Upgrade not supported for H2"));
@@ -8157,7 +8160,7 @@ var require_client_h2 = __commonJS({
         });
         return true;
       }
-      headers[HTTP2_HEADER_PATH] = path13;
+      headers[HTTP2_HEADER_PATH] = path14;
       headers[HTTP2_HEADER_SCHEME] = "https";
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH";
       if (body && typeof body.read === "function") {
@@ -8510,9 +8513,9 @@ var require_redirect_handler = __commonJS({
           return this.handler.onHeaders(statusCode, headers, resume, statusText);
         }
         const { origin, pathname, search } = util.parseURL(new URL(this.location, this.opts.origin && new URL(this.opts.path, this.opts.origin)));
-        const path13 = search ? `${pathname}${search}` : pathname;
+        const path14 = search ? `${pathname}${search}` : pathname;
         this.opts.headers = cleanRequestHeaders(this.opts.headers, statusCode === 303, this.opts.origin !== origin);
-        this.opts.path = path13;
+        this.opts.path = path14;
         this.opts.origin = origin;
         this.opts.maxRedirections = 0;
         this.opts.query = null;
@@ -9746,10 +9749,10 @@ var require_proxy_agent = __commonJS({
         };
         const {
           origin,
-          path: path13 = "/",
+          path: path14 = "/",
           headers = {}
         } = opts;
-        opts.path = origin + path13;
+        opts.path = origin + path14;
         if (!("host" in headers) && !("Host" in headers)) {
           const { host } = new URL2(origin);
           headers.host = host;
@@ -11670,20 +11673,20 @@ var require_mock_utils = __commonJS({
       }
       return true;
     }
-    function safeUrl(path13) {
-      if (typeof path13 !== "string") {
-        return path13;
+    function safeUrl(path14) {
+      if (typeof path14 !== "string") {
+        return path14;
       }
-      const pathSegments = path13.split("?");
+      const pathSegments = path14.split("?");
       if (pathSegments.length !== 2) {
-        return path13;
+        return path14;
       }
       const qp = new URLSearchParams(pathSegments.pop());
       qp.sort();
       return [...pathSegments, qp.toString()].join("?");
     }
-    function matchKey(mockDispatch2, { path: path13, method, body, headers }) {
-      const pathMatch = matchValue(mockDispatch2.path, path13);
+    function matchKey(mockDispatch2, { path: path14, method, body, headers }) {
+      const pathMatch = matchValue(mockDispatch2.path, path14);
       const methodMatch = matchValue(mockDispatch2.method, method);
       const bodyMatch = typeof mockDispatch2.body !== "undefined" ? matchValue(mockDispatch2.body, body) : true;
       const headersMatch = matchHeaders(mockDispatch2, headers);
@@ -11705,7 +11708,7 @@ var require_mock_utils = __commonJS({
     function getMockDispatch(mockDispatches, key) {
       const basePath = key.query ? buildURL(key.path, key.query) : key.path;
       const resolvedPath = typeof basePath === "string" ? safeUrl(basePath) : basePath;
-      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path13 }) => matchValue(safeUrl(path13), resolvedPath));
+      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path14 }) => matchValue(safeUrl(path14), resolvedPath));
       if (matchedMockDispatches.length === 0) {
         throw new MockNotMatchedError(`Mock dispatch not matched for path '${resolvedPath}'`);
       }
@@ -11743,9 +11746,9 @@ var require_mock_utils = __commonJS({
       }
     }
     function buildKey(opts) {
-      const { path: path13, method, body, headers, query } = opts;
+      const { path: path14, method, body, headers, query } = opts;
       return {
-        path: path13,
+        path: path14,
         method,
         body,
         headers,
@@ -12208,10 +12211,10 @@ var require_pending_interceptors_formatter = __commonJS({
       }
       format(pendingInterceptors) {
         const withPrettyHeaders = pendingInterceptors.map(
-          ({ method, path: path13, data: { statusCode }, persist, times, timesInvoked, origin }) => ({
+          ({ method, path: path14, data: { statusCode }, persist, times, timesInvoked, origin }) => ({
             Method: method,
             Origin: origin,
-            Path: path13,
+            Path: path14,
             "Status code": statusCode,
             Persistent: persist ? PERSISTENT : NOT_PERSISTENT,
             Invocations: timesInvoked,
@@ -17092,9 +17095,9 @@ var require_util6 = __commonJS({
         }
       }
     }
-    function validateCookiePath(path13) {
-      for (let i = 0; i < path13.length; ++i) {
-        const code = path13.charCodeAt(i);
+    function validateCookiePath(path14) {
+      for (let i = 0; i < path14.length; ++i) {
+        const code = path14.charCodeAt(i);
         if (code < 32 || // exclude CTLs (0-31)
         code === 127 || // DEL
         code === 59) {
@@ -19734,11 +19737,11 @@ var require_undici = __commonJS({
           if (typeof opts.path !== "string") {
             throw new InvalidArgumentError("invalid opts.path");
           }
-          let path13 = opts.path;
+          let path14 = opts.path;
           if (!opts.path.startsWith("/")) {
-            path13 = `/${path13}`;
+            path14 = `/${path14}`;
           }
-          url = new URL(util.parseOrigin(url).origin + path13);
+          url = new URL(util.parseOrigin(url).origin + path14);
         } else {
           if (!opts) {
             opts = typeof url === "object" ? url : {};
@@ -27142,13 +27145,13 @@ var require_tree2 = __commonJS({
       mime: leaf.info.mime,
       extension: leaf.info.extension
     });
-    var isLeafNode = (tree, path13) => tree && path13.length === 0;
+    var isLeafNode = (tree, path14) => tree && path14.length === 0;
     var merge = (node, tree) => {
       if (node.bytes.length === 0)
         return tree;
-      const [currentByte, ...path13] = node.bytes;
+      const [currentByte, ...path14] = node.bytes;
       const currentTree = tree.bytes[currentByte];
-      if (isLeafNode(currentTree, path13)) {
+      if (isLeafNode(currentTree, path14)) {
         const matchingNode = tree.bytes[currentByte];
         tree.bytes[currentByte] = {
           ...matchingNode,
@@ -27160,9 +27163,9 @@ var require_tree2 = __commonJS({
         return tree;
       }
       if (tree.bytes[currentByte]) {
-        tree.bytes[currentByte] = exports2.merge(exports2.createNode(node.typename, path13, node.info), tree.bytes[currentByte]);
+        tree.bytes[currentByte] = exports2.merge(exports2.createNode(node.typename, path14, node.info), tree.bytes[currentByte]);
       } else {
-        tree.bytes[currentByte] = exports2.createComplexNode(node.typename, path13, node.info);
+        tree.bytes[currentByte] = exports2.createComplexNode(node.typename, path14, node.info);
       }
       return tree;
     };
@@ -27176,7 +27179,7 @@ var require_tree2 = __commonJS({
         bytes: {},
         matches: void 0
       };
-      const [currentKey, ...path13] = bytes;
+      const [currentKey, ...path14] = bytes;
       if (bytes.length === 0) {
         return {
           matches: [
@@ -27188,7 +27191,7 @@ var require_tree2 = __commonJS({
           bytes: {}
         };
       }
-      obj.bytes[currentKey] = exports2.createComplexNode(typename, path13, info);
+      obj.bytes[currentKey] = exports2.createComplexNode(typename, path14, info);
       return obj;
     };
     exports2.createComplexNode = createComplexNode;
@@ -31427,7 +31430,7 @@ var require_Attachment = __commonJS({
   "node_modules/discord.js/src/structures/Attachment.js"(exports2, module2) {
     "use strict";
     var AttachmentFlagsBitField = require_AttachmentFlagsBitField();
-    var { basename: basename4, flatten } = require_Util();
+    var { basename: basename5, flatten } = require_Util();
     var Attachment = class {
       constructor(data) {
         this.attachment = data.url;
@@ -31493,7 +31496,7 @@ var require_Attachment = __commonJS({
        * @readonly
        */
       get spoiler() {
-        return basename4(this.url ?? this.name).startsWith("SPOILER_");
+        return basename5(this.url ?? this.name).startsWith("SPOILER_");
       }
       toJSON() {
         return flatten(this);
@@ -33875,8 +33878,8 @@ var require_Util = __commonJS({
       await client.rest.patch(route, { body: updatedItems, reason });
       return updatedItems;
     }
-    function basename4(path13, ext) {
-      const res = parse(path13);
+    function basename5(path14, ext) {
+      const res = parse(path14);
       return ext && res.ext.startsWith(ext) ? res.name : res.base.split("?")[0];
     }
     function cleanContent(str, channel) {
@@ -33998,7 +34001,7 @@ var require_Util = __commonJS({
       resolveColor,
       discordSort,
       setPosition,
-      basename: basename4,
+      basename: basename5,
       cleanContent,
       cleanCodeBlockContent,
       parseWebhookURL,
@@ -36358,8 +36361,8 @@ var require_DataResolver = __commonJS({
   "node_modules/discord.js/src/util/DataResolver.js"(exports2, module2) {
     "use strict";
     var { Buffer: Buffer2 } = require("node:buffer");
-    var fs12 = require("node:fs/promises");
-    var path13 = require("node:path");
+    var fs13 = require("node:fs/promises");
+    var path14 = require("node:path");
     var { fetch: fetch2 } = require_undici();
     var { DiscordjsError: DiscordjsError2, DiscordjsTypeError: DiscordjsTypeError2, ErrorCodes: ErrorCodes2 } = require_errors2();
     var Invite2 = require_Invite();
@@ -36385,10 +36388,10 @@ var require_DataResolver = __commonJS({
           const res = await fetch2(resource);
           return { data: Buffer2.from(await res.arrayBuffer()), contentType: res.headers.get("content-type") };
         }
-        const file = path13.resolve(resource);
-        const stats = await fs12.stat(file);
+        const file = path14.resolve(resource);
+        const stats = await fs13.stat(file);
         if (!stats.isFile()) throw new DiscordjsError2(ErrorCodes2.FileNotFound, file);
-        return { data: await fs12.readFile(file) };
+        return { data: await fs13.readFile(file) };
       }
       throw new DiscordjsTypeError2(ErrorCodes2.ReqResourceType);
     }
@@ -39539,11 +39542,11 @@ var require_baseGet = __commonJS({
   "node_modules/lodash/_baseGet.js"(exports2, module2) {
     var castPath = require_castPath();
     var toKey = require_toKey();
-    function baseGet(object, path13) {
-      path13 = castPath(path13, object);
-      var index = 0, length = path13.length;
+    function baseGet(object, path14) {
+      path14 = castPath(path14, object);
+      var index = 0, length = path14.length;
       while (object != null && index < length) {
-        object = object[toKey(path13[index++])];
+        object = object[toKey(path14[index++])];
       }
       return index && index == length ? object : void 0;
     }
@@ -39555,8 +39558,8 @@ var require_baseGet = __commonJS({
 var require_get = __commonJS({
   "node_modules/lodash/get.js"(exports2, module2) {
     var baseGet = require_baseGet();
-    function get(object, path13, defaultValue) {
-      var result = object == null ? void 0 : baseGet(object, path13);
+    function get(object, path14, defaultValue) {
+      var result = object == null ? void 0 : baseGet(object, path14);
       return result === void 0 ? defaultValue : result;
     }
     module2.exports = get;
@@ -52684,7 +52687,7 @@ var require_MessagePayload = __commonJS({
     var { DiscordjsError: DiscordjsError2, DiscordjsRangeError: DiscordjsRangeError2, ErrorCodes: ErrorCodes2 } = require_errors2();
     var { resolveFile } = require_DataResolver();
     var MessageFlagsBitField = require_MessageFlagsBitField();
-    var { basename: basename4, verifyString, resolvePartialEmoji } = require_Util();
+    var { basename: basename5, verifyString, resolvePartialEmoji } = require_Util();
     var getBaseInteraction = lazy(() => require_BaseInteraction());
     var MessagePayload = class {
       /**
@@ -52903,10 +52906,10 @@ var require_MessagePayload = __commonJS({
         let name;
         const findName = (thing) => {
           if (typeof thing === "string") {
-            return basename4(thing);
+            return basename5(thing);
           }
           if (thing.path) {
-            return basename4(thing.path);
+            return basename5(thing.path);
           }
           return "file.jpg";
         };
@@ -55558,9 +55561,9 @@ var require_ThreadManager = __commonJS({
        * @returns {Promise<FetchedThreadsMore>}
        */
       async fetchArchived({ type = "public", fetchAll = false, before, limit } = {}, cache = true) {
-        let path13 = Routes3.channelThreads(this.channel.id, type);
+        let path14 = Routes3.channelThreads(this.channel.id, type);
         if (type === "private" && !fetchAll) {
-          path13 = Routes3.channelJoinedArchivedThreads(this.channel.id);
+          path14 = Routes3.channelJoinedArchivedThreads(this.channel.id);
         }
         let timestamp;
         let id;
@@ -55584,7 +55587,7 @@ var require_ThreadManager = __commonJS({
             }
           }
         }
-        const raw = await this.client.rest.get(path13, { query });
+        const raw = await this.client.rest.get(path14, { query });
         return this.constructor._mapThreads(raw, this.client, { parent: this.channel, cache });
       }
       /**
@@ -65260,20 +65263,20 @@ var require_dist10 = __commonJS({
         }
       }
       resolveWorkerPath() {
-        const path13 = this.options.workerPath;
-        if (!path13) {
+        const path14 = this.options.workerPath;
+        if (!path14) {
           return (0, import_node_path.join)(__dirname, "defaultWorker.js");
         }
-        if ((0, import_node_path.isAbsolute)(path13)) {
-          return path13;
+        if ((0, import_node_path.isAbsolute)(path14)) {
+          return path14;
         }
-        if (/^\.\.?[/\\]/.test(path13)) {
-          return (0, import_node_path.resolve)(path13);
+        if (/^\.\.?[/\\]/.test(path14)) {
+          return (0, import_node_path.resolve)(path14);
         }
         try {
-          return require.resolve(path13);
+          return require.resolve(path14);
         } catch {
-          return (0, import_node_path.resolve)(path13);
+          return (0, import_node_path.resolve)(path14);
         }
       }
       async waitForWorkerReady(worker) {
@@ -75014,7 +75017,7 @@ var require_Shard = __commonJS({
   "node_modules/discord.js/src/sharding/Shard.js"(exports2, module2) {
     "use strict";
     var EventEmitter = require("node:events");
-    var path13 = require("node:path");
+    var path14 = require("node:path");
     var process2 = require("node:process");
     var { setTimeout: setTimeout2, clearTimeout: clearTimeout2 } = require("node:timers");
     var { setTimeout: sleep2 } = require("node:timers/promises");
@@ -75066,14 +75069,14 @@ var require_Shard = __commonJS({
         this._exitListener = this._handleExit.bind(this, void 0, timeout);
         switch (this.manager.mode) {
           case "process":
-            this.process = childProcess.fork(path13.resolve(this.manager.file), this.args, {
+            this.process = childProcess.fork(path14.resolve(this.manager.file), this.args, {
               env: this.env,
               execArgv: this.execArgv,
               silent: this.silent
             }).on("message", this._handleMessage.bind(this)).on("exit", this._exitListener);
             break;
           case "worker":
-            this.worker = new Worker(path13.resolve(this.manager.file), {
+            this.worker = new Worker(path14.resolve(this.manager.file), {
               workerData: this.env,
               env: SHARE_ENV,
               execArgv: this.execArgv,
@@ -75334,8 +75337,8 @@ var require_ShardingManager = __commonJS({
   "node_modules/discord.js/src/sharding/ShardingManager.js"(exports2, module2) {
     "use strict";
     var EventEmitter = require("node:events");
-    var fs12 = require("node:fs");
-    var path13 = require("node:path");
+    var fs13 = require("node:fs");
+    var path14 = require("node:path");
     var process2 = require("node:process");
     var { setTimeout: sleep2 } = require("node:timers/promises");
     var { Collection: Collection2 } = require_dist6();
@@ -75380,8 +75383,8 @@ var require_ShardingManager = __commonJS({
         };
         this.file = file;
         if (!file) throw new DiscordjsError2(ErrorCodes2.ClientInvalidOption, "File", "specified.");
-        if (!path13.isAbsolute(file)) this.file = path13.resolve(process2.cwd(), file);
-        const stats = fs12.statSync(this.file);
+        if (!path14.isAbsolute(file)) this.file = path14.resolve(process2.cwd(), file);
+        const stats = fs13.statSync(this.file);
         if (!stats.isFile()) throw new DiscordjsError2(ErrorCodes2.ClientInvalidOption, "File", "a file");
         this.shardList = _options.shardList ?? "auto";
         if (this.shardList !== "auto") {
@@ -75855,7 +75858,7 @@ var require_EmbedBuilder = __commonJS({
 var require_AttachmentBuilder = __commonJS({
   "node_modules/discord.js/src/structures/AttachmentBuilder.js"(exports2, module2) {
     "use strict";
-    var { basename: basename4, flatten } = require_Util();
+    var { basename: basename5, flatten } = require_Util();
     var AttachmentBuilder2 = class _AttachmentBuilder {
       /**
        * @param {BufferResolvable|Stream} attachment The file
@@ -75915,7 +75918,7 @@ var require_AttachmentBuilder = __commonJS({
        * @readonly
        */
       get spoiler() {
-        return basename4(this.name).startsWith("SPOILER_");
+        return basename5(this.name).startsWith("SPOILER_");
       }
       toJSON() {
         return flatten(this);
@@ -76663,7 +76666,8 @@ function buildSessionModePrompt(options) {
     allowedAgentIds: options.allowedAgentIds,
     botUserId: options.botUserId
   });
-  return `${buildDiscordAdapterInstruction(options.incoming, { bossUserId: options.bossUserId, ownerIds: options.ownerIds, backgroundContext: options.backgroundContext })}
+  const instructionBlock = options.seedContextOverride ? options.seedContextOverride : buildDiscordAdapterInstruction(options.incoming, { bossUserId: options.bossUserId, ownerIds: options.ownerIds, backgroundContext: options.backgroundContext });
+  return `${instructionBlock}
 ${immediateContextBlock}
 
 [Message]
@@ -77731,8 +77735,8 @@ var init_runtime = __esm({
 // src/daemon/session-reset.ts
 function resetConversationSession(config, memory, extensionDir2, context) {
   const dmUserId = context.guildId ? null : context.authorId ?? null;
-  const sessionKey = resolveSessionKey("channel", context.channelId, dmUserId);
-  const bindingKey = resolveGeminiBindingKey("channel", {
+  const sessionKey = context.threadId ? `thread:${context.threadId}` : resolveSessionKey("channel", context.channelId, dmUserId);
+  const bindingKey = context.threadId ? `thread:${context.threadId}` : resolveGeminiBindingKey("channel", {
     guildId: context.guildId,
     channelId: context.channelId,
     dmUserId
@@ -77750,7 +77754,8 @@ function resetConversationSession(config, memory, extensionDir2, context) {
     bindingKey,
     archivedGeminiSessionId: bindingState.lastSessionId,
     channelId: context.channelId,
-    guildId: context.guildId
+    guildId: context.guildId,
+    threadId: context.threadId
   });
   return {
     sessionKey,
@@ -77764,6 +77769,145 @@ var init_session_reset = __esm({
     init_binding();
     init_runtime();
     init_log();
+  }
+});
+
+// src/daemon/api-utils.ts
+function respond(res, status, body) {
+  res.writeHead(status, { "Content-Type": "application/json" });
+  res.end(JSON.stringify(body));
+}
+function requireAuth(req, config) {
+  const header = req.headers.authorization;
+  if (!header) return false;
+  const [scheme, token] = header.split(" ");
+  return scheme === "Bearer" && token === config.daemonApiToken;
+}
+async function readBody(req) {
+  return new Promise((resolve2, reject2) => {
+    const chunks = [];
+    let size = 0;
+    req.on("data", (chunk) => {
+      size += chunk.length;
+      if (size > MAX_BODY_BYTES) {
+        req.destroy();
+        reject2(new Error("Payload too large"));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => resolve2(Buffer.concat(chunks).toString("utf-8")));
+    req.on("error", reject2);
+  });
+}
+function parseOptionalNumber(value) {
+  if (value === void 0 || value === null || value === "") {
+    return null;
+  }
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+function parseOptionalTimestamp(value) {
+  if (value === void 0 || value === null || value === "") {
+    return null;
+  }
+  const parsed = Date.parse(String(value));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+function roleContextFromRequest(req, config) {
+  const rawRole = req.headers["x-gemini-discord-role"];
+  const role = Array.isArray(rawRole) ? rawRole[0] : rawRole;
+  if (role !== "BOSS" && role !== "GUEST") {
+    return null;
+  }
+  const rawSenderId = req.headers["x-gemini-discord-sender-id"];
+  const rawSenderLabel = req.headers["x-gemini-discord-sender-label"];
+  const senderDiscordId = (Array.isArray(rawSenderId) ? rawSenderId[0] : rawSenderId)?.trim() || "unknown";
+  const senderDisplayLabel = (Array.isArray(rawSenderLabel) ? rawSenderLabel[0] : rawSenderLabel)?.trim() || senderDiscordId;
+  return resolveDiscordRole(config, { discordUserId: senderDiscordId, displayLabel: senderDisplayLabel });
+}
+function roleContextFromLocalControlToken(req, config) {
+  const rawAuth = req.headers.authorization;
+  const header = Array.isArray(rawAuth) ? rawAuth[0] : rawAuth;
+  if (!header?.startsWith("Bearer ") || !config.daemonApiToken) {
+    return null;
+  }
+  const token = header.slice("Bearer ".length).trim();
+  if (!token || token !== config.daemonApiToken) {
+    return null;
+  }
+  const boss = validateBossConfig(config);
+  if (!boss.valid) {
+    return null;
+  }
+  return resolveDiscordRole(config, {
+    discordUserId: boss.bossUserId,
+    displayLabel: "local-control-api"
+  });
+}
+function authorizeApiAction(req, res, config, action) {
+  const roleContext = roleContextFromRequest(req, config) ?? roleContextFromLocalControlToken(req, config);
+  if (!roleContext) {
+    respond(res, 403, {
+      error: "Missing Discord role context. Use the bridge from an authorized boss message in Discord, or call the local MCP server with a valid daemon token."
+    });
+    return false;
+  }
+  const decision = authorizeAction(action, roleContext);
+  if (decision.decision === "allow") {
+    return true;
+  }
+  respond(res, 403, { error: formatPermissionDenial(decision) });
+  return false;
+}
+function resolveConversationSessionKey(config, extensionDir2, channelId, guildId) {
+  if (guildId) {
+    return resolveSessionKey("channel", channelId, null);
+  }
+  return resolveSessionKey(
+    "channel",
+    channelId,
+    resolveDmUserIdForChannel(extensionDir2, channelId)
+  );
+}
+function resolveSendChannelId(requestedChannelId) {
+  return requestedChannelId.trim();
+}
+async function fetchTextChannel(client, channelId) {
+  try {
+    const channel = await client.channels.fetch(channelId);
+    if (channel && channel.isTextBased() && "send" in channel) return channel;
+  } catch {
+  }
+  try {
+    const user = await client.users.fetch(channelId);
+    if (user) return await user.createDM();
+  } catch {
+  }
+  return null;
+}
+function isWritableTarget(channelId, channel, config) {
+  if ("isDMBased" in channel && channel.isDMBased()) {
+    return config.enableDMs;
+  }
+  if (config.allowedChannelIds.includes(channelId)) {
+    return true;
+  }
+  const parentId = channel.parentId ?? null;
+  if (parentId && config.allowedChannelIds.includes(parentId)) {
+    return true;
+  }
+  const guildId = channel.guildId ?? null;
+  return config.allowedChannelIds.length === 0 && Boolean(config.discordServerId) && guildId === config.discordServerId;
+}
+var MAX_BODY_BYTES;
+var init_api_utils = __esm({
+  "src/daemon/api-utils.ts"() {
+    "use strict";
+    init_memory();
+    init_dm_pairing();
+    init_permissions();
+    MAX_BODY_BYTES = 10240;
   }
 });
 
@@ -86833,8 +86977,8 @@ var require_CronFileParser = __commonJS({
        * @throws If file cannot be read
        */
       static parseFileSync(filePath) {
-        const { readFileSync: readFileSync7 } = require("fs");
-        const data = readFileSync7(filePath, "utf8");
+        const { readFileSync: readFileSync8 } = require("fs");
+        const data = readFileSync8(filePath, "utf8");
         return _CronFileParser.#parseContent(data);
       }
       /**
@@ -87837,6 +87981,9 @@ function isAllowedGuildChannel(input, config) {
   if (config.allowedChannelIds.includes(input.channelId)) {
     return true;
   }
+  if (input.parentChannelId && config.allowedChannelIds.includes(input.parentChannelId)) {
+    return true;
+  }
   return config.allowedChannelIds.length === 0 && Boolean(config.discordServerId) && input.guildId === config.discordServerId;
 }
 var init_routing = __esm({
@@ -87966,7 +88113,8 @@ function setupMessageHandler(client, config, callbacks, isShuttingDown) {
         isDM,
         mentionedBot,
         repliedToBot,
-        replyToMessageId
+        replyToMessageId,
+        parentChannelId: origin.channelId
       }, config);
       if (!decision.accept) {
         if (decision.trackOnly && decision.speakerKind && callbacks.onIgnoredMessage) {
@@ -88083,6 +88231,10 @@ function isAllowedGuildChannel2(message, config) {
   if (config.allowedChannelIds.includes(message.channelId)) {
     return true;
   }
+  const parentId = message.channel.parentId ?? null;
+  if (parentId && config.allowedChannelIds.includes(parentId)) {
+    return true;
+  }
   return config.allowedChannelIds.length === 0 && Boolean(config.discordServerId) && message.guildId === config.discordServerId;
 }
 var import_discord4;
@@ -88095,6 +88247,127 @@ var init_bot = __esm({
     init_routing();
     init_permissions();
     init_mentions();
+  }
+});
+
+// src/daemon/workflow/thread-manifest.ts
+function getManifestDir(extensionDir2) {
+  return path11.join(extensionDir2, "threads");
+}
+function getManifestPath(extensionDir2, threadId) {
+  return path11.join(getManifestDir(extensionDir2), `${threadId}.json`);
+}
+function saveThreadManifest(extensionDir2, manifest) {
+  const dir = getManifestDir(extensionDir2);
+  if (!fs12.existsSync(dir)) {
+    fs12.mkdirSync(dir, { recursive: true });
+  }
+  const filePath = getManifestPath(extensionDir2, manifest.threadId);
+  fs12.writeFileSync(filePath, JSON.stringify(manifest, null, 2), "utf8");
+}
+function loadThreadManifest(extensionDir2, threadId) {
+  const filePath = getManifestPath(extensionDir2, threadId);
+  if (!fs12.existsSync(filePath)) {
+    return null;
+  }
+  try {
+    const data = fs12.readFileSync(filePath, "utf8");
+    return JSON.parse(data);
+  } catch {
+    return null;
+  }
+}
+function isWorkflowThread(extensionDir2, threadId) {
+  return fs12.existsSync(getManifestPath(extensionDir2, threadId));
+}
+var fs12, path11;
+var init_thread_manifest = __esm({
+  "src/daemon/workflow/thread-manifest.ts"() {
+    "use strict";
+    fs12 = __toESM(require("node:fs"), 1);
+    path11 = __toESM(require("node:path"), 1);
+  }
+});
+
+// src/daemon/workflow/thread-creator.ts
+async function createWorkflowThread(client, config, extensionDir2, opts) {
+  const { taskSummary, creatorUserId, sourceChannelId, sourceMessageId, traceMode = "compact" } = opts;
+  const originChannel = await fetchTextChannel(client, sourceChannelId);
+  if (!originChannel) {
+    throw new Error(`Origin channel ${sourceChannelId} not found`);
+  }
+  const isDm = "isDMBased" in originChannel && originChannel.isDMBased();
+  let parentChannel;
+  if (isDm) {
+    if (!config.workflowParentChannelId) {
+      throw new Error("WORKFLOW_PARENT_CHANNEL_ID is not configured. Workflow threads cannot be created from DMs without a configured parent channel.");
+    }
+    const resolvedParent = await client.channels.fetch(config.workflowParentChannelId);
+    if (!resolvedParent || !resolvedParent.isTextBased() || resolvedParent.isDMBased() || !("threads" in resolvedParent)) {
+      throw new Error(`Configured WORKFLOW_PARENT_CHANNEL_ID ${config.workflowParentChannelId} is not a valid thread-capable guild text channel.`);
+    }
+    parentChannel = resolvedParent;
+  } else {
+    parentChannel = originChannel;
+  }
+  if (!isWritableTarget(parentChannel.id, parentChannel, config)) {
+    throw new Error(`Parent channel ${parentChannel.id} is not writable or allowed under configured allowedChannelIds.`);
+  }
+  const sanitizedTask = taskSummary.toLowerCase().replace(/[^a-z0-9\s-]+/g, "").trim().replace(/[\s-]+/g, "-").slice(0, 30);
+  const threadName = `gemini-workflow-${sanitizedTask || "task"}`;
+  let thread;
+  let starterMessageId = null;
+  if (sourceMessageId && !isDm) {
+    try {
+      const msg = await parentChannel.messages.fetch(sourceMessageId);
+      thread = await msg.startThread({
+        name: threadName
+      });
+      starterMessageId = sourceMessageId;
+    } catch (err) {
+      log.warn("Could not start thread on message, creating standalone thread instead", { sourceMessageId, error: String(err) });
+      thread = await parentChannel.threads.create({
+        name: threadName
+      });
+    }
+  } else {
+    thread = await parentChannel.threads.create({
+      name: threadName
+    });
+  }
+  const seedMsg = await thread.send({
+    content: `\u{1F916} **Monitored Workflow Thread Started**
+**Goal**: ${taskSummary}
+**Requested by**: <@${creatorUserId}>`
+  });
+  const manifest = {
+    threadId: thread.id,
+    parentChannelId: parentChannel.id,
+    guildId: parentChannel.guildId,
+    creatorUserId,
+    starterMessageId: starterMessageId || seedMsg.id,
+    createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+    mode: "monitored_workflow",
+    taskSummary,
+    traceMode,
+    originContext: {
+      type: isDm ? "dm" : "channel",
+      sourceChannelId,
+      sourceMessageId
+    }
+  };
+  saveThreadManifest(extensionDir2, manifest);
+  return {
+    threadId: thread.id,
+    manifest
+  };
+}
+var init_thread_creator = __esm({
+  "src/daemon/workflow/thread-creator.ts"() {
+    "use strict";
+    init_thread_manifest();
+    init_api_utils();
+    init_log();
   }
 });
 
@@ -88269,6 +88542,30 @@ Action: Reverted to \`${oldModel}\`.`);
       }
       return;
     }
+    if (commandName === "workflow") {
+      if (!await authorizeInteraction(interaction, roleContext, "admin_command")) return;
+      const task = interaction.options.getString("task", true);
+      const messageId = interaction.options.getString("message_id") ?? void 0;
+      await interaction.deferReply();
+      try {
+        const { threadId } = await createWorkflowThread(
+          client,
+          config,
+          extensionDir2,
+          {
+            taskSummary: task,
+            creatorUserId: interaction.user.id,
+            sourceChannelId: interaction.channelId,
+            sourceMessageId: messageId
+          }
+        );
+        await interaction.editReply(`\u{1F9F9} **Monitored Workflow Thread Created:** <#${threadId}>`);
+      } catch (error) {
+        log.error("Failed to create workflow thread from slash command", { error: error instanceof Error ? error.message : String(error) });
+        await interaction.editReply(`\u274C **Failed to create workflow thread:** ${error instanceof Error ? error.message : String(error)}`);
+      }
+      return;
+    }
   });
 }
 async function authorizeInteraction(interaction, roleContext, action) {
@@ -88311,6 +88608,7 @@ var init_commands = __esm({
     init_runtime();
     init_session_reset();
     init_permissions();
+    init_thread_creator();
     COMMANDS = [
       new import_discord5.SlashCommandBuilder().setName("new").setDescription("Start a fresh Gemini conversation for this channel.").setDefaultMemberPermissions(import_discord5.PermissionFlagsBits.ManageMessages),
       new import_discord5.SlashCommandBuilder().setName("model").setDescription("Switch the active Gemini model.").addStringOption(
@@ -88321,6 +88619,11 @@ var init_commands = __esm({
       new import_discord5.SlashCommandBuilder().setName("pool").setDescription("Show CLI process pool status.").setDefaultMemberPermissions(import_discord5.PermissionFlagsBits.Administrator),
       new import_discord5.SlashCommandBuilder().setName("kill").setDescription("Kill a specific CLI pool process.").setDefaultMemberPermissions(import_discord5.PermissionFlagsBits.Administrator).addStringOption(
         (option) => option.setName("session").setDescription("Pool key to kill").setRequired(true)
+      ),
+      new import_discord5.SlashCommandBuilder().setName("workflow").setDescription("Create a monitored workflow thread for a task.").setDefaultMemberPermissions(import_discord5.PermissionFlagsBits.ManageMessages).addStringOption(
+        (option) => option.setName("task").setDescription("Description of the task to execute").setRequired(true)
+      ).addStringOption(
+        (option) => option.setName("message_id").setDescription("Optional ID of a message to promote to a thread").setRequired(false)
       )
     ];
     DM_COMMAND_NAMES = /* @__PURE__ */ new Set([
@@ -88329,7 +88632,8 @@ var init_commands = __esm({
       "status",
       "ping",
       "pool",
-      "kill"
+      "kill",
+      "workflow"
     ]);
     AVAILABLE_MODELS = [
       "gemini-3.1-pro-preview",
@@ -88647,14 +88951,37 @@ var init_background_context = __esm({
   }
 });
 
+// src/daemon/workflow/seed-context.ts
+function buildWorkflowSeedContext(manifest) {
+  const originType = manifest.originContext.type === "dm" ? "Direct Message (DM)" : "Channel";
+  return `You are executing a task inside an opt-in monitored workflow thread.
+The user Yamato requested this workflow thread to run a specific task.
+
+Context:
+- Task Goal: "${manifest.taskSummary}"
+- Creator: <@${manifest.creatorUserId}>
+- Origin: ${originType} (Source channel: ${manifest.originContext.sourceChannelId})
+
+Important Directives:
+- Focus solely on achieving the task goal.
+- You are running in a clean, thread-scoped isolated session with no chat history from the parent channel/DM.
+- Be concise, direct, and execute tools to make progress. Do not converse or narrate unnecessarily.
+`;
+}
+var init_seed_context = __esm({
+  "src/daemon/workflow/seed-context.ts"() {
+    "use strict";
+  }
+});
+
 // src/daemon/gemini-project.ts
 function resolveGeminiProjectDir(extensionDir2) {
-  const resolved = path11.resolve(extensionDir2);
-  const parts = resolved.split(path11.sep);
+  const resolved = path12.resolve(extensionDir2);
+  const parts = resolved.split(path12.sep);
   for (let index = parts.length - 1; index >= 0; index -= 1) {
     if (parts[index] === ".gemini") {
-      const prefix = parts.slice(0, index + 1).join(path11.sep);
-      return prefix || path11.sep;
+      const prefix = parts.slice(0, index + 1).join(path12.sep);
+      return prefix || path12.sep;
     }
   }
   return resolved;
@@ -88663,16 +88990,16 @@ function resolveBindingResumeSessionId(state2) {
   const sessionId = state2.lastSessionId?.trim();
   return sessionId ? sessionId : null;
 }
-var path11;
+var path12;
 var init_gemini_project = __esm({
   "src/daemon/gemini-project.ts"() {
     "use strict";
-    path11 = __toESM(require("node:path"), 1);
+    path12 = __toESM(require("node:path"), 1);
   }
 });
 
 // src/daemon/engine-cli.ts
-async function processViaCli(message, accepted, config, memory, processingContext, geminiSemaphore, channel, toolMode) {
+async function processViaCli(message, accepted, config, memory, processingContext, geminiSemaphore, channel, toolMode, extensionDir2, traceCallbacks) {
   let targetMessage = message;
   if (isBoss(accepted.roleContext) && message.attachments.size === 0 && message.reference?.messageId) {
     try {
@@ -88726,6 +89053,14 @@ async function processViaCli(message, accepted, config, memory, processingContex
   }) : void 0;
   if (allowPersistentSession) {
     const immediateContext = shouldUseImmediateMentionContext(accepted.trigger, accepted.content) ? selectImmediateMentionContext(memory.snapshot(processingContext.sessionKey), incomingPrompt) : [];
+    const isWorkflow = isWorkflowThread(extensionDir2, message.channelId);
+    let seedContextOverride;
+    if (isWorkflow && !resumeSessionId) {
+      const manifest = loadThreadManifest(extensionDir2, message.channelId);
+      if (manifest) {
+        seedContextOverride = buildWorkflowSeedContext(manifest);
+      }
+    }
     prompt = buildSessionModePrompt({
       incoming: incomingPrompt,
       bossUserId: config.discordBossUserId,
@@ -88733,7 +89068,8 @@ async function processViaCli(message, accepted, config, memory, processingContex
       allowedAgentIds: config.allowedAgentIds,
       botUserId: message.client.user?.id ?? null,
       immediateContext,
-      backgroundContext
+      backgroundContext,
+      seedContextOverride
     });
   } else {
     const fullHistorySnapshot = memory.snapshot(processingContext.sessionKey);
@@ -88805,7 +89141,8 @@ async function processViaCli(message, accepted, config, memory, processingContex
       response = await sendViaCli(
         {
           onToken: (token) => editor.feed(token),
-          onThought: () => editor.feedThought()
+          onThought: () => editor.feedThought(),
+          onTraceEvent: traceCallbacks?.onTraceEvent
         }
       );
       const prepared = await finalizeAssistantResponse(response, message, isBoss(accepted.roleContext));
@@ -88837,7 +89174,8 @@ async function processViaCli(message, accepted, config, memory, processingContex
             onToken: () => {
             },
             onThought: () => {
-            }
+            },
+            onTraceEvent: traceCallbacks?.onTraceEvent
           }
         );
         clearInterval(typingInterval);
@@ -88871,7 +89209,7 @@ async function processViaCli(message, accepted, config, memory, processingContex
       });
     }
     if (downloadedAttachments.length > 0) {
-      const targetDir = path12.dirname(downloadedAttachments[0].localPath);
+      const targetDir = path13.dirname(downloadedAttachments[0].localPath);
       for (const att of downloadedAttachments) {
         try {
           await fsp2.unlink(att.localPath);
@@ -88910,12 +89248,24 @@ async function sendPreparedDisplayText(channel, displayText) {
   return messageIds;
 }
 function resolveProcessingContext(config, message, accepted, extensionDir2) {
+  const isWorkflow = isWorkflowThread(extensionDir2, message.channelId);
   if (!isBoss(accepted.roleContext)) {
     const guestKey = message.guildId ? `guest:${message.author.id}:channel:${message.channelId}:message:${message.id}` : `guest:${message.author.id}:dm:${message.channelId}:message:${message.id}`;
     const bindingWorkspace2 = ensureGeminiBindingWorkspace(extensionDir2, guestKey);
     return {
       sessionKey: guestKey,
       bindingKey: guestKey,
+      bindingDir: bindingWorkspace2.bindingDir,
+      attachmentsDir: bindingWorkspace2.attachmentsDir,
+      geminiProjectDir: resolveGeminiProjectDir(extensionDir2)
+    };
+  }
+  if (isWorkflow) {
+    const threadKey = `thread:${message.channelId}`;
+    const bindingWorkspace2 = ensureGeminiBindingWorkspace(extensionDir2, threadKey);
+    return {
+      sessionKey: threadKey,
+      bindingKey: threadKey,
       bindingDir: bindingWorkspace2.bindingDir,
       attachmentsDir: bindingWorkspace2.attachmentsDir,
       geminiProjectDir: resolveGeminiProjectDir(extensionDir2)
@@ -88952,7 +89302,7 @@ function shouldRetryWithFreshSession(error, resumeSessionId) {
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return message.includes("exited with code") || message.includes("returned no assistant output") || message.includes("resume_session_unavailable");
 }
-var fsp2, path12, ERROR_MATCHERS;
+var fsp2, path13, ERROR_MATCHERS;
 var init_engine_cli = __esm({
   "src/daemon/engine-cli.ts"() {
     "use strict";
@@ -88968,9 +89318,11 @@ var init_engine_cli = __esm({
     init_log();
     init_permissions();
     init_binding();
+    init_thread_manifest();
+    init_seed_context();
     init_gemini_project();
     fsp2 = __toESM(require("node:fs/promises"), 1);
-    path12 = __toESM(require("node:path"), 1);
+    path13 = __toESM(require("node:path"), 1);
     ERROR_MATCHERS = [
       {
         match: (msg) => msg.includes("timed out") || msg.includes("stalled"),
@@ -89267,6 +89619,224 @@ var init_onboarding = __esm({
   }
 });
 
+// src/daemon/workflow/trace-renderer.ts
+var ShellRenderer, FilesystemRenderer, SearchRenderer, WebRenderer, PlanningRenderer, McpRenderer, InteractionRenderer, GenericFallbackRenderer, TraceRendererRegistry;
+var init_trace_renderer = __esm({
+  "src/daemon/workflow/trace-renderer.ts"() {
+    "use strict";
+    ShellRenderer = class {
+      canRender(event) {
+        return event.canonicalToolName === "run_shell_command";
+      }
+      render(event) {
+        const cmd = event.args.commandLine || event.args.CommandLine || event.args.command || "";
+        const duration = event.durationMs !== null ? `${event.durationMs}ms` : "running";
+        let output = "";
+        if (event.status === "completed") {
+          output = `
+\`\`\`
+${event.resultSummary || "Success"}
+\`\`\``;
+        } else if (event.status === "failed") {
+          output = `
+\u26A0\uFE0F **Failed**:
+\`\`\`
+${event.resultSummary || "Error"}
+\`\`\``;
+        } else if (event.status === "progress") {
+          output = `
+\`\`\`
+${event.resultSummary || ""}
+\`\`\``;
+        }
+        return {
+          content: `\u{1F4BB} **Shell**: \`${cmd}\` (${duration})${output}`,
+          flags: { source: "trace_renderer", doNotRoute: true, doNotPersist: true }
+        };
+      }
+    };
+    FilesystemRenderer = class {
+      canRender(event) {
+        return event.toolFamily === "filesystem";
+      }
+      render(event) {
+        const path14 = event.args.path || event.args.TargetFile || event.args.filePath || "";
+        const details = event.resultSummary ? `
+\`\`\`
+${event.resultSummary}
+\`\`\`` : "";
+        return {
+          content: `\u{1F4C1} **File [${event.displayName}]**: \`${path14}\` (${event.status})${details}`,
+          flags: { source: "trace_renderer", doNotRoute: true, doNotPersist: true }
+        };
+      }
+    };
+    SearchRenderer = class {
+      canRender(event) {
+        return event.toolFamily === "search";
+      }
+      render(event) {
+        const query = event.args.query || event.args.Query || "";
+        const details = event.resultSummary ? `
+Results: ${event.resultSummary}` : "";
+        return {
+          content: `\u{1F50D} **Search [${event.displayName}]**: \`${query}\` (${event.status})${details}`,
+          flags: { source: "trace_renderer", doNotRoute: true, doNotPersist: true }
+        };
+      }
+    };
+    WebRenderer = class {
+      canRender(event) {
+        return event.toolFamily === "web";
+      }
+      render(event) {
+        const url = event.args.url || event.args.Url || event.args.query || "";
+        const details = event.resultSummary ? `
+Result: ${event.resultSummary}` : "";
+        return {
+          content: `\u{1F310} **Web [${event.displayName}]**: \`${url}\` (${event.status})${details}`,
+          flags: { source: "trace_renderer", doNotRoute: true, doNotPersist: true }
+        };
+      }
+    };
+    PlanningRenderer = class {
+      canRender(event) {
+        return event.toolFamily === "planning" || event.type === "phase_started";
+      }
+      render(event) {
+        const details = event.resultSummary ? `
+> ${event.resultSummary}` : "";
+        return {
+          content: `\u{1F4CC} **Planning [${event.displayName || "Phase"}]** (${event.status})${details}`,
+          flags: { source: "trace_renderer", doNotRoute: true, doNotPersist: true }
+        };
+      }
+    };
+    McpRenderer = class {
+      canRender(event) {
+        return event.toolFamily === "mcp";
+      }
+      render(event) {
+        return {
+          content: `\u{1F50C} **MCP [${event.displayName}]**: ${event.status}`,
+          flags: { source: "trace_renderer", doNotRoute: true, doNotPersist: true }
+        };
+      }
+    };
+    InteractionRenderer = class {
+      canRender(event) {
+        return event.toolFamily === "interaction";
+      }
+      render(event) {
+        const prompt = event.args.prompt || event.args.question || "";
+        return {
+          content: `\u{1F464} **Interaction [${event.displayName}]**: \`${prompt}\` (${event.status})`,
+          flags: { source: "trace_renderer", doNotRoute: true, doNotPersist: true }
+        };
+      }
+    };
+    GenericFallbackRenderer = class {
+      canRender() {
+        return true;
+      }
+      render(event) {
+        return {
+          content: `\u{1F6E0}\uFE0F **Tool [${event.displayName || event.toolName || "Unknown"}]** (${event.status}): ${event.resultSummary || "N/A"}`,
+          flags: { source: "trace_renderer", doNotRoute: true, doNotPersist: true }
+        };
+      }
+    };
+    TraceRendererRegistry = class {
+      renderers = [];
+      fallbackRenderer = new GenericFallbackRenderer();
+      constructor() {
+        this.register(new ShellRenderer());
+        this.register(new FilesystemRenderer());
+        this.register(new SearchRenderer());
+        this.register(new WebRenderer());
+        this.register(new PlanningRenderer());
+        this.register(new McpRenderer());
+        this.register(new InteractionRenderer());
+      }
+      register(renderer) {
+        this.renderers.push(renderer);
+      }
+      render(event) {
+        for (const renderer of this.renderers) {
+          if (renderer.canRender(event)) {
+            return renderer.render(event);
+          }
+        }
+        return this.fallbackRenderer.render(event);
+      }
+    };
+  }
+});
+
+// src/daemon/workflow/trace-dispatcher.ts
+var TraceDispatcher;
+var init_trace_dispatcher = __esm({
+  "src/daemon/workflow/trace-dispatcher.ts"() {
+    "use strict";
+    init_log();
+    TraceDispatcher = class {
+      constructor(threadChannel, registry) {
+        this.threadChannel = threadChannel;
+        this.registry = registry;
+      }
+      activeMessages = /* @__PURE__ */ new Map();
+      async dispatch(event) {
+        try {
+          const rendered = this.registry.render(event);
+          const content = `${rendered.content}
+<!-- trace:doNotPersist -->`;
+          const toolCall = event.raw?.toolCall;
+          const toolCallId = typeof toolCall?.id === "string" ? toolCall.id : null;
+          if (toolCallId) {
+            const existingMessage = this.activeMessages.get(toolCallId);
+            if (existingMessage) {
+              if (event.status === "progress") {
+                await existingMessage.edit(content);
+                return;
+              } else if (event.status === "completed" || event.status === "failed" || event.status === "cancelled") {
+                await existingMessage.edit(content);
+                this.activeMessages.delete(toolCallId);
+                return;
+              }
+            }
+          }
+          const sent = await this.threadChannel.send({ content });
+          if (toolCallId && event.status === "started") {
+            this.activeMessages.set(toolCallId, sent);
+          }
+        } catch (error) {
+          log.warn("Failed to dispatch trace event to Discord", { error: String(error) });
+        }
+      }
+      async dispatchRunHeader(manifest) {
+        try {
+          await this.threadChannel.send({
+            content: `\u26A1 **Running workflow task**: "${manifest.taskSummary}"
+*Starting execution engine...*
+<!-- trace:doNotPersist -->`
+          });
+        } catch (error) {
+          log.warn("Failed to dispatch run header", { error: String(error) });
+        }
+      }
+      async dispatchFinalResponse(response) {
+        try {
+          await this.threadChannel.send({
+            content: response
+          });
+        } catch (error) {
+          log.warn("Failed to dispatch final response", { error: String(error) });
+        }
+      }
+    };
+  }
+});
+
 // src/daemon/gateway.ts
 var gateway_exports = {};
 __export(gateway_exports, {
@@ -89337,6 +89907,28 @@ async function initGateway(config, state2, memory, queue, apiServer, extensionDi
   setupMessageHandler(client, config, {
     onMessage: (message, accepted) => {
       runtimeStore.lastInteractiveMessageAt = Date.now();
+      const contentTrimmed = message.content.trim();
+      const isWorkflowTextCmd = contentTrimmed.startsWith("!thread ") || contentTrimmed.startsWith("!workflow ");
+      if (isWorkflowTextCmd && isBoss(accepted.roleContext)) {
+        const prefix = contentTrimmed.startsWith("!thread ") ? "!thread " : "!workflow ";
+        const task = contentTrimmed.slice(prefix.length).trim();
+        if (task) {
+          createWorkflowThread(client, config, extensionDir2, {
+            taskSummary: task,
+            creatorUserId: message.author.id,
+            sourceChannelId: message.channelId,
+            sourceMessageId: message.id
+          }).then(({ threadId }) => {
+            retrySend(() => message.reply(`\u{1F9F9} **Monitored Workflow Thread Created:** <#${threadId}>`)).catch(() => {
+            });
+          }).catch((err) => {
+            log.error("Failed to create workflow thread from text command", { error: String(err) });
+            retrySend(() => message.reply(`\u274C **Failed to create workflow thread:** ${err instanceof Error ? err.message : String(err)}`)).catch(() => {
+            });
+          });
+          return;
+        }
+      }
       if (!message.guildId) {
         touchDmPairing(extensionDir2, message.author.id, message.channelId);
       } else if (accepted.speakerKind === "human" && isBoss(accepted.roleContext)) {
@@ -89388,7 +89980,8 @@ async function initGateway(config, state2, memory, queue, apiServer, extensionDi
           memory,
           state2,
           processingContext,
-          runtimeStore.geminiSemaphore
+          runtimeStore.geminiSemaphore,
+          extensionDir2
         );
       }) ?? false;
       if (!enqueued) {
@@ -89489,7 +90082,7 @@ function isResetCommand(rawContent, normalizedContent, resetCommand, prefix) {
   }
   return false;
 }
-async function processMessage(message, accepted, config, memory, state2, processingContext, geminiSemaphore) {
+async function processMessage(message, accepted, config, memory, state2, processingContext, geminiSemaphore, extensionDir2) {
   const channel = message.channel;
   const startTime = Date.now();
   let requestedToolMode = accepted.trigger === "cron" ? "discord" : resolveToolMode(accepted.content);
@@ -89531,6 +90124,22 @@ async function processMessage(message, accepted, config, memory, state2, process
       });
       return;
     }
+    const isWorkflow = isWorkflowThread(extensionDir2, message.channelId);
+    let traceDispatcher;
+    if (isWorkflow) {
+      const registry = new TraceRendererRegistry();
+      traceDispatcher = new TraceDispatcher(channel, registry);
+      const manifest = loadThreadManifest(extensionDir2, message.channelId);
+      if (manifest) {
+        await traceDispatcher.dispatchRunHeader(manifest);
+      }
+    }
+    const traceCallbacks = traceDispatcher ? {
+      onTraceEvent: (event) => {
+        traceDispatcher.dispatch(event).catch(() => {
+        });
+      }
+    } : void 0;
     const result = await processViaCli(
       message,
       accepted,
@@ -89539,7 +90148,9 @@ async function processMessage(message, accepted, config, memory, state2, process
       processingContext,
       geminiSemaphore,
       channel,
-      toolMode
+      toolMode,
+      extensionDir2,
+      traceCallbacks
     );
     response = result.response;
     responseMessageIds = result.messageIds;
@@ -89674,6 +90285,10 @@ var init_gateway = __esm({
     init_permissions();
     init_onboarding();
     init_config_sanitize();
+    init_thread_manifest();
+    init_thread_creator();
+    init_trace_renderer();
+    init_trace_dispatcher();
     MAX_AGENT_EXCHANGES = 6;
   }
 });
@@ -89839,139 +90454,7 @@ var fs9 = __toESM(require("node:fs"), 1);
 init_log();
 init_session_reset();
 init_dm_pairing();
-
-// src/daemon/api-utils.ts
-init_memory();
-init_dm_pairing();
-init_permissions();
-var MAX_BODY_BYTES = 10240;
-function respond(res, status, body) {
-  res.writeHead(status, { "Content-Type": "application/json" });
-  res.end(JSON.stringify(body));
-}
-function requireAuth(req, config) {
-  const header = req.headers.authorization;
-  if (!header) return false;
-  const [scheme, token] = header.split(" ");
-  return scheme === "Bearer" && token === config.daemonApiToken;
-}
-async function readBody(req) {
-  return new Promise((resolve2, reject2) => {
-    const chunks = [];
-    let size = 0;
-    req.on("data", (chunk) => {
-      size += chunk.length;
-      if (size > MAX_BODY_BYTES) {
-        req.destroy();
-        reject2(new Error("Payload too large"));
-        return;
-      }
-      chunks.push(chunk);
-    });
-    req.on("end", () => resolve2(Buffer.concat(chunks).toString("utf-8")));
-    req.on("error", reject2);
-  });
-}
-function parseOptionalNumber(value) {
-  if (value === void 0 || value === null || value === "") {
-    return null;
-  }
-  const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-function parseOptionalTimestamp(value) {
-  if (value === void 0 || value === null || value === "") {
-    return null;
-  }
-  const parsed = Date.parse(String(value));
-  return Number.isFinite(parsed) ? parsed : null;
-}
-function roleContextFromRequest(req, config) {
-  const rawRole = req.headers["x-gemini-discord-role"];
-  const role = Array.isArray(rawRole) ? rawRole[0] : rawRole;
-  if (role !== "BOSS" && role !== "GUEST") {
-    return null;
-  }
-  const rawSenderId = req.headers["x-gemini-discord-sender-id"];
-  const rawSenderLabel = req.headers["x-gemini-discord-sender-label"];
-  const senderDiscordId = (Array.isArray(rawSenderId) ? rawSenderId[0] : rawSenderId)?.trim() || "unknown";
-  const senderDisplayLabel = (Array.isArray(rawSenderLabel) ? rawSenderLabel[0] : rawSenderLabel)?.trim() || senderDiscordId;
-  return resolveDiscordRole(config, { discordUserId: senderDiscordId, displayLabel: senderDisplayLabel });
-}
-function roleContextFromLocalControlToken(req, config) {
-  const rawAuth = req.headers.authorization;
-  const header = Array.isArray(rawAuth) ? rawAuth[0] : rawAuth;
-  if (!header?.startsWith("Bearer ") || !config.daemonApiToken) {
-    return null;
-  }
-  const token = header.slice("Bearer ".length).trim();
-  if (!token || token !== config.daemonApiToken) {
-    return null;
-  }
-  const boss = validateBossConfig(config);
-  if (!boss.valid) {
-    return null;
-  }
-  return resolveDiscordRole(config, {
-    discordUserId: boss.bossUserId,
-    displayLabel: "local-control-api"
-  });
-}
-function authorizeApiAction(req, res, config, action) {
-  const roleContext = roleContextFromRequest(req, config) ?? roleContextFromLocalControlToken(req, config);
-  if (!roleContext) {
-    respond(res, 403, {
-      error: "Missing Discord role context. Use the bridge from an authorized boss message in Discord, or call the local MCP server with a valid daemon token."
-    });
-    return false;
-  }
-  const decision = authorizeAction(action, roleContext);
-  if (decision.decision === "allow") {
-    return true;
-  }
-  respond(res, 403, { error: formatPermissionDenial(decision) });
-  return false;
-}
-function resolveConversationSessionKey(config, extensionDir2, channelId, guildId) {
-  if (guildId) {
-    return resolveSessionKey("channel", channelId, null);
-  }
-  return resolveSessionKey(
-    "channel",
-    channelId,
-    resolveDmUserIdForChannel(extensionDir2, channelId)
-  );
-}
-function resolveSendChannelId(requestedChannelId) {
-  return requestedChannelId.trim();
-}
-async function fetchTextChannel(client, channelId) {
-  try {
-    const channel = await client.channels.fetch(channelId);
-    if (channel && channel.isTextBased() && "send" in channel) return channel;
-  } catch {
-  }
-  try {
-    const user = await client.users.fetch(channelId);
-    if (user) return await user.createDM();
-  } catch {
-  }
-  return null;
-}
-function isWritableTarget(channelId, channel, config) {
-  if ("isDMBased" in channel && channel.isDMBased()) {
-    return config.enableDMs;
-  }
-  if (config.allowedChannelIds.includes(channelId)) {
-    return true;
-  }
-  const parentId = channel.parentId ?? null;
-  if (parentId && config.allowedChannelIds.includes(parentId)) {
-    return true;
-  }
-  const guildId = channel.guildId ?? null;
-  return config.allowedChannelIds.length === 0 && Boolean(config.discordServerId) && guildId === config.discordServerId;
-}
+init_api_utils();
 
 // src/daemon/api/status.ts
 init_channels();
@@ -89979,6 +90462,7 @@ init_cron();
 init_binding();
 init_dm_pairing();
 init_config_sanitize();
+init_api_utils();
 function handleStatusRoutes(req, res, url, deps) {
   const pathname = url.pathname;
   const { config, state: state2, memory, queue, extensionDir: extensionDir2 } = deps;
@@ -90049,6 +90533,7 @@ function handleStatusRoutes(req, res, url, deps) {
 
 // src/daemon/api/discovery.ts
 init_users();
+init_api_utils();
 async function handleDiscoveryRoutes(req, res, url, deps) {
   const pathname = url.pathname;
   const { config } = deps;
@@ -90149,6 +90634,7 @@ init_chunker();
 init_sender();
 init_channels();
 init_log();
+init_api_utils();
 async function handleMessageRoutes(req, res, pathname, parsed, deps) {
   const { config, memory, extensionDir: extensionDir2 } = deps;
   if (pathname === "/send") {
@@ -90518,6 +91004,7 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
 // src/daemon/api/cron.ts
 init_cron();
 init_channels();
+init_api_utils();
 async function handleCronRoutes(req, res, pathname, parsed, deps) {
   const { config } = deps;
   if (req.method === "GET" && pathname === "/cron") {
@@ -90594,6 +91081,7 @@ async function handleCronRoutes(req, res, pathname, parsed, deps) {
 
 // src/daemon/api/moderation.ts
 var import_discord3 = __toESM(require_src(), 1);
+init_api_utils();
 init_config();
 init_config_vars();
 var DISCORD_SNOWFLAKE_RE3 = /^\d{15,25}$/;
@@ -90751,6 +91239,7 @@ async function handleModerationRoutes(req, res, pathname, parsed, deps) {
 
 // src/daemon/api.ts
 init_runtime_paths();
+init_api_utils();
 function startControlApi(deps) {
   const { config, memory, extensionDir: extensionDir2, isShuttingDown, shutdown } = deps;
   const server = http.createServer(async (req, res) => {
@@ -91049,6 +91538,299 @@ function getGeminiTextDelta(existing, incoming) {
 
 // src/daemon/cli-pool.ts
 init_permissions();
+
+// src/daemon/workflow/tool-registry.ts
+var BUILTIN_TOOL_REGISTRY = {
+  "run_shell_command": { canonical: "run_shell_command", displayName: "Shell", family: "shell" },
+  "grep_search": { canonical: "grep_search", displayName: "SearchText", family: "search" },
+  "read_file": { canonical: "read_file", displayName: "ReadFile", family: "filesystem" },
+  "read_many_files": { canonical: "read_many_files", displayName: "ReadManyFiles", family: "filesystem" },
+  "replace": { canonical: "replace", displayName: "Edit", family: "filesystem" },
+  "write_file": { canonical: "write_file", displayName: "WriteFile", family: "filesystem" },
+  "list_directory": { canonical: "list_directory", displayName: "ListDirectory", family: "filesystem" },
+  "glob": { canonical: "glob", displayName: "Glob", family: "search" },
+  "google_web_search": { canonical: "google_web_search", displayName: "GoogleSearch", family: "web" },
+  "web_fetch": { canonical: "web_fetch", displayName: "WebFetch", family: "web" },
+  "ask_user": { canonical: "ask_user", displayName: "AskUser", family: "interaction" },
+  "write_todos": { canonical: "write_todos", displayName: "TodoWrite", family: "planning" },
+  "tracker_create_task": { canonical: "tracker_create_task", displayName: "CreateTask", family: "planning" },
+  "tracker_update_task": { canonical: "tracker_update_task", displayName: "UpdateTask", family: "planning" },
+  "tracker_get_task": { canonical: "tracker_get_task", displayName: "GetTask", family: "planning" },
+  "tracker_list_tasks": { canonical: "tracker_list_tasks", displayName: "ListTasks", family: "planning" },
+  "tracker_add_dependency": { canonical: "tracker_add_dependency", displayName: "AddDependency", family: "planning" },
+  "tracker_visualize": { canonical: "tracker_visualize", displayName: "Visualize", family: "planning" },
+  "update_topic": { canonical: "update_topic", displayName: "UpdateTopic", family: "planning" },
+  "list_mcp_resources": { canonical: "list_mcp_resources", displayName: "ListMCPResources", family: "mcp" },
+  "read_mcp_resource": { canonical: "read_mcp_resource", displayName: "ReadMCPResource", family: "mcp" },
+  "activate_skill": { canonical: "activate_skill", displayName: "ActivateSkill", family: "mcp" },
+  "get_internal_docs": { canonical: "get_internal_docs", displayName: "InternalDocs", family: "mcp" },
+  "enter_plan_mode": { canonical: "enter_plan_mode", displayName: "PlanMode", family: "planning" },
+  "exit_plan_mode": { canonical: "exit_plan_mode", displayName: "ExitPlanMode", family: "planning" },
+  "complete_task": { canonical: "complete_task", displayName: "CompleteTask", family: "planning" }
+};
+function isBuiltinTool(name) {
+  return name in BUILTIN_TOOL_REGISTRY;
+}
+function isMcpTool(name) {
+  return name.includes("/") || name.startsWith("mcp_");
+}
+function resolveToolEntry(rawToolName) {
+  if (isBuiltinTool(rawToolName)) {
+    return BUILTIN_TOOL_REGISTRY[rawToolName];
+  }
+  const family = isMcpTool(rawToolName) ? "mcp" : "unknown";
+  let displayName = rawToolName;
+  if (rawToolName.includes("/")) {
+    const parts = rawToolName.split("/");
+    const toolPart = parts[parts.length - 1];
+    displayName = toolPart.split(/[-_]/).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join("");
+  }
+  return {
+    canonical: rawToolName,
+    displayName,
+    family
+  };
+}
+
+// src/daemon/workflow/redaction.ts
+function redactFilePath(path14) {
+  if (typeof path14 !== "string") return path14;
+  return path14.replace(/\/Users\/[^/]+\//g, "~/");
+}
+function redactDiscordId(id) {
+  if (typeof id !== "string") return id;
+  return id.replace(/\b\d{17,20}\b/g, (match) => {
+    return match.slice(0, 6) + "...";
+  });
+}
+function redactIpAddresses(text) {
+  if (typeof text !== "string") return text;
+  let redacted = text.replace(/\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b/g, "[IP_REDACTED]");
+  redacted = redacted.replace(/\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b/g, "[IP_REDACTED]");
+  redacted = redacted.replace(/\b((?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{0,4})\b/g, "[IP_REDACTED]");
+  return redacted;
+}
+function redactCommandFlags(cmd, fieldsRedacted) {
+  if (typeof cmd !== "string") return cmd;
+  let redacted = cmd;
+  const flagRegex = /(--(?:token|secret|password|key|env)|-(?:token|secret|password|key|env|e))(=|\s+)([^\s]+)/gi;
+  redacted = redacted.replace(flagRegex, (match, flag, separator, value) => {
+    fieldsRedacted.push(flag.replace(/^-+/, ""));
+    return `${flag}${separator}[REDACTED]`;
+  });
+  return redacted;
+}
+function redactTraceArgs(args) {
+  const fieldsRedacted = [];
+  function redactValue(val, keyName) {
+    if (val === null || val === void 0) return val;
+    if (typeof val === "string") {
+      let s = val;
+      if (keyName) {
+        const lowerKey = keyName.toLowerCase();
+        if (lowerKey.includes("secret") || lowerKey.includes("token") || lowerKey.includes("key") || lowerKey.includes("password") || lowerKey.includes("credential") || lowerKey.includes("auth")) {
+          fieldsRedacted.push(keyName);
+          return "[REDACTED]";
+        }
+      }
+      if (/\bey[Jj][a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+\b/.test(s)) {
+        fieldsRedacted.push(keyName || "jwt");
+        s = "[REDACTED]";
+      }
+      if (/bearer\s+[a-zA-Z0-9-_.]+/i.test(s)) {
+        fieldsRedacted.push(keyName || "bearer_token");
+        s = s.replace(/bearer\s+[a-zA-Z0-9-_.]+/gi, "Bearer [REDACTED]");
+      }
+      if (keyName === "commandLine" || keyName === "command" || keyName === "args" || keyName === "CommandLine") {
+        s = redactCommandFlags(s, fieldsRedacted);
+      }
+      s = redactFilePath(s);
+      s = redactDiscordId(s);
+      s = redactIpAddresses(s);
+      return s;
+    }
+    if (Array.isArray(val)) {
+      return val.map((item) => redactValue(item, keyName));
+    }
+    if (typeof val === "object") {
+      const obj = val;
+      const newObj = {};
+      for (const k of Object.keys(obj)) {
+        newObj[k] = redactValue(obj[k], k);
+      }
+      return newObj;
+    }
+    return val;
+  }
+  const redacted = redactValue(args);
+  return {
+    redacted,
+    fieldsRedacted: Array.from(new Set(fieldsRedacted))
+  };
+}
+function redactTraceResult(result, maxLength = 200) {
+  if (typeof result !== "string") {
+    return { summary: "", truncated: false };
+  }
+  let s = redactFilePath(result);
+  s = redactDiscordId(s);
+  s = redactIpAddresses(s);
+  if (s.length <= maxLength) {
+    return { summary: s, truncated: false };
+  }
+  const truncatedCount = s.length - maxLength;
+  const summary = s.slice(0, maxLength) + `... [${truncatedCount} chars truncated]`;
+  return {
+    summary,
+    truncated: true
+  };
+}
+
+// src/daemon/workflow/trace-normalizer.ts
+function normalizeAcpUpdate(sessionUpdate, updatePayload, activeToolTimers) {
+  const timestamp = Date.now();
+  if (sessionUpdate === "plan") {
+    let summary = "Planning next steps...";
+    const planVal = updatePayload["plan"];
+    if (planVal && typeof planVal === "string") {
+      summary = planVal;
+    } else if (planVal && typeof planVal === "object") {
+      const steps = planVal["steps"];
+      if (Array.isArray(steps)) {
+        summary = steps.map((s) => String(s)).join("\n");
+      } else {
+        summary = JSON.stringify(planVal);
+      }
+    } else {
+      const thoughtVal = updatePayload["thought"] || updatePayload["agent_thought_chunk"];
+      if (thoughtVal && typeof thoughtVal === "string") {
+        summary = thoughtVal;
+      }
+    }
+    const redacted = redactTraceResult(summary, 500);
+    return {
+      type: "phase_started",
+      timestamp,
+      toolName: null,
+      canonicalToolName: null,
+      displayName: null,
+      toolFamily: "planning",
+      args: {},
+      status: "started",
+      durationMs: null,
+      resultSummary: redacted.summary,
+      artifactRef: null,
+      redactionMetadata: {
+        fieldsRedacted: [],
+        truncated: redacted.truncated
+      },
+      raw: updatePayload
+    };
+  }
+  if (sessionUpdate === "tool_call" || sessionUpdate === "tool_call_update") {
+    const toolCall = updatePayload["toolCall"];
+    if (!toolCall) return null;
+    const id = typeof toolCall["id"] === "string" ? toolCall["id"] : "";
+    const name = typeof toolCall["name"] === "string" ? toolCall["name"] : "";
+    if (!name) return null;
+    const toolEntry = resolveToolEntry(name);
+    const rawArgs = toolCall["arguments"] || toolCall["args"] || {};
+    const { redacted: redactedArgs, fieldsRedacted } = redactTraceArgs(rawArgs);
+    let type = "tool_started";
+    let status = "started";
+    let durationMs = null;
+    let resultSummary = null;
+    let truncated = false;
+    const progress = toolCall["progress"];
+    const result = toolCall["result"] || toolCall["response"];
+    const error = toolCall["error"] || toolCall["errorMessage"];
+    if (sessionUpdate === "tool_call_update" || progress !== void 0 && progress !== null) {
+      type = "tool_progress";
+      status = "progress";
+      const start = activeToolTimers.get(id);
+      if (start) {
+        durationMs = timestamp - start;
+      }
+      const progressStr = typeof progress === "string" ? progress : JSON.stringify(progress);
+      const redactedProgress = redactTraceResult(progressStr, 200);
+      resultSummary = redactedProgress.summary;
+      truncated = redactedProgress.truncated;
+    } else if (result !== void 0 && result !== null) {
+      type = "tool_completed";
+      status = "completed";
+      const start = activeToolTimers.get(id);
+      if (start) {
+        durationMs = timestamp - start;
+        activeToolTimers.delete(id);
+      }
+      let resultStr = "";
+      if (typeof result === "string") {
+        resultStr = result;
+      } else if (typeof result === "object") {
+        if (name === "run_shell_command") {
+          const resObj = result;
+          const exitCode = resObj["exitCode"];
+          const stdout = String(resObj["stdout"] || "");
+          const stderr = String(resObj["stderr"] || "");
+          resultStr = `exit code: ${exitCode}
+stdout:
+${stdout}
+stderr:
+${stderr}`;
+        } else {
+          resultStr = JSON.stringify(result);
+        }
+      }
+      const redactedResult = redactTraceResult(resultStr, 200);
+      resultSummary = redactedResult.summary;
+      truncated = redactedResult.truncated;
+    } else if (error !== void 0 && error !== null) {
+      type = "tool_failed";
+      status = "failed";
+      const start = activeToolTimers.get(id);
+      if (start) {
+        durationMs = timestamp - start;
+        activeToolTimers.delete(id);
+      }
+      const errorStr = typeof error === "string" ? error : JSON.stringify(error);
+      const redactedError = redactTraceResult(errorStr, 200);
+      resultSummary = redactedError.summary;
+      truncated = redactedError.truncated;
+    } else {
+      type = "tool_started";
+      status = "started";
+      activeToolTimers.set(id, timestamp);
+    }
+    let artifactRef = null;
+    if (name === "write_file" || name === "replace" || name === "write_to_file" || name === "replace_file_content") {
+      const pathVal = rawArgs["path"] || rawArgs["TargetFile"] || rawArgs["filePath"] || rawArgs["TargetFile"];
+      if (typeof pathVal === "string") {
+        artifactRef = redactFilePath(pathVal);
+      }
+    }
+    return {
+      type,
+      timestamp,
+      toolName: name,
+      canonicalToolName: toolEntry.canonical,
+      displayName: toolEntry.displayName,
+      toolFamily: toolEntry.family,
+      args: redactedArgs,
+      status,
+      durationMs,
+      resultSummary,
+      artifactRef,
+      redactionMetadata: {
+        fieldsRedacted,
+        truncated
+      },
+      raw: updatePayload
+    };
+  }
+  return null;
+}
+
+// src/daemon/cli-pool.ts
 var ACP_PROTOCOL_VERSION = 1;
 var SESSION_REQUEST_TIMEOUT_MS = 12e4;
 var STARTUP_REQUEST_TIMEOUT_MS = 9e4;
@@ -91213,7 +91995,8 @@ var CliProcessPool = class {
       sessionId: null,
       cwd: null,
       stderrTail: "",
-      lastSessionUpdateAt: 0
+      lastSessionUpdateAt: 0,
+      activeToolTimers: /* @__PURE__ */ new Map()
     };
     proc.stderr?.on("data", (chunk) => {
       entry.stderrTail = `${entry.stderrTail}${chunk.toString()}`.slice(-4e3);
@@ -91507,6 +92290,12 @@ var CliProcessPool = class {
     }
     if (sessionUpdate === "tool_call" || sessionUpdate === "tool_call_update" || sessionUpdate === "plan") {
       activePrompt.callbacks.onThought?.();
+      if (activePrompt.callbacks.onTraceEvent) {
+        const traceEvent = normalizeAcpUpdate(sessionUpdate, update, entry.activeToolTimers);
+        if (traceEvent) {
+          activePrompt.callbacks.onTraceEvent(traceEvent);
+        }
+      }
     }
   }
   failPrompt(entry, error, evictAfter) {

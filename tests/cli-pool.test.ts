@@ -91,6 +91,7 @@ function createConfig(): Config {
     geminiSessionBindingScope: 'global',
     cliIdleTimeoutMs: 300000,
     setupValidationPending: false,
+    workflowParentChannelId: '',
   };
 }
 
