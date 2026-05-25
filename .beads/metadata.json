@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "gemini_discord",
+  "project_id": "41ed3ff3-d1f7-4a1b-8ab7-0af22cd85cc6"
+}
