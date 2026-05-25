@@ -92,6 +92,69 @@ describe('Workflow Thread Policy & Interception', () => {
       expect((dispatcher as any).toolCallCount).toBe(0);
     });
 
+    it('suppresses MCP-suffixed current-thread discord_message tool calls', async () => {
+      const channelId = 'workflow-thread-123';
+      runtimeStore.activeWorkflowRuns.set(channelId, {
+        requestMessageId: 'msg-1',
+        channelId,
+        userContent: 'reply with exactly "ok"',
+        startedAt: Date.now(),
+      });
+
+      const startedEvent = normalizeAcpUpdate('tool_call', {
+        sessionUpdate: 'tool_call',
+        toolCall: {
+          id: 'call-msg-send',
+          name: 'discord_message (discord-bridge MCP Server)',
+          arguments: { channel_id: channelId, content: 'ok', action: 'send' },
+        },
+      }, new Map());
+
+      expect(startedEvent).toMatchObject({
+        canonicalToolName: 'discord_message',
+        policySuppressed: true,
+      });
+
+      const completedEvent = normalizeAcpUpdate('tool_call', {
+        sessionUpdate: 'tool_call',
+        toolCall: {
+          id: 'call-msg-send',
+          name: 'discord_message (discord-bridge MCP Server)',
+          arguments: { channel_id: channelId, content: 'ok', action: 'send' },
+          result: {
+            ok: true,
+            intercepted: true,
+            chunks: 0,
+            messageIds: [],
+            channel_id: channelId,
+            note: 'Captured as final response candidate for current workflow thread; no Discord send was performed.',
+          },
+        },
+      }, new Map());
+
+      expect(completedEvent).toMatchObject({
+        canonicalToolName: 'discord_message',
+        policySuppressed: true,
+        intercepted: true,
+      });
+
+      const header = { id: 'header', edit: vi.fn().mockResolvedValue(undefined) };
+      const mockChannel = {
+        id: channelId,
+        send: vi.fn().mockResolvedValue({ id: 'sent-msg' }),
+      } as any;
+      const dispatcher = new TraceDispatcher(mockChannel, new TraceRendererRegistry());
+      (dispatcher as any).headerMessage = header;
+
+      await dispatcher.dispatch(startedEvent!);
+      await dispatcher.dispatch(completedEvent!);
+      await dispatcher.dispatchRunComplete();
+
+      expect(mockChannel.send).not.toHaveBeenCalled();
+      expect((dispatcher as any).toolCallCount).toBe(0);
+      expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('`0` tool calls'));
+    });
+
     it('allows and counts explicit user-requested Discord send tools', async () => {
       const channelId = 'workflow-thread-123';
       const requestMessageId = 'msg-1';
@@ -131,6 +194,42 @@ describe('Workflow Thread Policy & Interception', () => {
       // Explicit tool calls must be sent
       expect(mockChannel.send).toHaveBeenCalledTimes(1);
       // Explicit tool calls must increment the count
+      expect((dispatcher as any).toolCallCount).toBe(1);
+    });
+
+    it('keeps MCP-suffixed explicit Discord sends visible and countable', async () => {
+      const channelId = 'workflow-thread-123';
+      runtimeStore.activeWorkflowRuns.set(channelId, {
+        requestMessageId: 'msg-1',
+        channelId,
+        userContent: 'send a message saying Hello World to #updates',
+        startedAt: Date.now(),
+      });
+
+      const event = normalizeAcpUpdate('tool_call', {
+        sessionUpdate: 'tool_call',
+        toolCall: {
+          id: 'call-msg-send',
+          name: 'discord_message (discord-bridge MCP Server)',
+          arguments: { channel_id: channelId, content: 'Hello World', action: 'send' },
+        },
+      }, new Map());
+
+      expect(event).toMatchObject({
+        canonicalToolName: 'discord_message',
+        policySuppressed: false,
+      });
+
+      const mockChannel = {
+        id: channelId,
+        send: vi.fn().mockResolvedValue({ id: 'sent-msg' }),
+      } as any;
+      const dispatcher = new TraceDispatcher(mockChannel, new TraceRendererRegistry());
+      (dispatcher as any).headerMessage = { edit: vi.fn().mockResolvedValue(undefined) };
+
+      await dispatcher.dispatch(event!);
+
+      expect(mockChannel.send).toHaveBeenCalledTimes(1);
       expect((dispatcher as any).toolCallCount).toBe(1);
     });
 

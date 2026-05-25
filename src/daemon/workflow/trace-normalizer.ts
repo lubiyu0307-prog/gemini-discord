@@ -35,6 +35,14 @@ function firstString(...values: unknown[]): string | null {
   return null;
 }
 
+function normalizeToolName(value: string): string {
+  const withoutServerSuffix = value.replace(/\s*\([^)]*MCP Server\)\s*$/i, '').trim();
+  if (withoutServerSuffix === 'discord_message' || withoutServerSuffix.endsWith('/discord_message')) {
+    return 'discord_message';
+  }
+  return withoutServerSuffix || value;
+}
+
 function recordValue(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -177,10 +185,13 @@ function resolveTopLevelToolEntry(payload: Record<string, unknown>): ReturnType<
     rawInput?.['toolName'],
     rawInput?.['tool_name'],
   );
-  if (rawToolName) return resolveToolEntry(rawToolName);
+  if (rawToolName) return resolveToolEntry(normalizeToolName(rawToolName));
 
   const kind = firstString(payload['kind']) ?? 'other';
   const title = firstString(payload['title']) ?? kind;
+  if (/^Searching\s+the\s+web\s+for:/i.test(title)) {
+    return resolveToolEntry('google_web_search');
+  }
   return {
     canonical: `acp_${kind}`,
     displayName: title,
@@ -212,6 +223,15 @@ function argsWithTitleCommand(args: Record<string, unknown>, toolEntry: ReturnTy
     .replace(/^Shell(?:\s+command)?\s*/i, '')
     .trim();
   return command ? { ...args, command } : args;
+}
+
+function argsWithTitleMetadata(args: Record<string, unknown>, toolEntry: ReturnType<typeof resolveToolEntry>, title: string): Record<string, unknown> {
+  const withCommand = argsWithTitleCommand(args, toolEntry, title);
+  if (toolEntry.canonical !== 'google_web_search') return withCommand;
+  if (firstString(withCommand['query'], withCommand['prompt'])) return withCommand;
+
+  const match = title.match(/^Searching\s+the\s+web\s+for:\s*["“]?(.+?)["”]?\s*$/i);
+  return match?.[1] ? { ...withCommand, query: match[1] } : withCommand;
 }
 
 export function normalizeAcpUpdate(
@@ -274,7 +294,7 @@ export function normalizeAcpUpdate(
       if (!id || !title) return null;
 
       const toolEntry = resolveTopLevelToolEntry(updatePayload);
-      const rawArgs = argsWithTitleCommand(rawInputArgs(updatePayload['rawInput']), toolEntry, title);
+      const rawArgs = argsWithTitleMetadata(rawInputArgs(updatePayload['rawInput']), toolEntry, title);
       const { redacted: redactedArgs, fieldsRedacted } = redactTraceArgs(rawArgs);
       const contentText = extractToolContentText(updatePayload['content']);
       const outputText = stringifyTraceValue(updatePayload['rawOutput'], toolEntry.canonical);
@@ -327,7 +347,7 @@ export function normalizeAcpUpdate(
     }
 
     const id = typeof toolCall['id'] === 'string' ? toolCall['id'] : '';
-    const name = typeof toolCall['name'] === 'string' ? toolCall['name'] : '';
+    const name = typeof toolCall['name'] === 'string' ? normalizeToolName(toolCall['name']) : '';
     if (!name) return null;
 
     const toolEntry = resolveToolEntry(name);

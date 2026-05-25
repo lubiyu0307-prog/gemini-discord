@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { TraceRendererRegistry } from '../src/daemon/workflow/trace-renderer.js';
+import { normalizeAcpUpdate } from '../src/daemon/workflow/trace-normalizer.js';
 import type { TraceEvent } from '../src/daemon/workflow/trace-event.js';
 
 describe('trace renderers', () => {
@@ -282,5 +283,28 @@ describe('trace renderers', () => {
     const renderedCompleted = registry.render(completedEvent);
     expect(renderedCompleted.density).toBe('row');
     expect(renderedCompleted.content).toBe('✓ **GoogleSearch**  Searching the web for: `\"latest One Piece chapter number\"`\n↳ Search results for `\"latest One Piece chapter number\"` returned.');
+  });
+
+  it('normalizes title-only ACP web search events to GoogleSearch rows', () => {
+    const event = normalizeAcpUpdate('tool_call_update', {
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'search-1',
+      status: 'completed',
+      title: 'Searching the web for: "latest One Piece chapter number"',
+      kind: 'search',
+      content: [
+        { type: 'content', content: { type: 'text', text: 'Search results returned.' } },
+      ],
+    }, new Map());
+
+    expect(event).toMatchObject({
+      canonicalToolName: 'google_web_search',
+      displayName: 'GoogleSearch',
+      toolFamily: 'web',
+      args: { query: 'latest One Piece chapter number' },
+    });
+
+    const rendered = registry.render(event!);
+    expect(rendered.content).toBe('✓ **GoogleSearch**  Searching the web for: `\"latest One Piece chapter number\"`\n↳ Search results for `\"latest One Piece chapter number\"` returned.');
   });
 });

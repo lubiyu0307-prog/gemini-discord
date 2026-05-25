@@ -92909,6 +92909,13 @@ function firstString(...values) {
   }
   return null;
 }
+function normalizeToolName(value) {
+  const withoutServerSuffix = value.replace(/\s*\([^)]*MCP Server\)\s*$/i, "").trim();
+  if (withoutServerSuffix === "discord_message" || withoutServerSuffix.endsWith("/discord_message")) {
+    return "discord_message";
+  }
+  return withoutServerSuffix || value;
+}
 function recordValue(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : null;
 }
@@ -93015,9 +93022,12 @@ function resolveTopLevelToolEntry(payload) {
     rawInput?.["toolName"],
     rawInput?.["tool_name"]
   );
-  if (rawToolName) return resolveToolEntry(rawToolName);
+  if (rawToolName) return resolveToolEntry(normalizeToolName(rawToolName));
   const kind = firstString(payload["kind"]) ?? "other";
   const title = firstString(payload["title"]) ?? kind;
+  if (/^Searching\s+the\s+web\s+for:/i.test(title)) {
+    return resolveToolEntry("google_web_search");
+  }
   return {
     canonical: `acp_${kind}`,
     displayName: title,
@@ -93043,6 +93053,13 @@ function argsWithTitleCommand(args, toolEntry, title) {
   if (firstString(args["command"], args["commandLine"], args["CommandLine"])) return args;
   const command = title.replace(/^Shell(?:\s+command)?\s*/i, "").trim();
   return command ? { ...args, command } : args;
+}
+function argsWithTitleMetadata(args, toolEntry, title) {
+  const withCommand = argsWithTitleCommand(args, toolEntry, title);
+  if (toolEntry.canonical !== "google_web_search") return withCommand;
+  if (firstString(withCommand["query"], withCommand["prompt"])) return withCommand;
+  const match = title.match(/^Searching\s+the\s+web\s+for:\s*["“]?(.+?)["”]?\s*$/i);
+  return match?.[1] ? { ...withCommand, query: match[1] } : withCommand;
 }
 function normalizeAcpUpdate(sessionUpdate, updatePayload, activeToolTimers) {
   const timestamp = Date.now();
@@ -93095,7 +93112,7 @@ function normalizeAcpUpdate(sessionUpdate, updatePayload, activeToolTimers) {
       const title = firstString(updatePayload["title"]) ?? "";
       if (!id2 || !title) return null;
       const toolEntry2 = resolveTopLevelToolEntry(updatePayload);
-      const rawArgs2 = argsWithTitleCommand(rawInputArgs(updatePayload["rawInput"]), toolEntry2, title);
+      const rawArgs2 = argsWithTitleMetadata(rawInputArgs(updatePayload["rawInput"]), toolEntry2, title);
       const { redacted: redactedArgs2, fieldsRedacted: fieldsRedacted2 } = redactTraceArgs(rawArgs2);
       const contentText = extractToolContentText(updatePayload["content"]);
       const outputText = stringifyTraceValue(updatePayload["rawOutput"], toolEntry2.canonical);
@@ -93144,7 +93161,7 @@ function normalizeAcpUpdate(sessionUpdate, updatePayload, activeToolTimers) {
       };
     }
     const id = typeof toolCall["id"] === "string" ? toolCall["id"] : "";
-    const name = typeof toolCall["name"] === "string" ? toolCall["name"] : "";
+    const name = typeof toolCall["name"] === "string" ? normalizeToolName(toolCall["name"]) : "";
     if (!name) return null;
     const toolEntry = resolveToolEntry(name);
     const rawArgs = toolCall["arguments"] ?? toolCall["args"] ?? {};

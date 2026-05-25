@@ -388,6 +388,74 @@ describe('workflow trace events & renderer integration', () => {
     expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('`1` tool call'));
   });
 
+  it('renders visible tool-count grammar for zero, one, and multiple calls', async () => {
+    const manifest = {
+      threadId: 'thread-1',
+      parentChannelId: 'parent-1',
+      guildId: 'guild-1',
+      creatorUserId: 'user-1',
+      starterMessageId: 'message-1',
+      createdAt: new Date().toISOString(),
+      mode: 'monitored_workflow' as const,
+      taskSummary: 'Check grammar',
+      traceMode: 'compact' as const,
+      originContext: { type: 'channel' as const, sourceChannelId: 'parent-1' },
+    };
+
+    const zeroHeader = { id: 'zero-header', edit: vi.fn().mockResolvedValue(undefined) };
+    const zeroChannel = { send: vi.fn().mockResolvedValue(zeroHeader) } as any;
+    const zeroDispatcher = new TraceDispatcher(zeroChannel, new TraceRendererRegistry());
+    await zeroDispatcher.dispatchRunHeader(manifest);
+    await zeroDispatcher.dispatchRunComplete();
+    expect(zeroHeader.edit).toHaveBeenLastCalledWith(expect.stringContaining('`0` tool calls'));
+
+    const oneHeader = { id: 'one-header', edit: vi.fn().mockResolvedValue(undefined) };
+    const oneChannel = { send: vi.fn().mockResolvedValue(oneHeader) } as any;
+    const oneDispatcher = new TraceDispatcher(oneChannel, new TraceRendererRegistry());
+    await oneDispatcher.dispatchRunHeader(manifest);
+    await oneDispatcher.dispatch({
+      type: 'tool_completed',
+      timestamp: Date.now(),
+      toolName: 'read_file',
+      canonicalToolName: 'read_file',
+      displayName: 'ReadFile',
+      toolFamily: 'filesystem',
+      args: { file_path: 'src/index.ts' },
+      status: 'completed',
+      durationMs: 10,
+      resultSummary: 'Read 1 line.',
+      artifactRef: null,
+      redactionMetadata: { fieldsRedacted: [], truncated: false },
+      raw: { toolCallId: 'read-1' },
+    });
+    await oneDispatcher.dispatchRunComplete();
+    expect(oneHeader.edit).toHaveBeenLastCalledWith(expect.stringContaining('`1` tool call'));
+
+    const twoHeader = { id: 'two-header', edit: vi.fn().mockResolvedValue(undefined) };
+    const twoChannel = { send: vi.fn().mockResolvedValue(twoHeader) } as any;
+    const twoDispatcher = new TraceDispatcher(twoChannel, new TraceRendererRegistry());
+    await twoDispatcher.dispatchRunHeader(manifest);
+    for (const id of ['read-1', 'read-2']) {
+      await twoDispatcher.dispatch({
+        type: 'tool_completed',
+        timestamp: Date.now(),
+        toolName: 'read_file',
+        canonicalToolName: 'read_file',
+        displayName: 'ReadFile',
+        toolFamily: 'filesystem',
+        args: { file_path: `src/${id}.ts` },
+        status: 'completed',
+        durationMs: 10,
+        resultSummary: 'Read 1 line.',
+        artifactRef: null,
+        redactionMetadata: { fieldsRedacted: [], truncated: false },
+        raw: { toolCallId: id },
+      });
+    }
+    await twoDispatcher.dispatchRunComplete();
+    expect(twoHeader.edit).toHaveBeenLastCalledWith(expect.stringContaining('`2` tool calls'));
+  });
+
   it('does not count update_topic as a tool call and only renders it at most once', async () => {
     const header = { id: 'header', edit: vi.fn().mockResolvedValue(undefined) };
     const mockChannel = {
@@ -452,4 +520,3 @@ describe('workflow trace events & renderer integration', () => {
     expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('`0` tool calls'));
   });
 });
-
