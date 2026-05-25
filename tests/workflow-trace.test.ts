@@ -224,6 +224,7 @@ describe('workflow trace events & renderer integration', () => {
     const sentArgs = mockChannel.send.mock.calls[0][0];
     expect(sentArgs.content).toContain('git status');
     expect(sentArgs.content).not.toContain('<!-- trace:doNotPersist -->');
+    expect(sentArgs.allowedMentions).toEqual({ parse: [], repliedUser: false });
   });
 
   it('derives shell commands from top-level ACP titles when raw input is absent', () => {
@@ -320,8 +321,14 @@ describe('workflow trace events & renderer integration', () => {
     await dispatcher.dispatchRunComplete();
 
     expect(mockChannel.send).toHaveBeenCalledTimes(2);
-    expect(header.edit).toHaveBeenCalledWith(expect.stringContaining('⌁ **Running**'));
-    expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('✓ **Complete**'));
+    expect(header.edit).toHaveBeenCalledWith(expect.objectContaining({
+      content: expect.stringContaining('Running'),
+      allowedMentions: { parse: [], repliedUser: false },
+    }));
+    expect(header.edit).toHaveBeenLastCalledWith(expect.objectContaining({
+      content: expect.stringContaining('Complete'),
+      allowedMentions: { parse: [], repliedUser: false },
+    }));
   });
 
   it('correlates top-level ACP toolCallId updates into one trace message and one count', async () => {
@@ -385,7 +392,10 @@ describe('workflow trace events & renderer integration', () => {
 
     expect(mockChannel.send).toHaveBeenCalledTimes(2);
     expect(toolMessage.edit).not.toHaveBeenCalled();
-    expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('`1` tool call'));
+    expect(header.edit).toHaveBeenLastCalledWith(expect.objectContaining({
+      content: expect.stringContaining('`1` tool call'),
+      allowedMentions: { parse: [], repliedUser: false },
+    }));
   });
 
   it('does not count update_topic as a tool call and only renders it at most once', async () => {
@@ -449,7 +459,25 @@ describe('workflow trace events & renderer integration', () => {
     // Channel send should have been called twice (once for header, once for 1st update_topic)
     expect(mockChannel.send).toHaveBeenCalledTimes(2);
     // Header should contain '0 tool calls' because update_topic is not counted
-    expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('`0` tool calls'));
+    expect(header.edit).toHaveBeenLastCalledWith(expect.objectContaining({
+      content: expect.stringContaining('`0` tool calls'),
+      allowedMentions: { parse: [], repliedUser: false },
+    }));
+  });
+
+  it('suppresses mentions on final workflow responses dispatched after traces', async () => {
+    const mockChannel = {
+      send: vi.fn().mockResolvedValue({ id: 'sent-msg-1' }),
+    } as any;
+
+    const dispatcher = new TraceDispatcher(mockChannel, new TraceRendererRegistry());
+
+    await dispatcher.dispatchFinalResponse('@everyone review <@123456789012345678>');
+
+    expect(mockChannel.send).toHaveBeenCalledWith({
+      content: '@everyone review <@123456789012345678>',
+      allowedMentions: { parse: [], repliedUser: false },
+    });
   });
 });
 

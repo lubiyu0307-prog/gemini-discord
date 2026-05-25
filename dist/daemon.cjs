@@ -87731,6 +87731,18 @@ var init_thread_manifest = __esm({
   }
 });
 
+// src/daemon/mention-safety.ts
+var SUPPRESS_DISCORD_MENTIONS;
+var init_mention_safety = __esm({
+  "src/daemon/mention-safety.ts"() {
+    "use strict";
+    SUPPRESS_DISCORD_MENTIONS = {
+      parse: [],
+      repliedUser: false
+    };
+  }
+});
+
 // src/daemon/workflow/thread-creator.ts
 var thread_creator_exports = {};
 __export(thread_creator_exports, {
@@ -87785,7 +87797,8 @@ async function createWorkflowThread(client, config, extensionDir2, opts) {
   const seedMsg = await thread.send({
     content: `> ${taskSummary}
 
-\u25CC **Workflow queued** \xB7 requested by <@${creatorUserId}>`
+\u25CC **Workflow queued** \xB7 requested by <@${creatorUserId}>`,
+    allowedMentions: SUPPRESS_DISCORD_MENTIONS
   });
   const manifest = {
     threadId: thread.id,
@@ -87817,6 +87830,7 @@ var init_thread_creator = __esm({
     init_api_utils();
     init_log();
     init_task_validation();
+    init_mention_safety();
   }
 });
 
@@ -88608,7 +88622,11 @@ Action: Reverted to \`${oldModel}\`.`);
         task = validateWorkflowTaskSummary(task);
       } catch (error) {
         const message = error instanceof WorkflowTaskValidationError ? error.message : String(error);
-        await interaction.reply({ content: `\u274C ${message}`, ephemeral: true });
+        await interaction.reply({
+          content: `\u274C ${message}`,
+          ephemeral: true,
+          allowedMentions: SUPPRESS_DISCORD_MENTIONS
+        });
         return;
       }
       await interaction.deferReply();
@@ -88624,11 +88642,17 @@ Action: Reverted to \`${oldModel}\`.`);
             sourceMessageId: messageId
           }
         );
-        await interaction.editReply(`\u{1F9F9} **Monitored Workflow Thread Created:** <#${threadId}>`);
+        await interaction.editReply({
+          content: `\u{1F9F9} **Monitored Workflow Thread Created:** <#${threadId}>`,
+          allowedMentions: SUPPRESS_DISCORD_MENTIONS
+        });
         onWorkflowThreadCreated?.({ interaction, thread, task, roleContext });
       } catch (error) {
         log.error("Failed to create workflow thread from slash command", { error: error instanceof Error ? error.message : String(error) });
-        await interaction.editReply(`\u274C **Failed to create workflow thread:** ${error instanceof Error ? error.message : String(error)}`);
+        await interaction.editReply({
+          content: `\u274C **Failed to create workflow thread:** ${error instanceof Error ? error.message : String(error)}`,
+          allowedMentions: SUPPRESS_DISCORD_MENTIONS
+        });
       }
       return;
     }
@@ -88676,6 +88700,7 @@ var init_commands = __esm({
     init_permissions();
     init_thread_creator();
     init_task_validation();
+    init_mention_safety();
     COMMANDS = [
       new import_discord5.SlashCommandBuilder().setName("new").setDescription("Start a fresh Gemini conversation for this channel.").setDefaultMemberPermissions(import_discord5.PermissionFlagsBits.ManageMessages),
       new import_discord5.SlashCommandBuilder().setName("model").setDescription("Switch the active Gemini model.").addStringOption(
@@ -89332,14 +89357,15 @@ ${displayText}`;
     actionMessageIds: actionResult.messageIds
   };
 }
-async function sendPreparedDisplayText(channel, displayText) {
+async function sendPreparedDisplayText(channel, displayText, options = {}) {
   if (!displayText.trim()) {
     return [];
   }
   const messageIds = [];
   const chunks = chunkMessage(displayText);
   for (const chunk of chunks) {
-    const sent = await retrySend(() => channel.send(chunk));
+    const payload = options.suppressMentions ? { content: chunk, allowedMentions: SUPPRESS_DISCORD_MENTIONS } : chunk;
+    const sent = await retrySend(() => channel.send(payload));
     messageIds.push(sent.id);
   }
   return messageIds;
@@ -89413,6 +89439,7 @@ var init_engine_cli = __esm({
     init_background_context();
     init_runtime();
     init_log();
+    init_mention_safety();
     init_permissions();
     init_binding();
     init_thread_manifest();
@@ -90413,6 +90440,7 @@ var init_trace_dispatcher = __esm({
   "src/daemon/workflow/trace-dispatcher.ts"() {
     "use strict";
     init_log();
+    init_mention_safety();
     TraceDispatcher = class {
       constructor(threadChannel, registry) {
         this.threadChannel = threadChannel;
@@ -90478,7 +90506,8 @@ var init_trace_dispatcher = __esm({
           const payload = {
             content: rendered.content,
             embeds: rendered.embeds,
-            files: rendered.files
+            files: rendered.files,
+            allowedMentions: SUPPRESS_DISCORD_MENTIONS
           };
           this.hasTraceEvents = true;
           const toolCallId = this.getEffectiveToolCallId(event);
@@ -90531,7 +90560,8 @@ var init_trace_dispatcher = __esm({
           this.renderedTopic = false;
           this.topicMessage = null;
           this.headerMessage = await this.threadChannel.send({
-            content: `\u25CC **Queued** \xB7 ${this.formatTask(manifest.taskSummary)}`
+            content: `\u25CC **Queued** \xB7 ${this.formatTask(manifest.taskSummary)}`,
+            allowedMentions: SUPPRESS_DISCORD_MENTIONS
           });
           this.startHeartbeat();
           await this.updateRunHeader("running");
@@ -90565,7 +90595,8 @@ var init_trace_dispatcher = __esm({
       async dispatchFinalResponse(response) {
         try {
           await this.threadChannel.send({
-            content: response
+            content: response,
+            allowedMentions: SUPPRESS_DISCORD_MENTIONS
           });
         } catch (error) {
           log.warn("Failed to dispatch final response", { error: String(error) });
@@ -90585,7 +90616,10 @@ var init_trace_dispatcher = __esm({
           content = `\u2301 **Running** \`${elapsed}\`${suffix}`;
         }
         try {
-          await this.headerMessage.edit(content);
+          await this.headerMessage.edit({
+            content,
+            allowedMentions: SUPPRESS_DISCORD_MENTIONS
+          });
         } catch (error) {
           log.warn("Failed to update trace run header", { error: String(error) });
         }
@@ -90721,7 +90755,10 @@ async function initGateway(config, state2, memory, queue, apiServer, extensionDi
             task = validateWorkflowTaskSummary(task);
           } catch (err) {
             const validationMessage = err instanceof WorkflowTaskValidationError ? err.message : String(err);
-            retrySend(() => message.reply(`\u274C ${validationMessage}`)).catch(() => {
+            retrySend(() => message.reply({
+              content: `\u274C ${validationMessage}`,
+              allowedMentions: SUPPRESS_DISCORD_MENTIONS
+            })).catch(() => {
             });
             return;
           }
@@ -90731,7 +90768,10 @@ async function initGateway(config, state2, memory, queue, apiServer, extensionDi
             sourceChannelId: message.channelId,
             sourceMessageId: message.id
           }).then(({ threadId, thread }) => {
-            retrySend(() => message.reply(`\u{1F9F9} **Monitored Workflow Thread Created:** <#${threadId}>`)).catch(() => {
+            retrySend(() => message.reply({
+              content: `\u{1F9F9} **Monitored Workflow Thread Created:** <#${threadId}>`,
+              allowedMentions: SUPPRESS_DISCORD_MENTIONS
+            })).catch(() => {
             });
             enqueueInitialWorkflowRun({
               message,
@@ -90745,7 +90785,10 @@ async function initGateway(config, state2, memory, queue, apiServer, extensionDi
             });
           }).catch((err) => {
             log.error("Failed to create workflow thread from text command", { error: String(err) });
-            retrySend(() => message.reply(`\u274C **Failed to create workflow thread:** ${err instanceof Error ? err.message : String(err)}`)).catch(() => {
+            retrySend(() => message.reply({
+              content: `\u274C **Failed to create workflow thread:** ${err instanceof Error ? err.message : String(err)}`,
+              allowedMentions: SUPPRESS_DISCORD_MENTIONS
+            })).catch(() => {
             });
           });
           return;
@@ -90906,7 +90949,10 @@ function enqueueWorkflowRun(opts) {
     extensionDir: opts.extensionDir
   });
   if (!enqueued) {
-    retrySend(() => opts.thread.send("\u23F3 Too many pending messages for this workflow. Please wait a moment and retry in the thread.")).catch(() => {
+    retrySend(() => opts.thread.send({
+      content: "\u23F3 Too many pending messages for this workflow. Please wait a moment and retry in the thread.",
+      allowedMentions: SUPPRESS_DISCORD_MENTIONS
+    })).catch(() => {
     });
     return false;
   }
@@ -91143,6 +91189,7 @@ async function processMessage(message, accepted, config, memory, state2, process
   let responseMessageIds = [];
   let geminiSessionId;
   let traceDispatcher;
+  const isWorkflow = isWorkflowThread(extensionDir2, message.channelId);
   try {
     if (turnDecision.decision !== "allow") {
       response = formatPermissionDenial(turnDecision);
@@ -91159,7 +91206,6 @@ async function processMessage(message, accepted, config, memory, state2, process
       });
       return;
     }
-    const isWorkflow = isWorkflowThread(extensionDir2, message.channelId);
     if (isWorkflow) {
       const registry = new TraceRendererRegistry();
       traceDispatcher = new TraceDispatcher(channel, registry);
@@ -91213,7 +91259,7 @@ async function processMessage(message, accepted, config, memory, state2, process
             prependNewlines: false
           });
           response = prepared.responseText;
-          const finalMsgIds = await sendPreparedDisplayText(channel, prepared.displayText);
+          const finalMsgIds = await sendPreparedDisplayText(channel, prepared.displayText, { suppressMentions: true });
           responseMessageIds.push(...finalMsgIds);
           responseMessageIds.push(...prepared.actionMessageIds);
         }
@@ -91242,7 +91288,7 @@ async function processMessage(message, accepted, config, memory, state2, process
       await traceDispatcher.dispatchRunFailed(err);
     }
     const errorMsg = formatError(err);
-    await retrySend(() => channel.send(errorMsg)).catch(() => {
+    await retrySend(() => isWorkflow ? channel.send({ content: errorMsg, allowedMentions: SUPPRESS_DISCORD_MENTIONS }) : channel.send(errorMsg)).catch(() => {
     });
     log.error("Message processing failed", {
       channelId: message.channelId,
@@ -91364,6 +91410,7 @@ var init_gateway = __esm({
     init_task_validation();
     init_trace_renderer();
     init_trace_dispatcher();
+    init_mention_safety();
     MAX_AGENT_EXCHANGES = 6;
   }
 });

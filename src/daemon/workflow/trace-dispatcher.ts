@@ -3,6 +3,7 @@ import type { TraceEvent } from './trace-event.js';
 import { TraceRendererRegistry } from './trace-renderer.js';
 import type { ThreadManifest } from './thread-manifest.js';
 import { log } from '../log.js';
+import { SUPPRESS_DISCORD_MENTIONS } from '../mention-safety.js';
 
 export class TraceDispatcher {
   private activeMessages = new Map<string, Message>();
@@ -82,6 +83,7 @@ export class TraceDispatcher {
         content: rendered.content,
         embeds: rendered.embeds,
         files: rendered.files,
+        allowedMentions: SUPPRESS_DISCORD_MENTIONS,
       };
 
       this.hasTraceEvents = true;
@@ -141,6 +143,7 @@ export class TraceDispatcher {
       this.topicMessage = null;
       this.headerMessage = await this.threadChannel.send({
         content: `◌ **Queued** · ${this.formatTask(manifest.taskSummary)}`,
+        allowedMentions: SUPPRESS_DISCORD_MENTIONS,
       });
       this.startHeartbeat();
       await this.updateRunHeader('running');
@@ -179,6 +182,7 @@ export class TraceDispatcher {
     try {
       await this.threadChannel.send({
         content: response,
+        allowedMentions: SUPPRESS_DISCORD_MENTIONS,
       });
     } catch (error) {
       log.warn('Failed to dispatch final response', { error: String(error) });
@@ -203,7 +207,10 @@ export class TraceDispatcher {
     }
 
     try {
-      await this.headerMessage.edit(content);
+      await this.headerMessage.edit({
+        content,
+        allowedMentions: SUPPRESS_DISCORD_MENTIONS,
+      });
     } catch (error) {
       log.warn('Failed to update trace run header', { error: String(error) });
     }

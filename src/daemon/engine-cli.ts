@@ -28,6 +28,7 @@ import { sanitizeFullResponse } from './sanitizer.js';
 import { getBackgroundOperationsContext } from './background-context.js';
 import { runtimeStore } from './runtime.js';
 import { log } from './log.js';
+import { SUPPRESS_DISCORD_MENTIONS } from './mention-safety.js';
 import {
   authorizeAction,
   formatPermissionDenial,
@@ -395,6 +396,7 @@ export async function finalizeAssistantResponse(
 export async function sendPreparedDisplayText(
   channel: TextChannel | DMChannel | NewsChannel,
   displayText: string,
+  options: { suppressMentions?: boolean } = {},
 ): Promise<string[]> {
   if (!displayText.trim()) {
     return [];
@@ -403,7 +405,10 @@ export async function sendPreparedDisplayText(
   const messageIds: string[] = [];
   const chunks = chunkMessage(displayText);
   for (const chunk of chunks) {
-    const sent = await retrySend(() => channel.send(chunk));
+    const payload = options.suppressMentions
+      ? { content: chunk, allowedMentions: SUPPRESS_DISCORD_MENTIONS }
+      : chunk;
+    const sent = await retrySend(() => channel.send(payload));
     messageIds.push(sent.id);
   }
   return messageIds;

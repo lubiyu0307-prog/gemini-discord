@@ -2,9 +2,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { 
   COMMANDS, 
   buildGuildCommandPayloads, 
-  buildDmOnlyGlobalCommandPayloads 
+  buildDmOnlyGlobalCommandPayloads,
+  setupInteractionHandler,
 } from '../src/daemon/commands.js';
 import { ApplicationIntegrationType, InteractionContextType } from 'discord.js';
+import { createConfig } from './test-utils/factories.js';
 
 describe('Slash Command Registration', () => {
   it('buildDmOnlyGlobalCommandPayloads meets strict DM requirements', () => {
@@ -30,5 +32,49 @@ describe('Slash Command Registration', () => {
       expect(cmd).not.toHaveProperty('contexts');
       expect(cmd).not.toHaveProperty('integration_types');
     });
+  });
+
+  it('suppresses mentions on slash workflow validation replies', async () => {
+    let interactionHandler: ((interaction: any) => Promise<void>) | undefined;
+    const client = {
+      on: vi.fn((event: string, handler: (interaction: any) => Promise<void>) => {
+        if (event === 'interactionCreate') {
+          interactionHandler = handler;
+        }
+      }),
+    };
+    const config = createConfig({
+      discordBossUserId: '111111111111111111',
+      ownerIds: ['111111111111111111'],
+    });
+    const reply = vi.fn().mockResolvedValue(undefined);
+    const interaction = {
+      isAutocomplete: () => false,
+      isChatInputCommand: () => true,
+      commandName: 'workflow',
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      user: { id: '111111111111111111', tag: 'Boss#0001' },
+      options: {
+        getString: vi.fn((name: string) => name === 'task' ? 'job' : null),
+      },
+      reply,
+    };
+
+    setupInteractionHandler(
+      client as any,
+      config,
+      { startedAt: new Date(0).toISOString() } as any,
+      {} as any,
+      'unused-extension-dir',
+    );
+
+    await interactionHandler!(interaction);
+
+    expect(reply).toHaveBeenCalledWith(expect.objectContaining({
+      content: expect.stringContaining('too vague'),
+      ephemeral: true,
+      allowedMentions: { parse: [], repliedUser: false },
+    }));
   });
 });
