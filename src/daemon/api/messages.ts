@@ -3,6 +3,8 @@ import { chunkMessage } from '../../shared/chunker.js';
 import { sendDiscordMessage } from '../sender.js';
 import { resolveDiscoveredChannel } from '../channels.js';
 import { log } from '../log.js';
+import { runtimeStore } from '../runtime.js';
+import { validateWorkflowTaskSummary, WorkflowTaskValidationError } from '../workflow/task-validation.js';
 import {
   respond,
   authorizeApiAction,
@@ -362,7 +364,7 @@ export async function handleMessageRoutes(
 
   if (pathname === '/workflow') {
     if (!authorizeApiAction(req, res, config, 'admin_command')) return true;
-    const task = String(parsed['task'] ?? '');
+    let task = String(parsed['task'] ?? '');
     const creatorUserId = String(parsed['creator_user_id'] ?? '');
     const sourceChannelId = String(parsed['source_channel_id'] ?? '');
     const sourceMessageId = parsed['source_message_id'] == null ? undefined : String(parsed['source_message_id']);
@@ -374,6 +376,11 @@ export async function handleMessageRoutes(
     }
 
     try {
+      task = validateWorkflowTaskSummary(task);
+      if (!runtimeStore.enqueueWorkflowRun) {
+        respond(res, 503, { error: 'Workflow runner is not ready. Try again after the Discord gateway is ready.' });
+        return true;
+      }
       if (!deps.client) { respond(res, 503, { error: 'Client not ready' }); return true; }
       const { createWorkflowThread } = await import('../workflow/thread-creator.js');
       const { threadId, thread } = await createWorkflowThread(
@@ -389,9 +396,24 @@ export async function handleMessageRoutes(
         }
       );
 
-      // Return thread info
-      respond(res, 200, { ok: true, threadId, task });
+      const started = runtimeStore.enqueueWorkflowRun({
+        thread,
+        task,
+        creatorUserId,
+        sourceChannelId,
+        sourceMessageId,
+      });
+      if (!started) {
+        respond(res, 429, { error: 'Workflow thread was created but the processing queue is full. Retry inside the thread.', threadId, task });
+        return true;
+      }
+
+      respond(res, 200, { ok: true, threadId, task, started: true });
     } catch (err) {
+      if (err instanceof WorkflowTaskValidationError) {
+        respond(res, 400, { error: err.message });
+        return true;
+      }
       respond(res, 500, { error: err instanceof Error ? err.message : String(err) });
     }
     return true;

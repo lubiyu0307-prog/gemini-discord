@@ -77727,7 +77727,8 @@ var init_runtime = __esm({
       cliPool: null,
       isShuttingDown: false,
       agentExchangeCount: /* @__PURE__ */ new Map(),
-      lastInteractiveMessageAt: null
+      lastInteractiveMessageAt: null,
+      enqueueWorkflowRun: null
     };
   }
 });
@@ -87641,6 +87642,182 @@ var init_users = __esm({
   }
 });
 
+// src/daemon/workflow/task-validation.ts
+function normalizeWorkflowTaskSummary(task) {
+  return task.trim().replace(/\s+/g, " ");
+}
+function validateWorkflowTaskSummary(task) {
+  const normalized = normalizeWorkflowTaskSummary(task);
+  if (!normalized) {
+    throw new WorkflowTaskValidationError("Workflow task is required. Please provide a specific task.");
+  }
+  const tokens = normalized.match(/[A-Za-z0-9][A-Za-z0-9_-]*/g) ?? [];
+  if (tokens.length === 1) {
+    const token = tokens[0].toLowerCase();
+    if (token.length < 4 || VAGUE_SINGLE_WORDS.has(token)) {
+      throw new WorkflowTaskValidationError(
+        `Workflow task "${normalized}" is too vague. Please provide a specific task, for example "fix CI failure" or "run tests".`
+      );
+    }
+  }
+  return normalized;
+}
+var VAGUE_SINGLE_WORDS, WorkflowTaskValidationError;
+var init_task_validation = __esm({
+  "src/daemon/workflow/task-validation.ts"() {
+    "use strict";
+    VAGUE_SINGLE_WORDS = /* @__PURE__ */ new Set([
+      "do",
+      "fix",
+      "help",
+      "issue",
+      "job",
+      "run",
+      "task",
+      "test",
+      "thing",
+      "this",
+      "that",
+      "todo",
+      "work"
+    ]);
+    WorkflowTaskValidationError = class extends Error {
+      constructor(message) {
+        super(message);
+        this.name = "WorkflowTaskValidationError";
+      }
+    };
+  }
+});
+
+// src/daemon/workflow/thread-manifest.ts
+function getManifestDir(extensionDir2) {
+  return path8.join(extensionDir2, "threads");
+}
+function getManifestPath(extensionDir2, threadId) {
+  return path8.join(getManifestDir(extensionDir2), `${threadId}.json`);
+}
+function saveThreadManifest(extensionDir2, manifest) {
+  const dir = getManifestDir(extensionDir2);
+  if (!fs9.existsSync(dir)) {
+    fs9.mkdirSync(dir, { recursive: true });
+  }
+  const filePath2 = getManifestPath(extensionDir2, manifest.threadId);
+  fs9.writeFileSync(filePath2, JSON.stringify(manifest, null, 2), "utf8");
+}
+function loadThreadManifest(extensionDir2, threadId) {
+  const filePath2 = getManifestPath(extensionDir2, threadId);
+  if (!fs9.existsSync(filePath2)) {
+    return null;
+  }
+  try {
+    const data = fs9.readFileSync(filePath2, "utf8");
+    return JSON.parse(data);
+  } catch {
+    return null;
+  }
+}
+function isWorkflowThread(extensionDir2, threadId) {
+  return fs9.existsSync(getManifestPath(extensionDir2, threadId));
+}
+var fs9, path8;
+var init_thread_manifest = __esm({
+  "src/daemon/workflow/thread-manifest.ts"() {
+    "use strict";
+    fs9 = __toESM(require("node:fs"), 1);
+    path8 = __toESM(require("node:path"), 1);
+  }
+});
+
+// src/daemon/workflow/thread-creator.ts
+var thread_creator_exports = {};
+__export(thread_creator_exports, {
+  createWorkflowThread: () => createWorkflowThread
+});
+async function createWorkflowThread(client, config, extensionDir2, opts) {
+  const { creatorUserId, sourceChannelId, sourceMessageId, traceMode = "compact" } = opts;
+  const taskSummary = validateWorkflowTaskSummary(opts.taskSummary);
+  const originChannel = await fetchTextChannel(client, sourceChannelId);
+  if (!originChannel) {
+    throw new Error(`Origin channel ${sourceChannelId} not found`);
+  }
+  const isDm = "isDMBased" in originChannel && originChannel.isDMBased();
+  let parentChannel;
+  if (isDm) {
+    if (!config.workflowParentChannelId) {
+      throw new Error("WORKFLOW_PARENT_CHANNEL_ID is not configured. Workflow threads cannot be created from DMs without a configured parent channel.");
+    }
+    const resolvedParent = await client.channels.fetch(config.workflowParentChannelId);
+    if (!resolvedParent || !resolvedParent.isTextBased() || resolvedParent.isDMBased() || !("threads" in resolvedParent)) {
+      throw new Error(`Configured WORKFLOW_PARENT_CHANNEL_ID ${config.workflowParentChannelId} is not a valid thread-capable guild text channel.`);
+    }
+    parentChannel = resolvedParent;
+  } else {
+    parentChannel = originChannel;
+  }
+  if (!isWritableTarget(parentChannel.id, parentChannel, config)) {
+    throw new Error(`Parent channel ${parentChannel.id} is not writable or allowed under configured allowedChannelIds.`);
+  }
+  const sanitizedTask = taskSummary.toLowerCase().replace(/[^a-z0-9\s-]+/g, "").trim().replace(/[\s-]+/g, "-").slice(0, 30);
+  const threadName = `gemini-workflow-${sanitizedTask || "task"}`;
+  let thread;
+  let starterMessageId = null;
+  if (sourceMessageId && !isDm) {
+    try {
+      const msg = await parentChannel.messages.fetch(sourceMessageId);
+      thread = await msg.startThread({
+        name: threadName
+      });
+      starterMessageId = sourceMessageId;
+    } catch (err) {
+      log.warn("Could not start thread on message, creating standalone thread instead", { sourceMessageId, error: String(err) });
+      thread = await parentChannel.threads.create({
+        name: threadName
+      });
+    }
+  } else {
+    thread = await parentChannel.threads.create({
+      name: threadName
+    });
+  }
+  const seedMsg = await thread.send({
+    content: `> ${taskSummary}
+
+\u25CC **Workflow queued** \xB7 requested by <@${creatorUserId}>`
+  });
+  const manifest = {
+    threadId: thread.id,
+    parentChannelId: parentChannel.id,
+    guildId: parentChannel.guildId,
+    creatorUserId,
+    starterMessageId: starterMessageId || seedMsg.id,
+    createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+    mode: "monitored_workflow",
+    taskSummary,
+    traceMode,
+    originContext: {
+      type: isDm ? "dm" : "channel",
+      sourceChannelId,
+      sourceMessageId
+    }
+  };
+  saveThreadManifest(extensionDir2, manifest);
+  return {
+    threadId: thread.id,
+    manifest,
+    thread
+  };
+}
+var init_thread_creator = __esm({
+  "src/daemon/workflow/thread-creator.ts"() {
+    "use strict";
+    init_thread_manifest();
+    init_api_utils();
+    init_log();
+    init_task_validation();
+  }
+});
+
 // src/daemon/attachments.ts
 function getSupportedAttachmentMetadata(message) {
   return getSupportedAttachments(message).map(toConversationAttachment);
@@ -87650,8 +87827,8 @@ async function downloadSupportedAttachments(message, attachmentsRootDir, geminiP
   if (attachments.length === 0) {
     return [];
   }
-  const targetDir = path10.join(attachmentsRootDir, sanitizeFilename(message.id));
-  await fs11.mkdir(targetDir, { recursive: true });
+  const targetDir = path11.join(attachmentsRootDir, sanitizeFilename(message.id));
+  await fs12.mkdir(targetDir, { recursive: true });
   const downloads = attachments.map(async (attachment, index) => {
     try {
       const response = await fetch(attachment.url);
@@ -87660,9 +87837,9 @@ async function downloadSupportedAttachments(message, attachmentsRootDir, geminiP
       }
       const buffer = Buffer.from(await response.arrayBuffer());
       const safeName = sanitizeFilename(attachment.name || `${attachment.kind}-${index + 1}.bin`);
-      const localPath = path10.join(targetDir, `${index + 1}-${safeName}`);
-      await fs11.writeFile(localPath, buffer);
-      const relativePath = path10.relative(geminiProjectDir, localPath);
+      const localPath = path11.join(targetDir, `${index + 1}-${safeName}`);
+      await fs12.writeFile(localPath, buffer);
+      const relativePath = path11.relative(geminiProjectDir, localPath);
       const metadata = toConversationAttachment({
         ...attachment,
         sizeBytes: buffer.length
@@ -87689,7 +87866,7 @@ async function downloadSupportedAttachments(message, attachmentsRootDir, geminiP
     (item) => item !== null
   );
   if (downloaded.length === 0) {
-    await fs11.rm(targetDir, { recursive: true, force: true }).catch(() => {
+    await fs12.rm(targetDir, { recursive: true, force: true }).catch(() => {
     });
   }
   return downloaded;
@@ -87720,7 +87897,7 @@ function classifySupportedAttachment(contentType, name) {
     if (baseType === "application/pdf") return "pdf";
     if (isTextLikeApplicationType(baseType)) return "text";
   }
-  const extension = path10.extname(name).toLowerCase();
+  const extension = path11.extname(name).toLowerCase();
   if (IMAGE_EXTENSIONS.has(extension)) return "image";
   if (VIDEO_EXTENSIONS.has(extension)) return "video";
   if (AUDIO_EXTENSIONS.has(extension)) return "audio";
@@ -87761,7 +87938,7 @@ function resolveAttachmentMimeType(attachment) {
   if (attachment.contentType) {
     return normalizeContentType(attachment.contentType);
   }
-  const extension = path10.extname(attachment.name).toLowerCase();
+  const extension = path11.extname(attachment.name).toLowerCase();
   switch (extension) {
     case ".jpg":
     case ".jpeg":
@@ -87815,12 +87992,12 @@ function toConversationAttachment(attachment) {
 function sanitizeFilename(filename) {
   return filename.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
-var fs11, path10, MAX_SUPPORTED_ATTACHMENTS, MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, MAX_AUDIO_BYTES, MAX_PDF_BYTES, MAX_TEXT_BYTES, MAX_INLINE_ATTACHMENT_BYTES, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, AUDIO_EXTENSIONS, PDF_EXTENSIONS, TEXT_EXTENSIONS;
+var fs12, path11, MAX_SUPPORTED_ATTACHMENTS, MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, MAX_AUDIO_BYTES, MAX_PDF_BYTES, MAX_TEXT_BYTES, MAX_INLINE_ATTACHMENT_BYTES, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, AUDIO_EXTENSIONS, PDF_EXTENSIONS, TEXT_EXTENSIONS;
 var init_attachments = __esm({
   "src/daemon/attachments.ts"() {
     "use strict";
-    fs11 = __toESM(require("node:fs/promises"), 1);
-    path10 = __toESM(require("node:path"), 1);
+    fs12 = __toESM(require("node:fs/promises"), 1);
+    path11 = __toESM(require("node:path"), 1);
     init_log();
     MAX_SUPPORTED_ATTACHMENTS = 4;
     MAX_IMAGE_BYTES = 35 * 1024 * 1024;
@@ -88250,128 +88427,6 @@ var init_bot = __esm({
   }
 });
 
-// src/daemon/workflow/thread-manifest.ts
-function getManifestDir(extensionDir2) {
-  return path11.join(extensionDir2, "threads");
-}
-function getManifestPath(extensionDir2, threadId) {
-  return path11.join(getManifestDir(extensionDir2), `${threadId}.json`);
-}
-function saveThreadManifest(extensionDir2, manifest) {
-  const dir = getManifestDir(extensionDir2);
-  if (!fs12.existsSync(dir)) {
-    fs12.mkdirSync(dir, { recursive: true });
-  }
-  const filePath2 = getManifestPath(extensionDir2, manifest.threadId);
-  fs12.writeFileSync(filePath2, JSON.stringify(manifest, null, 2), "utf8");
-}
-function loadThreadManifest(extensionDir2, threadId) {
-  const filePath2 = getManifestPath(extensionDir2, threadId);
-  if (!fs12.existsSync(filePath2)) {
-    return null;
-  }
-  try {
-    const data = fs12.readFileSync(filePath2, "utf8");
-    return JSON.parse(data);
-  } catch {
-    return null;
-  }
-}
-function isWorkflowThread(extensionDir2, threadId) {
-  return fs12.existsSync(getManifestPath(extensionDir2, threadId));
-}
-var fs12, path11;
-var init_thread_manifest = __esm({
-  "src/daemon/workflow/thread-manifest.ts"() {
-    "use strict";
-    fs12 = __toESM(require("node:fs"), 1);
-    path11 = __toESM(require("node:path"), 1);
-  }
-});
-
-// src/daemon/workflow/thread-creator.ts
-async function createWorkflowThread(client, config, extensionDir2, opts) {
-  const { taskSummary, creatorUserId, sourceChannelId, sourceMessageId, traceMode = "compact" } = opts;
-  const originChannel = await fetchTextChannel(client, sourceChannelId);
-  if (!originChannel) {
-    throw new Error(`Origin channel ${sourceChannelId} not found`);
-  }
-  const isDm = "isDMBased" in originChannel && originChannel.isDMBased();
-  let parentChannel;
-  if (isDm) {
-    if (!config.workflowParentChannelId) {
-      throw new Error("WORKFLOW_PARENT_CHANNEL_ID is not configured. Workflow threads cannot be created from DMs without a configured parent channel.");
-    }
-    const resolvedParent = await client.channels.fetch(config.workflowParentChannelId);
-    if (!resolvedParent || !resolvedParent.isTextBased() || resolvedParent.isDMBased() || !("threads" in resolvedParent)) {
-      throw new Error(`Configured WORKFLOW_PARENT_CHANNEL_ID ${config.workflowParentChannelId} is not a valid thread-capable guild text channel.`);
-    }
-    parentChannel = resolvedParent;
-  } else {
-    parentChannel = originChannel;
-  }
-  if (!isWritableTarget(parentChannel.id, parentChannel, config)) {
-    throw new Error(`Parent channel ${parentChannel.id} is not writable or allowed under configured allowedChannelIds.`);
-  }
-  const sanitizedTask = taskSummary.toLowerCase().replace(/[^a-z0-9\s-]+/g, "").trim().replace(/[\s-]+/g, "-").slice(0, 30);
-  const threadName = `gemini-workflow-${sanitizedTask || "task"}`;
-  let thread;
-  let starterMessageId = null;
-  if (sourceMessageId && !isDm) {
-    try {
-      const msg = await parentChannel.messages.fetch(sourceMessageId);
-      thread = await msg.startThread({
-        name: threadName
-      });
-      starterMessageId = sourceMessageId;
-    } catch (err) {
-      log.warn("Could not start thread on message, creating standalone thread instead", { sourceMessageId, error: String(err) });
-      thread = await parentChannel.threads.create({
-        name: threadName
-      });
-    }
-  } else {
-    thread = await parentChannel.threads.create({
-      name: threadName
-    });
-  }
-  const seedMsg = await thread.send({
-    content: `> ${taskSummary}
-
-\u25CC **Workflow queued** \xB7 requested by <@${creatorUserId}>`
-  });
-  const manifest = {
-    threadId: thread.id,
-    parentChannelId: parentChannel.id,
-    guildId: parentChannel.guildId,
-    creatorUserId,
-    starterMessageId: starterMessageId || seedMsg.id,
-    createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-    mode: "monitored_workflow",
-    taskSummary,
-    traceMode,
-    originContext: {
-      type: isDm ? "dm" : "channel",
-      sourceChannelId,
-      sourceMessageId
-    }
-  };
-  saveThreadManifest(extensionDir2, manifest);
-  return {
-    threadId: thread.id,
-    manifest,
-    thread
-  };
-}
-var init_thread_creator = __esm({
-  "src/daemon/workflow/thread-creator.ts"() {
-    "use strict";
-    init_thread_manifest();
-    init_api_utils();
-    init_log();
-  }
-});
-
 // src/daemon/commands.ts
 function buildGuildCommandPayloads(commands = COMMANDS) {
   return commands.map((cmd) => {
@@ -88545,8 +88600,15 @@ Action: Reverted to \`${oldModel}\`.`);
     }
     if (commandName === "workflow") {
       if (!await authorizeInteraction(interaction, roleContext, "admin_command")) return;
-      const task = interaction.options.getString("task", true);
+      let task = interaction.options.getString("task", true);
       const messageId = interaction.options.getString("message_id") ?? void 0;
+      try {
+        task = validateWorkflowTaskSummary(task);
+      } catch (error) {
+        const message = error instanceof WorkflowTaskValidationError ? error.message : String(error);
+        await interaction.reply({ content: `\u274C ${message}`, ephemeral: true });
+        return;
+      }
       await interaction.deferReply();
       try {
         const { threadId, thread } = await createWorkflowThread(
@@ -88611,6 +88673,7 @@ var init_commands = __esm({
     init_session_reset();
     init_permissions();
     init_thread_creator();
+    init_task_validation();
     COMMANDS = [
       new import_discord5.SlashCommandBuilder().setName("new").setDescription("Start a fresh Gemini conversation for this channel.").setDefaultMemberPermissions(import_discord5.PermissionFlagsBits.ManageMessages),
       new import_discord5.SlashCommandBuilder().setName("model").setDescription("Switch the active Gemini model.").addStringOption(
@@ -89796,7 +89859,7 @@ var init_trace_renderer = __esm({
     };
     ShellRenderer = class {
       canRender(event) {
-        return event.canonicalToolName === "run_shell_command";
+        return event.canonicalToolName === "run_shell_command" || event.toolFamily === "shell";
       }
       render(event) {
         const command = shellCommand(event);
@@ -89949,6 +90012,13 @@ var init_trace_renderer = __esm({
 });
 
 // src/daemon/workflow/trace-dispatcher.ts
+function resolveToolCallId(event) {
+  if (typeof event.raw?.["toolCallId"] === "string") {
+    return event.raw["toolCallId"];
+  }
+  const toolCall = event.raw?.toolCall;
+  return typeof toolCall?.id === "string" ? toolCall.id : null;
+}
 var TRACE_MARKER, TraceDispatcher;
 var init_trace_dispatcher = __esm({
   "src/daemon/workflow/trace-dispatcher.ts"() {
@@ -89965,6 +90035,9 @@ var init_trace_dispatcher = __esm({
       startedAt = Date.now();
       toolCallCount = 0;
       currentStep = null;
+      seenToolCallIds = /* @__PURE__ */ new Set();
+      hasTraceEvents = false;
+      heartbeatTimer = null;
       async dispatch(event) {
         try {
           const rendered = this.registry.render(event);
@@ -89974,10 +90047,13 @@ var init_trace_dispatcher = __esm({
             embeds: rendered.embeds,
             files: rendered.files
           };
-          const toolCall = event.raw?.toolCall;
-          const toolCallId = typeof toolCall?.id === "string" ? toolCall.id : null;
-          if (event.type === "tool_started") {
+          this.hasTraceEvents = true;
+          const toolCallId = resolveToolCallId(event);
+          if (toolCallId ? !this.seenToolCallIds.has(toolCallId) : event.type === "tool_started") {
             this.toolCallCount += 1;
+            if (toolCallId) {
+              this.seenToolCallIds.add(toolCallId);
+            }
           }
           if (event.displayName || event.toolName) {
             this.currentStep = event.displayName || event.toolName;
@@ -89997,7 +90073,7 @@ var init_trace_dispatcher = __esm({
             }
           }
           const sent = await this.threadChannel.send(payload);
-          if (toolCallId && event.status === "started") {
+          if (toolCallId && (event.status === "started" || event.status === "progress")) {
             this.activeMessages.set(toolCallId, sent);
           }
         } catch (error) {
@@ -90009,18 +90085,24 @@ var init_trace_dispatcher = __esm({
           this.startedAt = Date.now();
           this.toolCallCount = 0;
           this.currentStep = null;
+          this.seenToolCallIds.clear();
+          this.hasTraceEvents = false;
           this.headerMessage = await this.threadChannel.send({
             content: `\u25CC **Queued** \xB7 ${this.formatTask(manifest.taskSummary)}
 ${TRACE_MARKER}`
           });
+          this.startHeartbeat();
+          await this.updateRunHeader("running");
         } catch (error) {
           log.warn("Failed to dispatch run header", { error: String(error) });
         }
       }
       async dispatchRunComplete() {
+        this.stopHeartbeat();
         await this.updateRunHeader("complete");
       }
       async dispatchRunFailed(error) {
+        this.stopHeartbeat();
         const message = error instanceof Error ? error.message : String(error);
         await this.updateRunHeader("failed", message);
       }
@@ -90043,7 +90125,7 @@ ${TRACE_MARKER}`
           const suffix = detail ? ` \xB7 ${detail.slice(0, 160)}` : "";
           content = `\u2717 **Failed** \`${elapsed}\` \xB7 \`${this.toolCallCount}\` tool calls${suffix}`;
         } else {
-          const suffix = this.currentStep ? ` \xB7 current step: \`${this.currentStep}\`` : "";
+          const suffix = this.currentStep ? ` \xB7 current step: \`${this.currentStep}\`` : this.hasTraceEvents ? "" : " \xB7 waiting for first tool event";
           content = `\u2301 **Running** \`${elapsed}\`${suffix}`;
         }
         try {
@@ -90063,6 +90145,18 @@ ${TRACE_MARKER}`);
         const trimmed = task.trim().replace(/\s+/g, " ");
         return trimmed.length > 120 ? `${trimmed.slice(0, 117)}...` : trimmed;
       }
+      startHeartbeat() {
+        this.stopHeartbeat();
+        this.heartbeatTimer = setInterval(() => {
+          this.updateRunHeader("running").catch(() => {
+          });
+        }, 15e3);
+      }
+      stopHeartbeat() {
+        if (!this.heartbeatTimer) return;
+        clearInterval(this.heartbeatTimer);
+        this.heartbeatTimer = null;
+      }
     };
   }
 });
@@ -90070,6 +90164,8 @@ ${TRACE_MARKER}`);
 // src/daemon/gateway.ts
 var gateway_exports = {};
 __export(gateway_exports, {
+  buildWorkflowApiRunAccepted: () => buildWorkflowApiRunAccepted,
+  buildWorkflowApiRunMessage: () => buildWorkflowApiRunMessage,
   buildWorkflowInteractionRunAccepted: () => buildWorkflowInteractionRunAccepted,
   buildWorkflowInteractionRunMessage: () => buildWorkflowInteractionRunMessage,
   buildWorkflowRunAccepted: () => buildWorkflowRunAccepted,
@@ -90079,6 +90175,14 @@ __export(gateway_exports, {
 async function initGateway(config, state2, memory, queue, apiServer, extensionDir2) {
   const client = createClient(config);
   runtimeStore.client = client;
+  runtimeStore.enqueueWorkflowRun = (request) => enqueueInitialWorkflowApiRun({
+    ...request,
+    client,
+    config,
+    memory,
+    state: state2,
+    extensionDir: extensionDir2
+  });
   setupInteractionHandler(client, config, state2, memory, extensionDir2, ({ interaction, thread, task, roleContext }) => {
     enqueueInitialWorkflowInteractionRun({
       interaction,
@@ -90156,8 +90260,16 @@ async function initGateway(config, state2, memory, queue, apiServer, extensionDi
       const isWorkflowTextCmd = contentTrimmed.startsWith("!thread ") || contentTrimmed.startsWith("!workflow ");
       if (isWorkflowTextCmd && isBoss(accepted.roleContext)) {
         const prefix = contentTrimmed.startsWith("!thread ") ? "!thread " : "!workflow ";
-        const task = contentTrimmed.slice(prefix.length).trim();
+        let task = contentTrimmed.slice(prefix.length).trim();
         if (task) {
+          try {
+            task = validateWorkflowTaskSummary(task);
+          } catch (err) {
+            const validationMessage = err instanceof WorkflowTaskValidationError ? err.message : String(err);
+            retrySend(() => message.reply(`\u274C ${validationMessage}`)).catch(() => {
+            });
+            return;
+          }
           createWorkflowThread(client, config, extensionDir2, {
             taskSummary: task,
             creatorUserId: message.author.id,
@@ -90308,6 +90420,24 @@ function enqueueInitialWorkflowInteractionRun(opts) {
     extensionDir: opts.extensionDir
   });
 }
+function enqueueInitialWorkflowApiRun(opts) {
+  const roleContext = opts.roleContext ?? resolveDiscordRole(opts.config, {
+    discordUserId: opts.creatorUserId,
+    displayLabel: opts.creatorUserId
+  });
+  const workflowMessage = buildWorkflowApiRunMessage(opts, roleContext, opts.client);
+  const workflowAccepted = buildWorkflowApiRunAccepted(opts, roleContext);
+  return enqueueWorkflowRun({
+    message: workflowMessage,
+    accepted: workflowAccepted,
+    thread: opts.thread,
+    sourceMessageId: opts.sourceMessageId ?? workflowMessage.id,
+    config: opts.config,
+    memory: opts.memory,
+    state: opts.state,
+    extensionDir: opts.extensionDir
+  });
+}
 function enqueueWorkflowRun(opts) {
   const processingContext = resolveProcessingContext(opts.config, opts.message, opts.accepted, opts.extensionDir);
   runtimeStore.agentExchangeCount.set(opts.thread.id, 0);
@@ -90323,13 +90453,14 @@ function enqueueWorkflowRun(opts) {
   if (!enqueued) {
     retrySend(() => opts.thread.send("\u23F3 Too many pending messages for this workflow. Please wait a moment and retry in the thread.")).catch(() => {
     });
-    return;
+    return false;
   }
   log.info("Initial workflow task enqueued", {
     sourceMessageId: opts.sourceMessageId,
     threadId: opts.thread.id,
     sessionKey: processingContext.sessionKey
   });
+  return true;
 }
 function enqueueProcessingTurn(opts) {
   const queueKeys = [
@@ -90428,6 +90559,51 @@ function buildWorkflowInteractionRunAccepted(interaction, thread, task, roleCont
     roleContext
   };
 }
+function buildWorkflowApiRunMessage(opts, roleContext, client) {
+  const emptyAttachments = {
+    size: 0,
+    values: function* values() {
+      return;
+    }
+  };
+  const authorTag = roleContext.senderDisplayLabel || opts.creatorUserId;
+  return {
+    id: opts.sourceMessageId ?? `workflow-api-${opts.thread.id}`,
+    content: opts.task,
+    channel: opts.thread,
+    channelId: opts.thread.id,
+    guildId: opts.thread.guildId ?? null,
+    guild: opts.thread.guild ?? null,
+    author: { id: opts.creatorUserId, tag: authorTag, bot: false },
+    client,
+    attachments: emptyAttachments,
+    reference: null
+  };
+}
+function buildWorkflowApiRunAccepted(opts, roleContext) {
+  return {
+    content: opts.task,
+    speakerKind: "human",
+    trigger: "workflow",
+    origin: {
+      guildId: opts.thread.guildId ?? null,
+      channelId: opts.thread.id,
+      threadId: opts.thread.id,
+      targetChannelId: opts.thread.id,
+      messageId: opts.sourceMessageId ?? `workflow-api-${opts.thread.id}`,
+      userId: opts.creatorUserId
+    },
+    channelName: opts.thread.name,
+    guildName: opts.thread.guild?.name ?? null,
+    replyToMessageId: null,
+    replyToAuthorId: null,
+    replyToAuthorName: null,
+    replyToContent: null,
+    replyToAttachments: [],
+    mentionContext: null,
+    roleContext
+  };
+}
 function resolveConversationAuthorBridgeRole(authorId, speakerKind, roleContext, config, botUserId) {
   if (botUserId && authorId === botUserId) {
     return "self_bot";
@@ -90481,7 +90657,14 @@ function isResetCommand(rawContent, normalizedContent, resetCommand, prefix) {
 async function processMessage(message, accepted, config, memory, state2, processingContext, geminiSemaphore, extensionDir2) {
   const channel = message.channel;
   const startTime = Date.now();
-  let requestedToolMode = accepted.trigger === "cron" ? "discord" : resolveToolMode(accepted.content);
+  let requestedToolMode;
+  if (accepted.trigger === "cron") {
+    requestedToolMode = "discord";
+  } else if (accepted.trigger === "workflow") {
+    requestedToolMode = "full";
+  } else {
+    requestedToolMode = resolveToolMode(accepted.content);
+  }
   if (requestedToolMode === "chat" && shouldUseImmediateMentionContext(accepted.trigger, accepted.content)) {
     const immediateContext = selectImmediateMentionContext(memory.snapshot(processingContext.sessionKey), {
       channelId: message.channelId,
@@ -90689,6 +90872,7 @@ var init_gateway = __esm({
     init_config_sanitize();
     init_thread_manifest();
     init_thread_creator();
+    init_task_validation();
     init_trace_renderer();
     init_trace_dispatcher();
     MAX_AGENT_EXCHANGES = 6;
@@ -90852,7 +91036,7 @@ function normalizeKeys(input) {
 
 // src/daemon/api.ts
 var http = __toESM(require("node:http"), 1);
-var fs9 = __toESM(require("node:fs"), 1);
+var fs10 = __toESM(require("node:fs"), 1);
 init_log();
 init_session_reset();
 init_dm_pairing();
@@ -91036,6 +91220,8 @@ init_chunker();
 init_sender();
 init_channels();
 init_log();
+init_runtime();
+init_task_validation();
 init_api_utils();
 async function handleMessageRoutes(req, res, pathname, parsed, deps) {
   const { config, memory, extensionDir: extensionDir2 } = deps;
@@ -91400,6 +91586,61 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
     }
     return true;
   }
+  if (pathname === "/workflow") {
+    if (!authorizeApiAction(req, res, config, "admin_command")) return true;
+    let task = String(parsed["task"] ?? "");
+    const creatorUserId = String(parsed["creator_user_id"] ?? "");
+    const sourceChannelId = String(parsed["source_channel_id"] ?? "");
+    const sourceMessageId = parsed["source_message_id"] == null ? void 0 : String(parsed["source_message_id"]);
+    const traceMode = parsed["trace_mode"] ?? "compact";
+    if (!task || !creatorUserId || !sourceChannelId) {
+      respond(res, 400, { error: "task, creator_user_id, and source_channel_id are required" });
+      return true;
+    }
+    try {
+      task = validateWorkflowTaskSummary(task);
+      if (!runtimeStore.enqueueWorkflowRun) {
+        respond(res, 503, { error: "Workflow runner is not ready. Try again after the Discord gateway is ready." });
+        return true;
+      }
+      if (!deps.client) {
+        respond(res, 503, { error: "Client not ready" });
+        return true;
+      }
+      const { createWorkflowThread: createWorkflowThread2 } = await Promise.resolve().then(() => (init_thread_creator(), thread_creator_exports));
+      const { threadId, thread } = await createWorkflowThread2(
+        deps.client,
+        config,
+        extensionDir2,
+        {
+          taskSummary: task,
+          creatorUserId,
+          sourceChannelId,
+          sourceMessageId,
+          traceMode
+        }
+      );
+      const started = runtimeStore.enqueueWorkflowRun({
+        thread,
+        task,
+        creatorUserId,
+        sourceChannelId,
+        sourceMessageId
+      });
+      if (!started) {
+        respond(res, 429, { error: "Workflow thread was created but the processing queue is full. Retry inside the thread.", threadId, task });
+        return true;
+      }
+      respond(res, 200, { ok: true, threadId, task, started: true });
+    } catch (err) {
+      if (err instanceof WorkflowTaskValidationError) {
+        respond(res, 400, { error: err.message });
+        return true;
+      }
+      respond(res, 500, { error: err instanceof Error ? err.message : String(err) });
+    }
+    return true;
+  }
   return false;
 }
 
@@ -91727,7 +91968,7 @@ function startControlApi(deps) {
       config.daemonPort = actualPort;
       try {
         const portPath = ensureRuntimePaths(extensionDir2).daemonPortFile;
-        fs9.writeFileSync(portPath, String(actualPort), "utf-8");
+        fs10.writeFileSync(portPath, String(actualPort), "utf-8");
       } catch (e) {
         log.warn("Failed to write daemon port discovery file", { error: String(e) });
       }
@@ -91816,7 +92057,7 @@ var readline = __toESM(require("node:readline"), 1);
 init_log();
 
 // src/daemon/acp-content.ts
-var path8 = __toESM(require("node:path"), 1);
+var path9 = __toESM(require("node:path"), 1);
 function buildAcpPromptBlocks(prompt, attachments = []) {
   if (attachments.length === 0) {
     return [{ type: "text", text: prompt }];
@@ -91865,13 +92106,13 @@ function toAcpAttachmentBlock(attachment) {
   return {
     type: "resource_link",
     uri,
-    name: attachment.metadata.name || path8.basename(attachment.relativePath),
+    name: attachment.metadata.name || path9.basename(attachment.relativePath),
     mimeType: attachment.metadata.contentType,
     size: attachment.metadata.sizeBytes
   };
 }
 function toFileUri(relativePath) {
-  return `file://${relativePath.split(path8.sep).join("/")}`;
+  return `file://${relativePath.split(path9.sep).join("/")}`;
 }
 
 // src/daemon/gemini-output.ts
@@ -92134,12 +92375,144 @@ function firstString(...values) {
   }
   return null;
 }
+function recordValue(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+function extractContentBlockText(value) {
+  const record = recordValue(value);
+  if (!record) return typeof value === "string" ? value : "";
+  if (typeof record["text"] === "string") return record["text"];
+  if (typeof record["thought"] === "string") return record["thought"];
+  const content = record["content"];
+  if (content && typeof content === "object") {
+    return extractContentBlockText(content);
+  }
+  const resource = record["resource"];
+  if (resource && typeof resource === "object") {
+    return extractContentBlockText(resource);
+  }
+  return "";
+}
+function extractToolContentText(value) {
+  if (!Array.isArray(value)) return "";
+  return value.map((entry) => {
+    const record = recordValue(entry);
+    if (!record) return "";
+    if (record["type"] === "diff") {
+      const path14 = firstString(record["path"]) ?? "diff";
+      const oldText = typeof record["oldText"] === "string" ? record["oldText"] : "";
+      const newText = typeof record["newText"] === "string" ? record["newText"] : "";
+      return [
+        `Diff: ${path14}`,
+        oldText ? `--- old
+${oldText}` : "",
+        newText ? `+++ new
+${newText}` : ""
+      ].filter(Boolean).join("\n");
+    }
+    if (record["type"] === "terminal") {
+      const terminalId = firstString(record["terminalId"]);
+      return terminalId ? `Terminal output: ${terminalId}` : "Terminal output";
+    }
+    if (record["type"] === "content") {
+      return extractContentBlockText(record["content"]);
+    }
+    return extractContentBlockText(record);
+  }).filter(Boolean).join("\n\n");
+}
+function summarizePlanEntries(entries) {
+  if (!Array.isArray(entries)) return null;
+  const lines = entries.map((entry) => {
+    const record = recordValue(entry);
+    if (!record) return "";
+    const content = firstString(record["content"]);
+    if (!content) return "";
+    const status = firstString(record["status"]);
+    return status ? `${status}: ${content}` : content;
+  }).filter(Boolean);
+  return lines.length > 0 ? lines.join("\n") : null;
+}
+function resolveAcpStatus(sessionUpdate, rawStatus, hasResultText) {
+  if (rawStatus === "failed") return { type: "tool_failed", status: "failed" };
+  if (rawStatus === "cancelled") return { type: "tool_cancelled", status: "cancelled" };
+  if (rawStatus === "completed" || hasResultText) return { type: "tool_completed", status: "completed" };
+  if (sessionUpdate === "tool_call_update") return { type: "tool_progress", status: "progress" };
+  return { type: "tool_started", status: "started" };
+}
+function resolveDuration(id, type, timestamp, activeToolTimers) {
+  if (!id) return null;
+  if (type === "tool_started") {
+    if (!activeToolTimers.has(id)) {
+      activeToolTimers.set(id, timestamp);
+    }
+    return null;
+  }
+  const start = activeToolTimers.get(id);
+  if (!start) return null;
+  if (type === "tool_completed" || type === "tool_failed" || type === "tool_cancelled") {
+    activeToolTimers.delete(id);
+  }
+  return timestamp - start;
+}
+function familyFromAcpKind(kind) {
+  switch (kind) {
+    case "execute":
+      return "shell";
+    case "read":
+    case "edit":
+    case "delete":
+    case "move":
+      return "filesystem";
+    case "search":
+      return "search";
+    case "fetch":
+      return "web";
+    case "think":
+    case "switch_mode":
+      return "planning";
+    default:
+      return "unknown";
+  }
+}
+function resolveTopLevelToolEntry(payload) {
+  const rawInput = recordValue(payload["rawInput"]);
+  const rawToolName = firstString(
+    rawInput?.["name"],
+    rawInput?.["toolName"],
+    rawInput?.["tool_name"]
+  );
+  if (rawToolName) return resolveToolEntry(rawToolName);
+  const kind = firstString(payload["kind"]) ?? "other";
+  const title = firstString(payload["title"]) ?? kind;
+  return {
+    canonical: `acp_${kind}`,
+    displayName: title,
+    family: familyFromAcpKind(kind)
+  };
+}
+function rawInputArgs(rawInput) {
+  const record = recordValue(rawInput);
+  if (!record) return {};
+  const args = recordValue(record["args"]) ?? recordValue(record["arguments"]);
+  if (args) return args;
+  if (firstString(record["name"], record["toolName"], record["tool_name"])) {
+    const rest = { ...record };
+    delete rest["name"];
+    delete rest["toolName"];
+    delete rest["tool_name"];
+    return rest;
+  }
+  return record;
+}
 function normalizeAcpUpdate(sessionUpdate, updatePayload, activeToolTimers) {
   const timestamp = Date.now();
   if (sessionUpdate === "plan") {
     let summary = "Planning next steps...";
+    const entriesSummary = summarizePlanEntries(updatePayload["entries"]);
     const planVal = updatePayload["plan"];
-    if (planVal && typeof planVal === "string") {
+    if (entriesSummary) {
+      summary = entriesSummary;
+    } else if (planVal && typeof planVal === "string") {
       summary = planVal;
     } else if (planVal && typeof planVal === "object") {
       const steps = planVal["steps"];
@@ -92177,7 +92550,40 @@ function normalizeAcpUpdate(sessionUpdate, updatePayload, activeToolTimers) {
   }
   if (sessionUpdate === "tool_call" || sessionUpdate === "tool_call_update") {
     const toolCall = updatePayload["toolCall"];
-    if (!toolCall) return null;
+    if (!toolCall) {
+      const id2 = firstString(updatePayload["toolCallId"]) ?? "";
+      const title = firstString(updatePayload["title"]) ?? "";
+      if (!id2 || !title) return null;
+      const toolEntry2 = resolveTopLevelToolEntry(updatePayload);
+      const rawArgs2 = rawInputArgs(updatePayload["rawInput"]);
+      const { redacted: redactedArgs2, fieldsRedacted: fieldsRedacted2 } = redactTraceArgs(rawArgs2);
+      const contentText = extractToolContentText(updatePayload["content"]);
+      const outputText = stringifyTraceValue(updatePayload["rawOutput"], toolEntry2.canonical);
+      const resultText = [contentText, outputText].filter(Boolean).join("\n\n");
+      const statusInfo = resolveAcpStatus(sessionUpdate, updatePayload["status"], Boolean(resultText));
+      const durationMs2 = resolveDuration(id2, statusInfo.type, timestamp, activeToolTimers);
+      const redactedResult = redactTraceResult(resultText, 200);
+      const redactedDetail = redactTraceText(resultText, 12e3);
+      return {
+        type: statusInfo.type,
+        timestamp,
+        toolName: toolEntry2.canonical,
+        canonicalToolName: toolEntry2.canonical,
+        displayName: toolEntry2.displayName,
+        toolFamily: toolEntry2.family,
+        args: redactedArgs2,
+        status: statusInfo.status,
+        durationMs: durationMs2,
+        resultSummary: redactedResult.summary || null,
+        resultDetail: redactedDetail.text || redactedResult.summary || null,
+        artifactRef: null,
+        redactionMetadata: {
+          fieldsRedacted: fieldsRedacted2,
+          truncated: redactedResult.truncated || redactedDetail.truncated
+        },
+        raw: updatePayload
+      };
+    }
     const id = typeof toolCall["id"] === "string" ? toolCall["id"] : "";
     const name = typeof toolCall["name"] === "string" ? toolCall["name"] : "";
     if (!name) return null;
@@ -92954,19 +93360,19 @@ init_cron();
 init_binding();
 
 // src/daemon/attachment-cleanup.ts
-var fs10 = __toESM(require("node:fs/promises"), 1);
-var path9 = __toESM(require("node:path"), 1);
+var fs11 = __toESM(require("node:fs/promises"), 1);
+var path10 = __toESM(require("node:path"), 1);
 init_log();
 var DEFAULT_TMP_ATTACHMENT_TTL_MS = 24 * 60 * 60 * 1e3;
 var DEFAULT_TMP_ATTACHMENT_CLEANUP_INTERVAL_MS = 60 * 60 * 1e3;
 async function cleanupStaleTmpAttachments(extensionDir2, options = {}) {
-  const root = path9.join(extensionDir2, ".tmp-attachments");
+  const root = path10.join(extensionDir2, ".tmp-attachments");
   const nowMs = options.nowMs ?? Date.now();
   const ttlMs = options.ttlMs ?? DEFAULT_TMP_ATTACHMENT_TTL_MS;
   const cutoffMs = nowMs - ttlMs;
   let entries;
   try {
-    entries = await fs10.readdir(root, { withFileTypes: true });
+    entries = await fs11.readdir(root, { withFileTypes: true });
   } catch (err) {
     if (err.code === "ENOENT") {
       return { checked: 0, removed: 0, root };
@@ -92976,18 +93382,18 @@ async function cleanupStaleTmpAttachments(extensionDir2, options = {}) {
   let checked = 0;
   let removed = 0;
   for (const entry of entries) {
-    const target = path9.join(root, entry.name);
+    const target = path10.join(root, entry.name);
     checked++;
     let stat3;
     try {
-      stat3 = await fs10.stat(target);
+      stat3 = await fs11.stat(target);
     } catch {
       continue;
     }
     if (stat3.mtimeMs > cutoffMs) {
       continue;
     }
-    await fs10.rm(target, { recursive: true, force: true });
+    await fs11.rm(target, { recursive: true, force: true });
     removed++;
   }
   return { checked, removed, root };

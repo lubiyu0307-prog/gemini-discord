@@ -27,6 +27,7 @@ import {
   type RoleContext,
 } from './permissions.js';
 import { createWorkflowThread } from './workflow/thread-creator.js';
+import { validateWorkflowTaskSummary, WorkflowTaskValidationError } from './workflow/task-validation.js';
 
 export interface WorkflowThreadCreatedEvent {
   interaction: CommandInteraction;
@@ -345,8 +346,16 @@ Action: Reverted to \`${oldModel}\`.`);
     if (commandName === 'workflow') {
       if (!await authorizeInteraction(interaction, roleContext, 'admin_command')) return;
 
-      const task = interaction.options.getString('task', true);
+      let task = interaction.options.getString('task', true);
       const messageId = interaction.options.getString('message_id') ?? undefined;
+
+      try {
+        task = validateWorkflowTaskSummary(task);
+      } catch (error) {
+        const message = error instanceof WorkflowTaskValidationError ? error.message : String(error);
+        await interaction.reply({ content: `❌ ${message}`, ephemeral: true });
+        return;
+      }
 
       await interaction.deferReply();
 

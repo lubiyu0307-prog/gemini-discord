@@ -57,6 +57,15 @@ If thread creation fails:
 2. Confirm the target channel is included in `DISCORD_ALLOWED_CHANNEL_IDS`, or that the server-wide allow mode is active.
 3. Confirm the bot has Discord permissions to create threads in that channel.
 
+## Workflow Thread Trace Visibility
+
+Workflow trace cards are rendered from Gemini CLI ACP `tool_call`, `tool_call_update`, and `plan` events. A newly enqueued workflow should always edit its header to `Running` and refresh elapsed time while it is waiting for the first tool event.
+
+If a workflow completes with `0 tool calls`, Discord was not silently stuck. It means the agent run did not emit tool events that the daemon observed. Check:
+1. The task was specific enough to start. Low-information tasks such as `job` are rejected before thread creation.
+2. `.gemini-discord/daemon.log` for ACP updates and trace dispatch warnings.
+3. The Gemini CLI version and output mode. The daemon supports current top-level ACP tool fields (`toolCallId`, `title`, `status`, `kind`, `content`, `rawInput`, `rawOutput`) and older nested `toolCall` payloads.
+
 ## Session Reset
 
 `/new` archives the active Discord transcript, resets the bound Gemini CLI session for that channel, and kills warm pooled CLI processes for that binding. The daemon logs this as `Conversation session reset` with `sessionKey`, `bindingKey`, and the archived Gemini session ID.

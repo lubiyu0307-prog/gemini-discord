@@ -213,7 +213,7 @@ function readFileResult(event: TraceEvent): string {
 
 export class ShellRenderer implements ToolRenderer {
   canRender(event: TraceEvent): boolean {
-    return event.canonicalToolName === 'run_shell_command';
+    return event.canonicalToolName === 'run_shell_command' || event.toolFamily === 'shell';
   }
 
   render(event: TraceEvent): RenderedTrace {

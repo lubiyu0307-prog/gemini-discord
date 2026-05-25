@@ -21,11 +21,11 @@ import { buildGuildChannelMap } from './channels.js';
 import { buildGuildUserMap } from './users.js';
 import { processViaCli, resolveProcessingContext, formatError, type ProcessingContext } from './engine-cli.js';
 import { retrySend } from './retry.js';
-import { resolveToolMode } from './tool-mode.js';
+import { resolveToolMode, type ToolMode } from './tool-mode.js';
 import { getSupportedAttachmentMetadata } from './attachments.js';
 import { persistConfigEnvUpdates, type loadConfig } from '../shared/config.js';
 import { ENV } from '../shared/config-vars.js';
-import { runtimeStore } from './runtime.js';
+import { runtimeStore, type WorkflowRuntimeRunRequest } from './runtime.js';
 import { type Semaphore } from './semaphore.js';
 import type { ExchangeLog } from '../shared/types.js';
 import type { ConversationAuthorBridgeRole } from '../shared/types.js';
@@ -48,6 +48,7 @@ import {
 import { sanitizeAllowedUserIds } from '../shared/config-sanitize.js';
 import { isWorkflowThread, loadThreadManifest } from './workflow/thread-manifest.js';
 import { createWorkflowThread } from './workflow/thread-creator.js';
+import { validateWorkflowTaskSummary, WorkflowTaskValidationError } from './workflow/task-validation.js';
 import { TraceRendererRegistry } from './workflow/trace-renderer.js';
 import { TraceDispatcher } from './workflow/trace-dispatcher.js';
 import type { TraceEvent } from './workflow/trace-event.js';
@@ -64,6 +65,14 @@ export async function initGateway(
 ): Promise<void> {
   const client = createClient(config);
   runtimeStore.client = client;
+  runtimeStore.enqueueWorkflowRun = (request) => enqueueInitialWorkflowApiRun({
+    ...request,
+    client,
+    config,
+    memory,
+    state,
+    extensionDir,
+  });
 
   setupInteractionHandler(client, config, state, memory, extensionDir, ({ interaction, thread, task, roleContext }) => {
     enqueueInitialWorkflowInteractionRun({
@@ -153,8 +162,15 @@ export async function initGateway(
       const isWorkflowTextCmd = contentTrimmed.startsWith('!thread ') || contentTrimmed.startsWith('!workflow ');
       if (isWorkflowTextCmd && isBoss(accepted.roleContext)) {
         const prefix = contentTrimmed.startsWith('!thread ') ? '!thread ' : '!workflow ';
-        const task = contentTrimmed.slice(prefix.length).trim();
+        let task = contentTrimmed.slice(prefix.length).trim();
         if (task) {
+          try {
+            task = validateWorkflowTaskSummary(task);
+          } catch (err) {
+            const validationMessage = err instanceof WorkflowTaskValidationError ? err.message : String(err);
+            retrySend(() => message.reply(`❌ ${validationMessage}`)).catch(() => {});
+            return;
+          }
           createWorkflowThread(client, config, extensionDir, {
             taskSummary: task,
             creatorUserId: message.author.id,
@@ -333,6 +349,31 @@ function enqueueInitialWorkflowInteractionRun(opts: {
   });
 }
 
+function enqueueInitialWorkflowApiRun(opts: WorkflowRuntimeRunRequest & {
+  client: Awaited<ReturnType<typeof createClient>>;
+  config: ReturnType<typeof loadConfig>;
+  memory: ConversationMemory;
+  state: DaemonState;
+  extensionDir: string;
+}): boolean {
+  const roleContext = opts.roleContext ?? resolveDiscordRole(opts.config, {
+    discordUserId: opts.creatorUserId,
+    displayLabel: opts.creatorUserId,
+  });
+  const workflowMessage = buildWorkflowApiRunMessage(opts, roleContext, opts.client);
+  const workflowAccepted = buildWorkflowApiRunAccepted(opts, roleContext);
+  return enqueueWorkflowRun({
+    message: workflowMessage,
+    accepted: workflowAccepted,
+    thread: opts.thread,
+    sourceMessageId: opts.sourceMessageId ?? workflowMessage.id,
+    config: opts.config,
+    memory: opts.memory,
+    state: opts.state,
+    extensionDir: opts.extensionDir,
+  });
+}
+
 function enqueueWorkflowRun(opts: {
   message: Message;
   accepted: AcceptedDiscordMessage;
@@ -342,7 +383,7 @@ function enqueueWorkflowRun(opts: {
   memory: ConversationMemory;
   state: DaemonState;
   extensionDir: string;
-}): void {
+}): boolean {
   const processingContext = resolveProcessingContext(opts.config, opts.message, opts.accepted, opts.extensionDir);
 
   runtimeStore.agentExchangeCount.set(opts.thread.id, 0);
@@ -360,7 +401,7 @@ function enqueueWorkflowRun(opts: {
   if (!enqueued) {
     retrySend(() => opts.thread.send('⏳ Too many pending messages for this workflow. Please wait a moment and retry in the thread.'))
       .catch(() => {});
-    return;
+    return false;
   }
 
   log.info('Initial workflow task enqueued', {
@@ -368,6 +409,7 @@ function enqueueWorkflowRun(opts: {
     threadId: opts.thread.id,
     sessionKey: processingContext.sessionKey,
   });
+  return true;
 }
 
 function enqueueProcessingTurn(opts: {
@@ -486,6 +528,61 @@ export function buildWorkflowInteractionRunAccepted(
     },
     channelName: thread.name,
     guildName: interaction.guild?.name ?? null,
+    replyToMessageId: null,
+    replyToAuthorId: null,
+    replyToAuthorName: null,
+    replyToContent: null,
+    replyToAttachments: [],
+    mentionContext: null,
+    roleContext,
+  };
+}
+
+export function buildWorkflowApiRunMessage(
+  opts: Pick<WorkflowRuntimeRunRequest, 'thread' | 'task' | 'creatorUserId' | 'sourceMessageId'>,
+  roleContext: RoleContext,
+  client: Awaited<ReturnType<typeof createClient>>,
+): Message {
+  const emptyAttachments = {
+    size: 0,
+    values: function* values() {
+      return;
+    },
+  };
+  const authorTag = roleContext.senderDisplayLabel || opts.creatorUserId;
+
+  return {
+    id: opts.sourceMessageId ?? `workflow-api-${opts.thread.id}`,
+    content: opts.task,
+    channel: opts.thread,
+    channelId: opts.thread.id,
+    guildId: opts.thread.guildId ?? null,
+    guild: (opts.thread as { guild?: unknown }).guild ?? null,
+    author: { id: opts.creatorUserId, tag: authorTag, bot: false },
+    client,
+    attachments: emptyAttachments,
+    reference: null,
+  } as unknown as Message;
+}
+
+export function buildWorkflowApiRunAccepted(
+  opts: Pick<WorkflowRuntimeRunRequest, 'thread' | 'task' | 'creatorUserId' | 'sourceMessageId'>,
+  roleContext: RoleContext,
+): AcceptedDiscordMessage {
+  return {
+    content: opts.task,
+    speakerKind: 'human',
+    trigger: 'workflow',
+    origin: {
+      guildId: opts.thread.guildId ?? null,
+      channelId: opts.thread.id,
+      threadId: opts.thread.id,
+      targetChannelId: opts.thread.id,
+      messageId: opts.sourceMessageId ?? `workflow-api-${opts.thread.id}`,
+      userId: opts.creatorUserId,
+    },
+    channelName: opts.thread.name,
+    guildName: ((opts.thread as { guild?: { name?: string } }).guild?.name) ?? null,
     replyToMessageId: null,
     replyToAuthorId: null,
     replyToAuthorName: null,

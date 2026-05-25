@@ -32,6 +32,175 @@ function firstString(...values: unknown[]): string | null {
   return null;
 }
 
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function extractContentBlockText(value: unknown): string {
+  const record = recordValue(value);
+  if (!record) return typeof value === 'string' ? value : '';
+
+  if (typeof record['text'] === 'string') return record['text'];
+  if (typeof record['thought'] === 'string') return record['thought'];
+
+  const content = record['content'];
+  if (content && typeof content === 'object') {
+    return extractContentBlockText(content);
+  }
+
+  const resource = record['resource'];
+  if (resource && typeof resource === 'object') {
+    return extractContentBlockText(resource);
+  }
+
+  return '';
+}
+
+function extractToolContentText(value: unknown): string {
+  if (!Array.isArray(value)) return '';
+
+  return value
+    .map((entry) => {
+      const record = recordValue(entry);
+      if (!record) return '';
+
+      if (record['type'] === 'diff') {
+        const path = firstString(record['path']) ?? 'diff';
+        const oldText = typeof record['oldText'] === 'string' ? record['oldText'] : '';
+        const newText = typeof record['newText'] === 'string' ? record['newText'] : '';
+        return [
+          `Diff: ${path}`,
+          oldText ? `--- old\n${oldText}` : '',
+          newText ? `+++ new\n${newText}` : '',
+        ].filter(Boolean).join('\n');
+      }
+
+      if (record['type'] === 'terminal') {
+        const terminalId = firstString(record['terminalId']);
+        return terminalId ? `Terminal output: ${terminalId}` : 'Terminal output';
+      }
+
+      if (record['type'] === 'content') {
+        return extractContentBlockText(record['content']);
+      }
+
+      return extractContentBlockText(record);
+    })
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function summarizePlanEntries(entries: unknown): string | null {
+  if (!Array.isArray(entries)) return null;
+
+  const lines = entries
+    .map((entry) => {
+      const record = recordValue(entry);
+      if (!record) return '';
+      const content = firstString(record['content']);
+      if (!content) return '';
+      const status = firstString(record['status']);
+      return status ? `${status}: ${content}` : content;
+    })
+    .filter(Boolean);
+
+  return lines.length > 0 ? lines.join('\n') : null;
+}
+
+function resolveAcpStatus(
+  sessionUpdate: string,
+  rawStatus: unknown,
+  hasResultText: boolean,
+): { type: TraceEventType; status: TraceEvent['status'] } {
+  if (rawStatus === 'failed') return { type: 'tool_failed', status: 'failed' };
+  if (rawStatus === 'cancelled') return { type: 'tool_cancelled', status: 'cancelled' };
+  if (rawStatus === 'completed' || hasResultText) return { type: 'tool_completed', status: 'completed' };
+  if (sessionUpdate === 'tool_call_update') return { type: 'tool_progress', status: 'progress' };
+  return { type: 'tool_started', status: 'started' };
+}
+
+function resolveDuration(
+  id: string,
+  type: TraceEventType,
+  timestamp: number,
+  activeToolTimers: Map<string, number>,
+): number | null {
+  if (!id) return null;
+
+  if (type === 'tool_started') {
+    if (!activeToolTimers.has(id)) {
+      activeToolTimers.set(id, timestamp);
+    }
+    return null;
+  }
+
+  const start = activeToolTimers.get(id);
+  if (!start) return null;
+
+  if (type === 'tool_completed' || type === 'tool_failed' || type === 'tool_cancelled') {
+    activeToolTimers.delete(id);
+  }
+
+  return timestamp - start;
+}
+
+function familyFromAcpKind(kind: string): string {
+  switch (kind) {
+    case 'execute':
+      return 'shell';
+    case 'read':
+    case 'edit':
+    case 'delete':
+    case 'move':
+      return 'filesystem';
+    case 'search':
+      return 'search';
+    case 'fetch':
+      return 'web';
+    case 'think':
+    case 'switch_mode':
+      return 'planning';
+    default:
+      return 'unknown';
+  }
+}
+
+function resolveTopLevelToolEntry(payload: Record<string, unknown>): ReturnType<typeof resolveToolEntry> {
+  const rawInput = recordValue(payload['rawInput']);
+  const rawToolName = firstString(
+    rawInput?.['name'],
+    rawInput?.['toolName'],
+    rawInput?.['tool_name'],
+  );
+  if (rawToolName) return resolveToolEntry(rawToolName);
+
+  const kind = firstString(payload['kind']) ?? 'other';
+  const title = firstString(payload['title']) ?? kind;
+  return {
+    canonical: `acp_${kind}`,
+    displayName: title,
+    family: familyFromAcpKind(kind),
+  };
+}
+
+function rawInputArgs(rawInput: unknown): Record<string, unknown> {
+  const record = recordValue(rawInput);
+  if (!record) return {};
+
+  const args = recordValue(record['args']) ?? recordValue(record['arguments']);
+  if (args) return args;
+  if (firstString(record['name'], record['toolName'], record['tool_name'])) {
+    const rest = { ...record };
+    delete rest['name'];
+    delete rest['toolName'];
+    delete rest['tool_name'];
+    return rest;
+  }
+  return record;
+}
+
 export function normalizeAcpUpdate(
   sessionUpdate: string,
   updatePayload: Record<string, unknown>,
@@ -41,8 +210,11 @@ export function normalizeAcpUpdate(
 
   if (sessionUpdate === 'plan') {
     let summary = 'Planning next steps...';
+    const entriesSummary = summarizePlanEntries(updatePayload['entries']);
     const planVal = updatePayload['plan'];
-    if (planVal && typeof planVal === 'string') {
+    if (entriesSummary) {
+      summary = entriesSummary;
+    } else if (planVal && typeof planVal === 'string') {
       summary = planVal;
     } else if (planVal && typeof planVal === 'object') {
       const steps = (planVal as Record<string, unknown>)['steps'];
@@ -83,7 +255,42 @@ export function normalizeAcpUpdate(
 
   if (sessionUpdate === 'tool_call' || sessionUpdate === 'tool_call_update') {
     const toolCall = updatePayload['toolCall'] as Record<string, unknown> | undefined;
-    if (!toolCall) return null;
+    if (!toolCall) {
+      const id = firstString(updatePayload['toolCallId']) ?? '';
+      const title = firstString(updatePayload['title']) ?? '';
+      if (!id || !title) return null;
+
+      const toolEntry = resolveTopLevelToolEntry(updatePayload);
+      const rawArgs = rawInputArgs(updatePayload['rawInput']);
+      const { redacted: redactedArgs, fieldsRedacted } = redactTraceArgs(rawArgs);
+      const contentText = extractToolContentText(updatePayload['content']);
+      const outputText = stringifyTraceValue(updatePayload['rawOutput'], toolEntry.canonical);
+      const resultText = [contentText, outputText].filter(Boolean).join('\n\n');
+      const statusInfo = resolveAcpStatus(sessionUpdate, updatePayload['status'], Boolean(resultText));
+      const durationMs = resolveDuration(id, statusInfo.type, timestamp, activeToolTimers);
+      const redactedResult = redactTraceResult(resultText, 200);
+      const redactedDetail = redactTraceText(resultText, 12000);
+
+      return {
+        type: statusInfo.type,
+        timestamp,
+        toolName: toolEntry.canonical,
+        canonicalToolName: toolEntry.canonical,
+        displayName: toolEntry.displayName,
+        toolFamily: toolEntry.family,
+        args: redactedArgs,
+        status: statusInfo.status,
+        durationMs,
+        resultSummary: redactedResult.summary || null,
+        resultDetail: redactedDetail.text || redactedResult.summary || null,
+        artifactRef: null,
+        redactionMetadata: {
+          fieldsRedacted,
+          truncated: redactedResult.truncated || redactedDetail.truncated,
+        },
+        raw: updatePayload,
+      };
+    }
 
     const id = typeof toolCall['id'] === 'string' ? toolCall['id'] : '';
     const name = typeof toolCall['name'] === 'string' ? toolCall['name'] : '';

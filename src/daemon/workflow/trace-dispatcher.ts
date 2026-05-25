@@ -12,6 +12,9 @@ export class TraceDispatcher {
   private startedAt = Date.now();
   private toolCallCount = 0;
   private currentStep: string | null = null;
+  private seenToolCallIds = new Set<string>();
+  private hasTraceEvents = false;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private threadChannel: ThreadChannel | TextChannel,
@@ -27,10 +30,13 @@ export class TraceDispatcher {
         files: rendered.files,
       };
 
-      const toolCall = event.raw?.toolCall as Record<string, unknown> | undefined;
-      const toolCallId = typeof toolCall?.id === 'string' ? toolCall.id : null;
-      if (event.type === 'tool_started') {
+      this.hasTraceEvents = true;
+      const toolCallId = resolveToolCallId(event);
+      if (toolCallId ? !this.seenToolCallIds.has(toolCallId) : event.type === 'tool_started') {
         this.toolCallCount += 1;
+        if (toolCallId) {
+          this.seenToolCallIds.add(toolCallId);
+        }
       }
       if (event.displayName || event.toolName) {
         this.currentStep = event.displayName || event.toolName;
@@ -54,7 +60,7 @@ export class TraceDispatcher {
 
       const sent = await this.threadChannel.send(payload);
       
-      if (toolCallId && event.status === 'started') {
+      if (toolCallId && (event.status === 'started' || event.status === 'progress')) {
         this.activeMessages.set(toolCallId, sent);
       }
     } catch (error) {
@@ -67,19 +73,25 @@ export class TraceDispatcher {
       this.startedAt = Date.now();
       this.toolCallCount = 0;
       this.currentStep = null;
+      this.seenToolCallIds.clear();
+      this.hasTraceEvents = false;
       this.headerMessage = await this.threadChannel.send({
         content: `◌ **Queued** · ${this.formatTask(manifest.taskSummary)}\n${TRACE_MARKER}`,
       });
+      this.startHeartbeat();
+      await this.updateRunHeader('running');
     } catch (error) {
       log.warn('Failed to dispatch run header', { error: String(error) });
     }
   }
 
   async dispatchRunComplete(): Promise<void> {
+    this.stopHeartbeat();
     await this.updateRunHeader('complete');
   }
 
   async dispatchRunFailed(error: unknown): Promise<void> {
+    this.stopHeartbeat();
     const message = error instanceof Error ? error.message : String(error);
     await this.updateRunHeader('failed', message);
   }
@@ -105,7 +117,9 @@ export class TraceDispatcher {
       const suffix = detail ? ` · ${detail.slice(0, 160)}` : '';
       content = `✗ **Failed** \`${elapsed}\` · \`${this.toolCallCount}\` tool calls${suffix}`;
     } else {
-      const suffix = this.currentStep ? ` · current step: \`${this.currentStep}\`` : '';
+      const suffix = this.currentStep
+        ? ` · current step: \`${this.currentStep}\``
+        : (this.hasTraceEvents ? '' : ' · waiting for first tool event');
       content = `⌁ **Running** \`${elapsed}\`${suffix}`;
     }
 
@@ -127,4 +141,26 @@ export class TraceDispatcher {
     const trimmed = task.trim().replace(/\s+/g, ' ');
     return trimmed.length > 120 ? `${trimmed.slice(0, 117)}...` : trimmed;
   }
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      this.updateRunHeader('running').catch(() => {});
+    }, 15_000);
+  }
+
+  private stopHeartbeat(): void {
+    if (!this.heartbeatTimer) return;
+    clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = null;
+  }
+}
+
+function resolveToolCallId(event: TraceEvent): string | null {
+  if (typeof event.raw?.['toolCallId'] === 'string') {
+    return event.raw['toolCallId'];
+  }
+
+  const toolCall = event.raw?.toolCall as Record<string, unknown> | undefined;
+  return typeof toolCall?.id === 'string' ? toolCall.id : null;
 }

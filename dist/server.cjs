@@ -21860,6 +21860,48 @@ function discordRoleHeaders(config3) {
   };
 }
 
+// src/daemon/workflow/task-validation.ts
+var VAGUE_SINGLE_WORDS = /* @__PURE__ */ new Set([
+  "do",
+  "fix",
+  "help",
+  "issue",
+  "job",
+  "run",
+  "task",
+  "test",
+  "thing",
+  "this",
+  "that",
+  "todo",
+  "work"
+]);
+var WorkflowTaskValidationError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "WorkflowTaskValidationError";
+  }
+};
+function normalizeWorkflowTaskSummary(task) {
+  return task.trim().replace(/\s+/g, " ");
+}
+function validateWorkflowTaskSummary(task) {
+  const normalized = normalizeWorkflowTaskSummary(task);
+  if (!normalized) {
+    throw new WorkflowTaskValidationError("Workflow task is required. Please provide a specific task.");
+  }
+  const tokens = normalized.match(/[A-Za-z0-9][A-Za-z0-9_-]*/g) ?? [];
+  if (tokens.length === 1) {
+    const token = tokens[0].toLowerCase();
+    if (token.length < 4 || VAGUE_SINGLE_WORDS.has(token)) {
+      throw new WorkflowTaskValidationError(
+        `Workflow task "${normalized}" is too vague. Please provide a specific task, for example "fix CI failure" or "run tests".`
+      );
+    }
+  }
+  return normalized;
+}
+
 // src/tools/pending-delivery.ts
 var MAX_PENDING_DELIVERIES = 5;
 var pendingDeliveries = [];
@@ -22013,12 +22055,14 @@ function registerAdminTool(server2, config3) {
       `\u2022 "set_presence" \u2014 change the bot's online status and activity`,
       '\u2022 "kick" \u2014 remove a member from the server',
       '\u2022 "timeout" \u2014 apply a communication timeout (up to 28 days)',
-      '\u2022 "remove_timeout" \u2014 remove an active timeout from a member'
+      '\u2022 "remove_timeout" \u2014 remove an active timeout from a member',
+      '\u2022 "workflow" \u2014 start a monitored workflow thread for a task'
     ].join("\n"),
     {
-      action: external_exports.enum(["status", "restart", "reset", "channels", "users", "allowlist_add", "allowlist_remove", "set_presence", "kick", "timeout", "remove_timeout"]).describe("The administrative action to perform."),
+      action: external_exports.enum(["status", "restart", "reset", "channels", "users", "allowlist_add", "allowlist_remove", "set_presence", "kick", "timeout", "remove_timeout", "workflow"]).describe("The administrative action to perform."),
       query: external_exports.string().optional().describe("Optional channel/user name, mention, ID, or partial string to filter discovery actions."),
-      channel_id: external_exports.string().optional().describe("Explicit Discord channel ID for reset actions."),
+      task: external_exports.string().optional().describe("Description of the task for the workflow (required for workflow action)."),
+      channel_id: external_exports.string().optional().describe("Explicit Discord channel ID for reset/workflow actions."),
       status: external_exports.enum(["online", "idle", "dnd", "invisible"]).optional().describe("Bot online status (only for set_presence)."),
       activity_type: external_exports.enum(["playing", "watching", "listening", "competing"]).optional().describe("Activity type (only for set_presence)."),
       activity_name: external_exports.string().optional().describe('Activity name, e.g. "with fire" (only for set_presence).'),
@@ -22027,7 +22071,7 @@ function registerAdminTool(server2, config3) {
       reason: external_exports.string().optional().describe("Optional audit-log reason (only for kick/timeout/remove_timeout)."),
       duration_minutes: external_exports.number().optional().describe("Timeout duration in minutes. Required for timeout. Maximum 40320 (28 days).")
     },
-    async ({ action, query, channel_id, status, activity_type, activity_name, user_id, guild_id, reason, duration_minutes }) => {
+    async ({ action, query, task, channel_id, status, activity_type, activity_name, user_id, guild_id, reason, duration_minutes }) => {
       const permAction = action === "status" ? "status" : action === "users" ? "user_discovery" : ["kick", "timeout", "remove_timeout", "allowlist_add", "allowlist_remove"].includes(action) ? "moderation" : "admin_command";
       const gate = authorizeMcpToolAction(permAction, config3);
       if (gate.decision !== "allow") {
@@ -22272,6 +22316,29 @@ ${retryMessage}` : ""}` }]
           if (action === "kick") return text(`\u2705 Kicked user ${target}.`);
           if (action === "timeout") return text(`\u2705 Timed out user ${target} for ${duration_minutes} minute${duration_minutes === 1 ? "" : "s"}.`);
           return text(`\u2705 Removed timeout for user ${target}.`);
+        }
+        case "workflow": {
+          if (!task) {
+            return text("\u274C Error: task is required for workflow.", true);
+          }
+          let normalizedTask;
+          try {
+            normalizedTask = validateWorkflowTaskSummary(task);
+          } catch (error2) {
+            const message = error2 instanceof WorkflowTaskValidationError ? error2.message : String(error2);
+            return text(`\u274C Workflow creation failed: ${message}`, true);
+          }
+          const body = {
+            task: normalizedTask,
+            creator_user_id: config3.discordBossUserId,
+            source_channel_id: channel_id || config3.discordChannelId
+          };
+          const res = await daemonRequest({ method: "POST", path: "/workflow", config: config3, body });
+          if (!res.ok) {
+            const error2 = String(res.data["error"] ?? "unknown error");
+            return text(`\u274C Workflow creation failed: ${error2}`, true);
+          }
+          return text(`\u2705 Monitored workflow thread created: <#${res.data["threadId"]}> for task: "${normalizedTask}"`);
         }
         default:
           return text(`\u274C Error: Unknown action ${action}`, true);

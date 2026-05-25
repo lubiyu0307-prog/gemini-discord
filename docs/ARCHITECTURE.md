@@ -7,6 +7,8 @@ Monitored workflow threads mirror the Gemini CLI's tool-call trace experience di
 1. **Opt-In Triggers**:
    - Slash Command: `/workflow <task>`
    - Text Command: `!thread <task>` or `!workflow <task>` (restricted to the Boss user).
+   - API/Admin: `POST /workflow` and `discord_admin action:"workflow"`.
+   - All entrypoints share task validation. Blank tasks and low-information single-token tasks such as `job` are rejected before any Discord thread is created.
    - After the thread manifest is saved, the initiating request is adapted into a thread-scoped turn and enqueued through the normal message processor. The trace renderer only runs from observed CLI/ACP events from that turn.
 2. **DM Overflow**:
    - Direct Messages (DMs) cannot host native threads directly.
@@ -28,7 +30,7 @@ Monitored workflow threads mirror the Gemini CLI's tool-call trace experience di
 
 ## Trace Event Pipeline
 
-The trace pipeline intercepts the Gemini CLI's execution logs and translates them into live Discord updates.
+The trace pipeline intercepts Gemini CLI ACP execution updates and translates them into live Discord updates. Current Gemini CLI versions emit tool metadata on top-level ACP fields such as `toolCallId`, `title`, `status`, `kind`, `content`, `rawInput`, and `rawOutput`; older nested `toolCall` payloads remain supported for compatibility.
 
 ```mermaid
 graph TD
@@ -53,5 +55,6 @@ Before any trace output is sent to Discord, it passes through a multi-stage rege
 ### 3. Rendering & Dispatcher
 - **Console Layout**: Trace output uses a Gemini CLI-style rhythm inside Discord: prompt echo, phase line, one editable run header, compact tool rows, sparse panels, and a separate final assistant answer.
 - **Density Selection**: Simple reads, searches, globs, and directory listings render as one-line rows. Shell output, diffs, logs, errors, MCP calls, edits, writes, web fetches, and meaningful results render as compact embeds. Long sanitized output is attached as a text file instead of pasted inline.
-- **Discord Message Edits**: To stay within Discord rate limits, the `TraceDispatcher` keeps track of the run header and active tool messages and updates them in place as the workflow transitions from queued to running to complete or failed.
+- **Discord Message Edits**: To stay within Discord rate limits, the `TraceDispatcher` keeps track of the run header and active tool messages and updates them in place as the workflow transitions from queued to running to complete or failed. Tool updates correlate on both top-level `toolCallId` and older nested `toolCall.id`, so started, progress, and completion events edit the same trace message.
+- **Run Heartbeat**: After a workflow is enqueued, the run header immediately changes to running and periodically refreshes elapsed time. Until the first trace event arrives it explicitly says it is waiting for the first tool event.
 - **Native Thinking State**: The bridge relies on Discord's native typing indicator for model thinking and does not emit separate "Thinking..." trace cards.

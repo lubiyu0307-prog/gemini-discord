@@ -5,6 +5,7 @@ import { daemonRequest } from './client.js';
 import { restartDaemon } from '../shared/daemon-runtime.js';
 import { resolveExtensionDir } from '../shared/config.js';
 import { authorizeMcpToolAction, formatPermissionDenial } from '../daemon/permissions.js';
+import { validateWorkflowTaskSummary, WorkflowTaskValidationError } from '../daemon/workflow/task-validation.js';
 import {
   clearPendingDelivery,
   pendingActionFailureText,
@@ -343,8 +344,15 @@ export function registerAdminTool(server: McpServer, config: Config): void {
           if (!task) {
             return text('❌ Error: task is required for workflow.', true);
           }
+          let normalizedTask: string;
+          try {
+            normalizedTask = validateWorkflowTaskSummary(task);
+          } catch (error) {
+            const message = error instanceof WorkflowTaskValidationError ? error.message : String(error);
+            return text(`❌ Workflow creation failed: ${message}`, true);
+          }
           const body: Record<string, unknown> = {
-            task,
+            task: normalizedTask,
             creator_user_id: config.discordBossUserId,
             source_channel_id: channel_id || config.discordChannelId,
           };
@@ -355,7 +363,7 @@ export function registerAdminTool(server: McpServer, config: Config): void {
             return text(`❌ Workflow creation failed: ${error}`, true);
           }
 
-          return text(`✅ Monitored workflow thread created: <#${res.data['threadId']}> for task: "${task}"`);
+          return text(`✅ Monitored workflow thread created: <#${res.data['threadId']}> for task: "${normalizedTask}"`);
         }
 
         default:

@@ -3,6 +3,7 @@ import type { Config } from '../../shared/types.js';
 import { type ThreadManifest, saveThreadManifest } from './thread-manifest.js';
 import { fetchTextChannel, isWritableTarget } from '../api-utils.js';
 import { log } from '../log.js';
+import { validateWorkflowTaskSummary } from './task-validation.js';
 
 export interface CreateThreadOptions {
   taskSummary: string;
@@ -18,7 +19,8 @@ export async function createWorkflowThread(
   extensionDir: string,
   opts: CreateThreadOptions
 ): Promise<{ threadId: string; manifest: ThreadManifest; thread: ThreadChannel }> {
-  const { taskSummary, creatorUserId, sourceChannelId, sourceMessageId, traceMode = 'compact' } = opts;
+  const { creatorUserId, sourceChannelId, sourceMessageId, traceMode = 'compact' } = opts;
+  const taskSummary = validateWorkflowTaskSummary(opts.taskSummary);
 
   // 1. Resolve starting channel
   const originChannel = await fetchTextChannel(client, sourceChannelId);

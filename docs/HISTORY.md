@@ -1,5 +1,15 @@
 # Change History
 
+## [2026-05-25] Reliable Workflow Thread Traces
+
+Fixed monitored workflow traces for current Gemini CLI ACP payloads and tightened workflow task validation.
+
+### Changed
+- **ACP 0.43 Tool Events**: Trace normalization now supports top-level ACP `toolCallId`, `title`, `status`, `kind`, `content`, `rawInput`, and `rawOutput` fields while retaining older nested `toolCall` support.
+- **Trace Correlation**: Started, progress, completed, failed, and cancelled events correlate through both top-level `toolCallId` and nested `toolCall.id`, so Discord edits one trace message per tool call and counts it once.
+- **Run Heartbeat**: Workflow headers switch to running immediately after enqueue and refresh elapsed time while waiting for the first tool event.
+- **Task Validation**: Slash, text, API, and admin workflow entrypoints reject vague single-token tasks such as `job` before creating a Discord thread.
+
 ## [2026-05-25] Workflow Thread Auto-Start Fix
 
 Fixed workflow thread creation so a newly created monitored thread immediately starts the requested task instead of only posting the queued seed message.
