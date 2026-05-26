@@ -15,6 +15,7 @@ export class TraceDispatcher {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private fallbackCounters = new Map<string, number>();
   private lastEditTimes = new Map<string, number>();
+  private logicalToolCallIds = new Map<string, string>();
   private renderedTopic = false;
   private topicMessage: Message | null = null;
 
@@ -25,10 +26,20 @@ export class TraceDispatcher {
 
   private getEffectiveToolCallId(event: TraceEvent): string | null {
     const id = resolveToolCallId(event);
-    if (id) return id;
+    const logicalKey = resolveLogicalToolKey(event);
+    if (logicalKey) {
+      const existing = this.logicalToolCallIds.get(logicalKey);
+      if (existing) return existing;
+      if (id) {
+        this.logicalToolCallIds.set(logicalKey, id);
+        return id;
+      }
+    } else if (id) {
+      return id;
+    }
     if (!event.canonicalToolName) return null;
 
-    const baseKey = `fallback:${event.canonicalToolName}`;
+    const baseKey = logicalKey ?? `fallback:${event.canonicalToolName}`;
     if (!this.fallbackCounters.has(baseKey)) {
       this.fallbackCounters.set(baseKey, 1);
     }
@@ -39,7 +50,11 @@ export class TraceDispatcher {
         this.fallbackCounters.set(baseKey, count);
       }
     }
-    return `${baseKey}:${count}`;
+    const fallbackId = `${baseKey}:${count}`;
+    if (logicalKey) {
+      this.logicalToolCallIds.set(logicalKey, fallbackId);
+    }
+    return fallbackId;
   }
 
   async dispatch(event: TraceEvent): Promise<void> {
@@ -135,6 +150,7 @@ export class TraceDispatcher {
       this.toolCallCount = 0;
       this.currentStep = null;
       this.seenToolCallIds.clear();
+      this.logicalToolCallIds.clear();
       this.hasTraceEvents = false;
       this.renderedTopic = false;
       this.topicMessage = null;
@@ -241,4 +257,29 @@ function resolveToolCallId(event: TraceEvent): string | null {
 
   const toolCall = event.raw?.toolCall as Record<string, unknown> | undefined;
   return typeof toolCall?.id === 'string' ? toolCall.id : null;
+}
+
+function resolveLogicalToolKey(event: TraceEvent): string | null {
+  const canonical = event.canonicalToolName;
+  if (!canonical) return null;
+
+  if (canonical === 'run_shell_command' || event.toolFamily === 'shell') {
+    const command = stringArg(event.args, 'command', 'commandLine', 'CommandLine');
+    return command ? `logical:shell:${command.replace(/\s+/g, ' ').trim()}` : null;
+  }
+
+  if (canonical === 'write_file' || canonical === 'replace') {
+    const path = stringArg(event.args, 'file_path', 'path', 'filePath', 'TargetFile');
+    return path ? `logical:${canonical}:${path}` : null;
+  }
+
+  return null;
+}
+
+function stringArg(args: Record<string, unknown>, ...keys: string[]): string {
+  for (const key of keys) {
+    const value = args[key];
+    if (typeof value === 'string' && value.trim()) return value;
+  }
+  return '';
 }

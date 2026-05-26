@@ -76,6 +76,7 @@ describe('trace renderers', () => {
     expect(rendered.density).toBe('card');
     expect(rendered.content).toContain('WriteFile');
     expect(rendered.content).toContain('/tmp/triangle.go');
+    expect(rendered.content).toContain('→ Updated');
     expect(rendered.content).toContain('```go');
     expect(rendered.content).toContain('package main');
     expect(rendered.content).not.toContain('+++ new');
@@ -243,7 +244,7 @@ describe('trace renderers', () => {
     expect(rendered.content).not.toContain('exit code: 0');
   });
 
-  it('correctly normalizes paths, splitting compound heredoc commands, and capping previews', () => {
+  it('renders compound shell invocations as one visible shell row', () => {
     const event: TraceEvent = {
       type: 'tool_completed',
       timestamp: Date.now(),
@@ -263,15 +264,116 @@ describe('trace renderers', () => {
     };
 
     const rendered = registry.render(event);
-    // Should split into mkdir, cat (WriteFile) and python execution
-    expect(rendered.content).toContain('✓ **Shell** `mkdir -p ~/Desktop`');
-    expect(rendered.content).toContain('✓ **WriteFile** `~/Desktop/triangle.py` → Created (+12, -0)');
-    expect(rendered.content).toContain('✓ **Shell** `python3 ~/Desktop/triangle.py`');
-    // Heredoc preview should be exactly 10 lines + truncation line
-    expect(rendered.content).toContain('line10');
-    expect(rendered.content).not.toContain('line11');
-    expect(rendered.content).toContain('... 2 lines truncated ...');
+    expect(rendered.content.match(/✓ \*\*Shell\*\*/g)).toHaveLength(1);
+    expect(rendered.content).toContain('✓ **Shell** `');
+    expect(rendered.content).not.toContain('✓ **WriteFile**');
     expect(rendered.content).toContain('output line 1');
+  });
+
+  it('suppresses shell lifecycle narration updates before real output arrives', () => {
+    const event = normalizeAcpUpdate('tool_call_update', {
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'shell-progress-1',
+      status: 'completed',
+      title: 'Shell cat ~/Desktop/dice_roll.c',
+      kind: 'execute',
+      content: [
+        { type: 'content', content: { type: 'text', text: '(Reading the current dice roll script.)' } },
+      ],
+    }, new Map());
+
+    expect(event).toMatchObject({
+      type: 'tool_progress',
+      status: 'progress',
+      resultSummary: null,
+      resultDetail: null,
+    });
+    expect(registry.render(event!).suppressed).toBe(true);
+  });
+
+  it('renders stdout and stderr together with labels', () => {
+    const event = normalizeAcpUpdate('tool_call_update', {
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'shell-stderr-1',
+      status: 'completed',
+      title: 'Shell npm test',
+      kind: 'execute',
+      rawInput: {
+        name: 'run_shell_command',
+        args: { command: 'npm test' },
+      },
+      rawOutput: { exitCode: 1, stdout: 'before fail\n', stderr: 'boom\n' },
+    }, new Map());
+
+    const rendered = registry.render(event!);
+    expect(rendered.content).toContain('```txt\nexit code: 1\nstdout:\nbefore fail\n\nstderr:\nboom\n```');
+  });
+
+  it('uses create/update labels for WriteFile rows', () => {
+    const created: TraceEvent = {
+      type: 'tool_completed',
+      timestamp: Date.now(),
+      toolName: 'write_file',
+      canonicalToolName: 'write_file',
+      displayName: 'WriteFile',
+      toolFamily: 'filesystem',
+      args: { file_path: '~/Desktop/new.py' },
+      status: 'completed',
+      durationMs: 20,
+      resultSummary: 'Created (+1, -0)',
+      resultDetail: 'print("hello")',
+      artifactRef: '~/Desktop/new.py',
+      redactionMetadata: { fieldsRedacted: [], truncated: false },
+    };
+    const updated = {
+      ...created,
+      args: { file_path: '~/Desktop/existing.py' },
+      resultSummary: 'Accepted (+1, -0)',
+    };
+
+    expect(registry.render(created).content).toContain('✓ **WriteFile** `~/Desktop/new.py` → Created');
+    expect(registry.render(updated).content).toContain('✓ **WriteFile** `~/Desktop/existing.py` → Updated');
+  });
+
+  it('renders Edit rows with compact diff hunks instead of full-file dumps', () => {
+    const event: TraceEvent = {
+      type: 'tool_completed',
+      timestamp: Date.now(),
+      toolName: 'replace',
+      canonicalToolName: 'replace',
+      displayName: 'Edit',
+      toolFamily: 'filesystem',
+      args: { file_path: 'calculator.go', added: 1, removed: 0 },
+      status: 'completed',
+      durationMs: 40,
+      resultSummary: 'Accepted (+1, -0)',
+      resultDetail: [
+        'Diff: calculator.go',
+        '--- old',
+        'package main',
+        '',
+        'import (',
+        '    "fmt"',
+        '    "os"',
+        ')',
+        '+++ new',
+        'package main',
+        '',
+        'import (',
+        '    "fmt"',
+        '    "math"',
+        '    "os"',
+        ')',
+      ].join('\n'),
+      artifactRef: 'calculator.go',
+      redactionMetadata: { fieldsRedacted: [], truncated: false },
+    };
+
+    const rendered = registry.render(event);
+    expect(rendered.content).toContain('✓ **Edit** `calculator.go` → Accepted (+1, -0)');
+    expect(rendered.content).toContain('```diff');
+    expect(rendered.content).toContain('+    "math"');
+    expect(rendered.content).not.toContain('package main\n\nimport');
   });
 
   it('truncates output cleanly keeping head/tail appropriately', () => {

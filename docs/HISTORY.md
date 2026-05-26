@@ -5,6 +5,9 @@
 Tightened monitored workflow Discord rendering without changing agent behavior.
 
 ### Changed
+- **Lifecycle Dedupe**: Shell progress/narration updates stay hidden until real completion output arrives, and repeated lifecycle ids for the same command edit one visible trace row.
+- **Dense Shell Rows**: Compound shell invocations now render as one `Shell` row/panel so visible rows align with the completed tool-call count.
+- **Compact Edit Hunks**: `Edit` traces prefer small diff hunks over full-file dumps, keeping Discord output closer to the terminal trace.
 - **Trace Renderer Rows**: Shell, file-write, and directory traces now render with canonical labels, stable row shapes, and cleaner command/output previews.
 - **Shell Output Visibility**: Successful shell calls show actual stdout/stderr in fenced text blocks while suppressing internal working-directory and execution-note metadata.
 - **Duplicate Trace Updates**: Repeated completed updates for the same tool call edit the existing trace message instead of posting duplicate `Shell` or `WriteFile` panels.

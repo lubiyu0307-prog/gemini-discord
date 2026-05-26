@@ -107,6 +107,19 @@ function extractToolContentText(value: unknown): string {
     .join('\n\n');
 }
 
+function isInternalNarrationText(text: string): boolean {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return false;
+
+  return lines.every((line) =>
+    /^\[current working directory\b[^\]]*\]$/i.test(line) ||
+    /^\((?:Executing|Creating|Running|Using|Reading|Compiling|Listing)\b[\s\S]*\)$/i.test(line)
+  );
+}
+
 function summarizePlanEntries(entries: unknown): string | null {
   if (!Array.isArray(entries)) return null;
 
@@ -315,9 +328,15 @@ export function normalizeAcpUpdate(
       const rawArgs = argsWithTitleMetadata(rawInputArgs(updatePayload['rawInput']), toolEntry, title);
       const { redacted: redactedArgs, fieldsRedacted } = redactTraceArgs(rawArgs);
       const contentText = extractToolContentText(updatePayload['content']);
-      const outputText = stringifyTraceValue(updatePayload['rawOutput'], toolEntry.canonical);
-      const resultText = [contentText, outputText].filter(Boolean).join('\n\n');
-      const statusInfo = resolveAcpStatus(sessionUpdate, updatePayload['status'], Boolean(resultText));
+      const outputText = stringifyTraceValue(
+        updatePayload['rawOutput'],
+        toolEntry.family === 'shell' ? 'run_shell_command' : toolEntry.canonical,
+      );
+      const visibleContentText = toolEntry.family === 'shell' && isInternalNarrationText(contentText) ? '' : contentText;
+      const resultText = [visibleContentText, outputText].filter(Boolean).join('\n\n');
+      const metadataOnlyShellUpdate = toolEntry.family === 'shell' && Boolean(contentText) && !visibleContentText && !outputText;
+      const rawStatus = metadataOnlyShellUpdate ? 'in_progress' : updatePayload['status'];
+      const statusInfo = resolveAcpStatus(sessionUpdate, rawStatus, Boolean(resultText));
       const durationMs = resolveDuration(id, statusInfo.type, timestamp, activeToolTimers);
       const redactedResult = redactTraceResult(resultText, 200);
       const redactedDetail = redactTraceText(resultText, 12000);

@@ -345,6 +345,43 @@ function diffNewContent(detail: string): string {
   return marker?.[1]?.trimEnd() ?? '';
 }
 
+function diffOldNewContent(detail: string): { oldText: string; newText: string } | null {
+  const match = detail.match(/--- old\n([\s\S]*?)\n\+\+\+ new\n([\s\S]*)$/);
+  if (!match) return null;
+  return {
+    oldText: match[1].trimEnd(),
+    newText: match[2].trimEnd(),
+  };
+}
+
+function compactDiffHunk(detail: string): string {
+  const parsed = diffOldNewContent(detail);
+  if (!parsed) return diffNewContent(detail);
+
+  const oldLines = parsed.oldText.split(/\r?\n/);
+  const newLines = parsed.newText.split(/\r?\n/);
+  let prefix = 0;
+  while (prefix < oldLines.length && prefix < newLines.length && oldLines[prefix] === newLines[prefix]) {
+    prefix += 1;
+  }
+
+  let suffix = 0;
+  while (
+    suffix < oldLines.length - prefix &&
+    suffix < newLines.length - prefix &&
+    oldLines[oldLines.length - 1 - suffix] === newLines[newLines.length - 1 - suffix]
+  ) {
+    suffix += 1;
+  }
+
+  const contextBefore = oldLines.slice(Math.max(0, prefix - 2), prefix).map((line) => ` ${line}`);
+  const removed = oldLines.slice(prefix, oldLines.length - suffix).map((line) => `-${line}`);
+  const added = newLines.slice(prefix, newLines.length - suffix).map((line) => `+${line}`);
+  const contextAfter = oldLines.slice(oldLines.length - suffix, Math.min(oldLines.length, oldLines.length - suffix + 2)).map((line) => ` ${line}`);
+  const hunk = [...contextBefore, ...removed, ...added, ...contextAfter].filter((line) => line.length > 1);
+  return hunk.length ? hunk.join('\n') : diffNewContent(detail);
+}
+
 function cleanDisplayName(event: TraceEvent, fallback: string): string {
   const display = event.displayName || fallback;
   return display.replace(/\s+/g, ' ').trim();
@@ -426,8 +463,13 @@ function cleanSuccessfulMetadata(text: string, event: TraceEvent): string {
   if (event.status !== 'completed') return text;
 
   return text
-    .replace(/^\[current working directory[^\]]+\]\s*/gim, '')
-    .replace(/\n?\((?:Executing|Creating|Running|Using)\b[\s\S]*?\)\s*/gi, '\n')
+    .split(/\r?\n/)
+    .filter((line) => {
+      const trimmed = line.trim();
+      return !/^\[current working directory\b[^\]]*\]$/i.test(trimmed) &&
+        !/^\((?:Executing|Creating|Running|Using|Reading|Compiling|Listing)\b[\s\S]*\)$/i.test(trimmed);
+    })
+    .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
@@ -464,48 +506,12 @@ export class ShellRenderer implements ToolRenderer {
     }
 
     if (event.status === 'progress') {
-      return {
-        content: `${statusGlyph(event.status)} **Shell** ${inlineCode(summarizeCommand(command))}`,
-        density: 'row',
-        flags: flags(),
-      };
-    }
-
-    const subCmds = splitCommand(command);
-    const lines: string[] = [];
-    let hasHeredoc = false;
-    let heredocFile = '';
-    let heredocContent = '';
-    let isPureDirectory = true;
-
-    for (const sub of subCmds.length ? subCmds : [command]) {
-      if (!sub.trim()) continue;
-      const heredoc = parseHeredocTarget(sub);
-      if (heredoc) {
-        hasHeredoc = true;
-        heredocFile = heredoc.file;
-        heredocContent = heredoc.content;
-        isPureDirectory = false;
-        const glyph = statusGlyph(event.status);
-        lines.push(`${glyph} **WriteFile** ${inlineCode(heredoc.file)} → Created (+${heredoc.lines}, -0)`);
-      } else {
-        const isDir = sub.startsWith('mkdir') || sub.startsWith('ls -d') || sub.startsWith('cd ') || sub === 'cd';
-        if (!isDir) {
-          isPureDirectory = false;
-        }
-        const glyph = statusGlyph(event.status);
-        lines.push(`${glyph} **Shell** ${inlineCode(summarizeCommand(sub))}`);
-      }
+      return suppressed();
     }
 
     const previewLines: string[] = [];
-    if (hasHeredoc && heredocContent) {
-      const truncatedPreview = truncateLines(heredocContent, 10);
-      previewLines.push(outputBlock(languageForPath(heredocFile), truncatedPreview));
-    }
-
     const detail = cleanShellOutput(event);
-    if (detail.trim() && !isPureDirectory) {
+    if (detail.trim()) {
       const attachment = attachmentFor(event, detail);
       const truncatedOutput = truncateLines(detail, 10, event.status === 'failed');
       previewLines.push(outputBlock('txt', truncatedOutput));
@@ -515,11 +521,11 @@ export class ShellRenderer implements ToolRenderer {
     }
 
     const content = [
-      ...lines,
+      `${statusGlyph(event.status)} **Shell** ${inlineCode(summarizeCommand(command))}`,
       ...previewLines,
     ].join('\n');
 
-    const attachment = !isPureDirectory ? attachmentFor(event, detail) : null;
+    const attachment = attachmentFor(event, detail);
 
     return {
       content,
@@ -547,13 +553,13 @@ export class FilesystemRenderer implements ToolRenderer {
       const added = intArg(event.args, 'added', 'lines_added');
       const removed = intArg(event.args, 'removed', 'lines_removed');
       const delta = added !== null || removed !== null ? ` (+${added ?? 0}, -${removed ?? 0})` : '';
-      const newContent = event.resultDetail ? diffNewContent(event.resultDetail) : '';
+      const hunk = event.resultDetail ? compactDiffHunk(event.resultDetail) : '';
       return {
         content: [
           `${statusGlyph(event.status)} **Edit** ${path ? inlineCode(shortPath(path)) : ''} → Accepted${delta}`,
-          newContent ? outputBlock(languageForPath(path), truncateLines(newContent, 10)) : '',
+          hunk ? outputBlock('diff', truncateLines(hunk, 12)) : '',
         ].filter(Boolean).join('\n'),
-        density: newContent ? 'panel' : 'row',
+        density: hunk ? 'panel' : 'row',
         flags: flags(),
       };
     }
@@ -561,7 +567,9 @@ export class FilesystemRenderer implements ToolRenderer {
     if (canonical === 'write_file') {
       const detail = event.resultDetail || '';
       const newContent = diffNewContent(detail) || detail;
-      const statusText = event.status === 'completed' ? ' → Created/Updated' : '';
+      const summary = event.resultSummary || '';
+      const action = /created/i.test(summary) ? 'Created' : 'Updated';
+      const statusText = event.status === 'completed' ? ` → ${action}` : '';
       return {
         content: [
           `${statusGlyph(event.status)} **WriteFile** ${path ? inlineCode(shortPath(path)) : ''}${statusText}`,

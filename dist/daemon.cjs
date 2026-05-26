@@ -89772,97 +89772,6 @@ function shortPath(path14) {
   if (parts.length <= 4) return normalized;
   return `${parts[0]}/.../${parts.slice(-2).join("/")}`;
 }
-function splitCommand(cmd) {
-  const subCmds = [];
-  let current = "";
-  let inSingleQuote = false;
-  let inDoubleQuote = false;
-  let inHeredoc = false;
-  let heredocMarker = "";
-  const lines = cmd.split(/\r?\n/);
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (inHeredoc) {
-      const trimmedLine = line.trim();
-      const markerRegex = new RegExp(`^${heredocMarker}\\b\\s*(?:&&|;)?(.*)$`);
-      const markerMatch = trimmedLine.match(markerRegex);
-      if (markerMatch) {
-        current += "\n" + heredocMarker;
-        inHeredoc = false;
-        heredocMarker = "";
-        subCmds.push(current.trim());
-        current = "";
-        const remainingOnLine = markerMatch[1].trim();
-        if (remainingOnLine) {
-          const remainingSubCmds = splitCommand(remainingOnLine);
-          subCmds.push(...remainingSubCmds);
-        }
-        continue;
-      }
-      current += "\n" + line;
-      continue;
-    }
-    const heredocMatch = line.match(/<<\s*['"]?(\w+)['"]?/);
-    if (heredocMatch) {
-      inHeredoc = true;
-      heredocMarker = heredocMatch[1];
-      const beforeHeredoc = line.substring(0, heredocMatch.index).trim();
-      const catMatch = beforeHeredoc.match(/(.*?)\bcat\s*$/i);
-      if (catMatch) {
-        let left = catMatch[1].trim();
-        if (left.endsWith("&&")) {
-          left = left.slice(0, -2).trim();
-        }
-        if (left) {
-          subCmds.push(left);
-        }
-        current = "cat " + line.substring(heredocMatch.index);
-      } else {
-        if (beforeHeredoc) {
-          subCmds.push(beforeHeredoc);
-        }
-        current = line.substring(heredocMatch.index);
-      }
-      continue;
-    }
-    let startIdx = 0;
-    for (let j = 0; j < line.length; j++) {
-      const char = line[j];
-      if (char === "'" && !inDoubleQuote) {
-        inSingleQuote = !inSingleQuote;
-      } else if (char === '"' && !inSingleQuote) {
-        inDoubleQuote = !inDoubleQuote;
-      } else if (!inSingleQuote && !inDoubleQuote) {
-        if (line.startsWith("&&", j)) {
-          const part = line.substring(startIdx, j).trim();
-          const combined = (current ? current + " " : "") + part;
-          if (combined.trim()) subCmds.push(combined.trim());
-          current = "";
-          j++;
-          startIdx = j + 1;
-        } else if (char === ";") {
-          const part = line.substring(startIdx, j).trim();
-          const combined = (current ? current + " " : "") + part;
-          if (combined.trim()) subCmds.push(combined.trim());
-          current = "";
-          startIdx = j + 1;
-        }
-      }
-    }
-    const remaining = line.substring(startIdx).trim();
-    if (remaining) {
-      current = (current ? current + " " : "") + remaining;
-    }
-    if (current.trim()) {
-      subCmds.push(current.trim());
-      current = "";
-    }
-  }
-  if (current.trim()) {
-    subCmds.push(current.trim());
-  }
-  return subCmds.map((c) => c.trim()).filter(Boolean);
-}
 function parseHeredocTarget(cmd) {
   const match = cmd.match(/(?:cat\s*<<\s*['"]?(\w+)['"]?\s*>\s*(\S+)|cat\s*>\s*(\S+)\s*<<\s*['"]?(\w+)['"]?)/i);
   if (!match) return null;
@@ -89896,7 +89805,7 @@ function summarizeCommand(cmd) {
   if (heredoc) {
     return `cat << 'EOF' > ${heredoc.file}`;
   }
-  if (collapsed.includes("python")) {
+  if (collapsed.includes("python") && !/\s-c\s/.test(collapsed)) {
     const match = collapsed.match(/(?:^|\/|~)(?:python3|python)\s+(\S+)/);
     if (match) {
       return `python3 ${shortPath(match[1])}`;
@@ -90001,6 +89910,34 @@ function diffNewContent(detail) {
   const marker = detail.match(/\+\+\+ new\n([\s\S]*)$/);
   return marker?.[1]?.trimEnd() ?? "";
 }
+function diffOldNewContent(detail) {
+  const match = detail.match(/--- old\n([\s\S]*?)\n\+\+\+ new\n([\s\S]*)$/);
+  if (!match) return null;
+  return {
+    oldText: match[1].trimEnd(),
+    newText: match[2].trimEnd()
+  };
+}
+function compactDiffHunk(detail) {
+  const parsed = diffOldNewContent(detail);
+  if (!parsed) return diffNewContent(detail);
+  const oldLines = parsed.oldText.split(/\r?\n/);
+  const newLines = parsed.newText.split(/\r?\n/);
+  let prefix = 0;
+  while (prefix < oldLines.length && prefix < newLines.length && oldLines[prefix] === newLines[prefix]) {
+    prefix += 1;
+  }
+  let suffix = 0;
+  while (suffix < oldLines.length - prefix && suffix < newLines.length - prefix && oldLines[oldLines.length - 1 - suffix] === newLines[newLines.length - 1 - suffix]) {
+    suffix += 1;
+  }
+  const contextBefore = oldLines.slice(Math.max(0, prefix - 2), prefix).map((line) => ` ${line}`);
+  const removed = oldLines.slice(prefix, oldLines.length - suffix).map((line) => `-${line}`);
+  const added = newLines.slice(prefix, newLines.length - suffix).map((line) => `+${line}`);
+  const contextAfter = oldLines.slice(oldLines.length - suffix, Math.min(oldLines.length, oldLines.length - suffix + 2)).map((line) => ` ${line}`);
+  const hunk = [...contextBefore, ...removed, ...added, ...contextAfter].filter((line) => line.length > 1);
+  return hunk.length ? hunk.join("\n") : diffNewContent(detail);
+}
 function card(event, title, lines) {
   return {
     content: [
@@ -90028,6 +89965,22 @@ function readFileResult(event) {
   if (start !== null && limit !== null) return `Read lines ${start}-${start + limit}`;
   return event.resultSummary ? truncate2(event.resultSummary.replace(/\s+/g, " "), 180) : "Read file";
 }
+function cleanSuccessfulMetadata(text, event) {
+  if (event.status !== "completed") return text;
+  return text.split(/\r?\n/).filter((line) => {
+    const trimmed = line.trim();
+    return !/^\[current working directory\b[^\]]*\]$/i.test(trimmed) && !/^\((?:Executing|Creating|Running|Using|Reading|Compiling|Listing)\b[\s\S]*\)$/i.test(trimmed);
+  }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+function cleanShellOutput(event) {
+  const detail = event.resultDetail || event.resultSummary || "";
+  return cleanSuccessfulMetadata(detail, event);
+}
+function directoryCount(event) {
+  const text = [event.resultSummary, event.resultDetail].filter(Boolean).join("\n");
+  const countMatch = text.match(/Found\s+(\d+)\s+item\(s\)|Listed\s+(\d+)\s+entries|(\d+)\s+entries|(\d+)\s+files|listed\s+(\d+)/i);
+  return countMatch?.[1] || countMatch?.[2] || countMatch?.[3] || countMatch?.[4] || countMatch?.[5] || "n";
+}
 var import_discord7, TRACE_LIMIT, ATTACHMENT_THRESHOLD, ShellRenderer, FilesystemRenderer, SearchRenderer, WebRenderer, PlanningRenderer, McpRenderer, InteractionRenderer, GenericFallbackRenderer, TraceRendererRegistry;
 var init_trace_renderer = __esm({
   "src/daemon/workflow/trace-renderer.ts"() {
@@ -90053,43 +90006,11 @@ var init_trace_renderer = __esm({
           return suppressed();
         }
         if (event.status === "progress") {
-          return {
-            content: `${statusGlyph(event.status)} **Shell** ${inlineCode(summarizeCommand(command))}`,
-            density: "row",
-            flags: flags()
-          };
-        }
-        const subCmds = splitCommand(command);
-        const lines = [];
-        let hasHeredoc = false;
-        let heredocFile = "";
-        let heredocContent = "";
-        let isPureDirectory = true;
-        for (const sub of subCmds) {
-          const heredoc = parseHeredocTarget(sub);
-          if (heredoc) {
-            hasHeredoc = true;
-            heredocFile = heredoc.file;
-            heredocContent = heredoc.content;
-            isPureDirectory = false;
-            const glyph = statusGlyph(event.status);
-            lines.push(`${glyph} **WriteFile** ${inlineCode(heredoc.file)} \u2192 Created (+${heredoc.lines}, -0)`);
-          } else {
-            const isDir = sub.startsWith("mkdir") || sub.startsWith("ls -d") || sub.startsWith("cd ") || sub === "cd";
-            if (!isDir) {
-              isPureDirectory = false;
-            }
-            const glyph = statusGlyph(event.status);
-            lines.push(`${glyph} **Shell** ${inlineCode(summarizeCommand(sub))}`);
-          }
+          return suppressed();
         }
         const previewLines = [];
-        if (hasHeredoc && heredocContent) {
-          const truncatedPreview = truncateLines(heredocContent, 10);
-          previewLines.push(outputBlock(languageForPath(heredocFile), truncatedPreview));
-        }
-        const detail = event.resultDetail || event.resultSummary || "";
-        if (detail.trim() && !isPureDirectory) {
+        const detail = cleanShellOutput(event);
+        if (detail.trim()) {
           const attachment2 = attachmentFor(event, detail);
           const truncatedOutput = truncateLines(detail, 10, event.status === "failed");
           previewLines.push(outputBlock("txt", truncatedOutput));
@@ -90098,10 +90019,10 @@ var init_trace_renderer = __esm({
           }
         }
         const content = [
-          ...lines,
+          `${statusGlyph(event.status)} **Shell** ${inlineCode(summarizeCommand(command))}`,
           ...previewLines
         ].join("\n");
-        const attachment = !isPureDirectory ? attachmentFor(event, detail) : null;
+        const attachment = attachmentFor(event, detail);
         return {
           content,
           files: attachment ? [attachment] : void 0,
@@ -90124,20 +90045,22 @@ var init_trace_renderer = __esm({
           const added = intArg(event.args, "added", "lines_added");
           const removed = intArg(event.args, "removed", "lines_removed");
           const delta = added !== null || removed !== null ? ` (+${added ?? 0}, -${removed ?? 0})` : "";
-          const newContent = event.resultDetail ? diffNewContent(event.resultDetail) : "";
+          const hunk = event.resultDetail ? compactDiffHunk(event.resultDetail) : "";
           return {
             content: [
               `${statusGlyph(event.status)} **Edit** ${path14 ? inlineCode(shortPath(path14)) : ""} \u2192 Accepted${delta}`,
-              newContent ? outputBlock(languageForPath(path14), truncateLines(newContent, 10)) : ""
+              hunk ? outputBlock("diff", truncateLines(hunk, 12)) : ""
             ].filter(Boolean).join("\n"),
-            density: newContent ? "panel" : "row",
+            density: hunk ? "panel" : "row",
             flags: flags()
           };
         }
         if (canonical === "write_file") {
           const detail = event.resultDetail || "";
           const newContent = diffNewContent(detail) || detail;
-          const statusText = event.status === "completed" ? " \u2192 Created/Updated" : "";
+          const summary = event.resultSummary || "";
+          const action = /created/i.test(summary) ? "Created" : "Updated";
+          const statusText = event.status === "completed" ? ` \u2192 ${action}` : "";
           return {
             content: [
               `${statusGlyph(event.status)} **WriteFile** ${path14 ? inlineCode(shortPath(path14)) : ""}${statusText}`,
@@ -90170,8 +90093,7 @@ var init_trace_renderer = __esm({
         }
         if (canonical === "list_directory") {
           const dir = stringArg(event.args, "dir_path", "path");
-          const countMatch = event.resultSummary?.match(/(\d+)\s+entries|(\d+)\s+files|listed\s+(\d+)/i);
-          const count = countMatch?.[1] || countMatch?.[2] || countMatch?.[3] || "n";
+          const count = directoryCount(event);
           return {
             content: `${statusGlyph(event.status)} **ListDirectory** ${dir ? inlineCode(shortPath(dir)) : "directory"} \u2192 Listed ${count} entries`,
             density: "row",
@@ -90408,6 +90330,26 @@ function resolveToolCallId(event) {
   const toolCall = event.raw?.toolCall;
   return typeof toolCall?.id === "string" ? toolCall.id : null;
 }
+function resolveLogicalToolKey(event) {
+  const canonical = event.canonicalToolName;
+  if (!canonical) return null;
+  if (canonical === "run_shell_command" || event.toolFamily === "shell") {
+    const command = stringArg2(event.args, "command", "commandLine", "CommandLine");
+    return command ? `logical:shell:${command.replace(/\s+/g, " ").trim()}` : null;
+  }
+  if (canonical === "write_file" || canonical === "replace") {
+    const path14 = stringArg2(event.args, "file_path", "path", "filePath", "TargetFile");
+    return path14 ? `logical:${canonical}:${path14}` : null;
+  }
+  return null;
+}
+function stringArg2(args, ...keys) {
+  for (const key of keys) {
+    const value = args[key];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return "";
+}
 var TraceDispatcher;
 var init_trace_dispatcher = __esm({
   "src/daemon/workflow/trace-dispatcher.ts"() {
@@ -90428,13 +90370,24 @@ var init_trace_dispatcher = __esm({
       heartbeatTimer = null;
       fallbackCounters = /* @__PURE__ */ new Map();
       lastEditTimes = /* @__PURE__ */ new Map();
+      logicalToolCallIds = /* @__PURE__ */ new Map();
       renderedTopic = false;
       topicMessage = null;
       getEffectiveToolCallId(event) {
         const id = resolveToolCallId(event);
-        if (id) return id;
+        const logicalKey = resolveLogicalToolKey(event);
+        if (logicalKey) {
+          const existing = this.logicalToolCallIds.get(logicalKey);
+          if (existing) return existing;
+          if (id) {
+            this.logicalToolCallIds.set(logicalKey, id);
+            return id;
+          }
+        } else if (id) {
+          return id;
+        }
         if (!event.canonicalToolName) return null;
-        const baseKey = `fallback:${event.canonicalToolName}`;
+        const baseKey = logicalKey ?? `fallback:${event.canonicalToolName}`;
         if (!this.fallbackCounters.has(baseKey)) {
           this.fallbackCounters.set(baseKey, 1);
         }
@@ -90445,7 +90398,11 @@ var init_trace_dispatcher = __esm({
             this.fallbackCounters.set(baseKey, count);
           }
         }
-        return `${baseKey}:${count}`;
+        const fallbackId = `${baseKey}:${count}`;
+        if (logicalKey) {
+          this.logicalToolCallIds.set(logicalKey, fallbackId);
+        }
+        return fallbackId;
       }
       async dispatch(event) {
         try {
@@ -90504,8 +90461,7 @@ var init_trace_dispatcher = __esm({
                 return;
               } else if (event.status === "completed" || event.status === "failed" || event.status === "cancelled") {
                 await existingMessage.edit(payload);
-                this.activeMessages.delete(toolCallId);
-                this.lastEditTimes.delete(toolCallId);
+                this.lastEditTimes.set(toolCallId, Date.now());
                 return;
               }
             }
@@ -90513,7 +90469,7 @@ var init_trace_dispatcher = __esm({
           const sent = await this.threadChannel.send(payload);
           if (isUpdateTopic) {
             this.topicMessage = sent;
-          } else if (toolCallId && (event.status === "started" || event.status === "progress")) {
+          } else if (toolCallId) {
             this.activeMessages.set(toolCallId, sent);
             this.lastEditTimes.set(toolCallId, Date.now());
           }
@@ -90527,6 +90483,7 @@ var init_trace_dispatcher = __esm({
           this.toolCallCount = 0;
           this.currentStep = null;
           this.seenToolCallIds.clear();
+          this.logicalToolCallIds.clear();
           this.hasTraceEvents = false;
           this.renderedTopic = false;
           this.topicMessage = null;
@@ -92890,9 +92847,13 @@ function stringifyTraceValue(value, toolName) {
     const stdout = String(resObj["stdout"] ?? resObj["output"] ?? "");
     const stderr = String(resObj["stderr"] ?? "");
     const lines = [];
-    if (exitCode !== void 0) lines.push(`exit code: ${String(exitCode)}`);
-    if (stdout) lines.push(`stdout:
+    if (exitCode !== void 0 && String(exitCode) !== "0") lines.push(`exit code: ${String(exitCode)}`);
+    if (stdout && stderr) {
+      lines.push(`stdout:
 ${stdout}`);
+    } else if (stdout) {
+      lines.push(stdout);
+    }
     if (stderr) lines.push(`stderr:
 ${stderr}`);
     return lines.join("\n");
@@ -92961,6 +92922,13 @@ ${newText}` : ""
     return extractContentBlockText(record);
   }).filter(Boolean).join("\n\n");
 }
+function isInternalNarrationText(text) {
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (lines.length === 0) return false;
+  return lines.every(
+    (line) => /^\[current working directory\b[^\]]*\]$/i.test(line) || /^\((?:Executing|Creating|Running|Using|Reading|Compiling|Listing)\b[\s\S]*\)$/i.test(line)
+  );
+}
 function summarizePlanEntries(entries) {
   if (!Array.isArray(entries)) return null;
   const lines = entries.map((entry) => {
@@ -93028,6 +92996,12 @@ function resolveTopLevelToolEntry(payload) {
   if (/^Searching\s+the\s+web\s+for:/i.test(title)) {
     return resolveToolEntry("google_web_search");
   }
+  if (/^(?:ReadFolder|ListDirectory)\b/i.test(title) || kind === "read" && /^[.~/(]|^[A-Za-z]:[\\/]/.test(title)) {
+    return resolveToolEntry("list_directory");
+  }
+  if (/^ReadFile\b/i.test(title)) {
+    return resolveToolEntry("read_file");
+  }
   return {
     canonical: `acp_${kind}`,
     displayName: title,
@@ -93056,6 +93030,14 @@ function argsWithTitleCommand(args, toolEntry, title) {
 }
 function argsWithTitleMetadata(args, toolEntry, title) {
   const withCommand = argsWithTitleCommand(args, toolEntry, title);
+  if (toolEntry.canonical === "list_directory" && !firstString(withCommand["dir_path"], withCommand["path"])) {
+    const dir = title.replace(/^(?:ReadFolder|ListDirectory)\s*/i, "").trim();
+    return dir ? { ...withCommand, dir_path: dir } : withCommand;
+  }
+  if (toolEntry.canonical === "read_file" && !firstString(withCommand["file_path"], withCommand["path"])) {
+    const file = title.replace(/^ReadFile\s*/i, "").trim();
+    return file ? { ...withCommand, file_path: file } : withCommand;
+  }
   if (toolEntry.canonical !== "google_web_search") return withCommand;
   if (firstString(withCommand["query"], withCommand["prompt"])) return withCommand;
   const match = title.match(/^Searching\s+the\s+web\s+for:\s*["“]?(.+?)["”]?\s*$/i);
@@ -93115,9 +93097,15 @@ function normalizeAcpUpdate(sessionUpdate, updatePayload, activeToolTimers) {
       const rawArgs2 = argsWithTitleMetadata(rawInputArgs(updatePayload["rawInput"]), toolEntry2, title);
       const { redacted: redactedArgs2, fieldsRedacted: fieldsRedacted2 } = redactTraceArgs(rawArgs2);
       const contentText = extractToolContentText(updatePayload["content"]);
-      const outputText = stringifyTraceValue(updatePayload["rawOutput"], toolEntry2.canonical);
-      const resultText = [contentText, outputText].filter(Boolean).join("\n\n");
-      const statusInfo = resolveAcpStatus(sessionUpdate, updatePayload["status"], Boolean(resultText));
+      const outputText = stringifyTraceValue(
+        updatePayload["rawOutput"],
+        toolEntry2.family === "shell" ? "run_shell_command" : toolEntry2.canonical
+      );
+      const visibleContentText = toolEntry2.family === "shell" && isInternalNarrationText(contentText) ? "" : contentText;
+      const resultText = [visibleContentText, outputText].filter(Boolean).join("\n\n");
+      const metadataOnlyShellUpdate = toolEntry2.family === "shell" && Boolean(contentText) && !visibleContentText && !outputText;
+      const rawStatus = metadataOnlyShellUpdate ? "in_progress" : updatePayload["status"];
+      const statusInfo = resolveAcpStatus(sessionUpdate, rawStatus, Boolean(resultText));
       const durationMs2 = resolveDuration(id2, statusInfo.type, timestamp, activeToolTimers);
       const redactedResult = redactTraceResult(resultText, 200);
       const redactedDetail = redactTraceText(resultText, 12e3);

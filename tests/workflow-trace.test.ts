@@ -444,6 +444,119 @@ describe('workflow trace events & renderer integration', () => {
     expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('`1` tool call'));
   });
 
+  it('suppresses shell lifecycle narration and counts only the visible completed shell call', async () => {
+    const header = { id: 'header', edit: vi.fn().mockResolvedValue(undefined) };
+    const toolMessage = { id: 'tool-1', edit: vi.fn().mockResolvedValue(undefined) };
+    const mockChannel = {
+      send: vi.fn()
+        .mockResolvedValueOnce(header)
+        .mockResolvedValueOnce(toolMessage),
+    } as any;
+
+    const dispatcher = new TraceDispatcher(mockChannel, new TraceRendererRegistry());
+    await dispatcher.dispatchRunHeader({
+      threadId: 'thread-1',
+      parentChannelId: 'parent-1',
+      guildId: 'guild-1',
+      creatorUserId: 'user-1',
+      starterMessageId: 'message-1',
+      createdAt: new Date().toISOString(),
+      mode: 'monitored_workflow',
+      taskSummary: 'Read then run',
+      traceMode: 'compact',
+      originContext: { type: 'channel', sourceChannelId: 'parent-1' },
+    });
+
+    const progress = normalizeAcpUpdate('tool_call_update', {
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'shell-progress-1',
+      status: 'completed',
+      title: 'Shell cat ~/Desktop/dice_roll.c',
+      kind: 'execute',
+      content: [
+        { type: 'content', content: { type: 'text', text: '(Reading the current dice roll script.)' } },
+      ],
+    }, new Map());
+    const completed = normalizeAcpUpdate('tool_call_update', {
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'shell-complete-1',
+      status: 'completed',
+      title: 'Shell cat ~/Desktop/dice_roll.c',
+      kind: 'execute',
+      rawOutput: { exitCode: 0, stdout: '#include <stdio.h>\n', stderr: '' },
+    }, new Map());
+
+    await dispatcher.dispatch(progress!);
+    await dispatcher.dispatch(completed!);
+    await dispatcher.dispatchRunComplete();
+
+    expect(mockChannel.send).toHaveBeenCalledTimes(2);
+    expect(toolMessage.edit).not.toHaveBeenCalled();
+    const sentTool = mockChannel.send.mock.calls[1][0];
+    expect(sentTool.content).toContain('✓ **Shell** `cat ~/Desktop/dice_roll.c`');
+    expect(sentTool.content).toContain('```txt\n#include <stdio.h>\n```');
+    expect(sentTool.content).not.toContain('Reading the current dice roll script');
+    expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('`1` tool call'));
+  });
+
+  it('dedupes completed shell updates with different lifecycle ids but the same command', async () => {
+    const header = { id: 'header', edit: vi.fn().mockResolvedValue(undefined) };
+    const toolMessage = { id: 'tool-1', edit: vi.fn().mockResolvedValue(undefined) };
+    const mockChannel = {
+      send: vi.fn()
+        .mockResolvedValueOnce(header)
+        .mockResolvedValueOnce(toolMessage),
+    } as any;
+
+    const dispatcher = new TraceDispatcher(mockChannel, new TraceRendererRegistry());
+    await dispatcher.dispatchRunHeader({
+      threadId: 'thread-1',
+      parentChannelId: 'parent-1',
+      guildId: 'guild-1',
+      creatorUserId: 'user-1',
+      starterMessageId: 'message-1',
+      createdAt: new Date().toISOString(),
+      mode: 'monitored_workflow',
+      taskSummary: 'Compile',
+      traceMode: 'compact',
+      originContext: { type: 'channel', sourceChannelId: 'parent-1' },
+    });
+
+    const first: TraceEvent = {
+      type: 'tool_completed',
+      timestamp: Date.now(),
+      toolName: 'run_shell_command',
+      canonicalToolName: 'run_shell_command',
+      displayName: 'Shell',
+      toolFamily: 'shell',
+      args: { command: 'gcc ~/Desktop/dice_roll.c -o ~/Desktop/dice_roll' },
+      status: 'completed',
+      durationMs: 20,
+      resultSummary: null,
+      resultDetail: null,
+      artifactRef: null,
+      redactionMetadata: { fieldsRedacted: [], truncated: false },
+      raw: { toolCallId: 'shell-a' },
+    };
+    const second: TraceEvent = {
+      ...first,
+      raw: { toolCallId: 'shell-b' },
+      resultSummary: 'compiled',
+      resultDetail: 'compiled',
+    };
+
+    await dispatcher.dispatch(first);
+    await dispatcher.dispatch(second);
+    await dispatcher.dispatchRunComplete();
+
+    expect(mockChannel.send).toHaveBeenCalledTimes(2);
+    expect(toolMessage.edit).toHaveBeenCalledTimes(1);
+    expect(toolMessage.edit).toHaveBeenCalledWith(expect.objectContaining({
+      content: expect.stringContaining('```txt\ncompiled\n```'),
+    }));
+    expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('`1` tool call'));
+  });
+
   it('dedupes repeated completed WriteFile updates with the same toolCallId', async () => {
     const header = { id: 'header', edit: vi.fn().mockResolvedValue(undefined) };
     const toolMessage = { id: 'tool-1', edit: vi.fn().mockResolvedValue(undefined) };
