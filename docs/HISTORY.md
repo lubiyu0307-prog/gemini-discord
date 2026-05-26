@@ -5,6 +5,9 @@
 Tightened monitored workflow Discord rendering without changing agent behavior.
 
 ### Changed
+- **Trace Renderer Rows**: Shell, file-write, and directory traces now render with canonical labels, stable row shapes, and cleaner command/output previews.
+- **Shell Output Visibility**: Successful shell calls show actual stdout/stderr in fenced text blocks while suppressing internal working-directory and execution-note metadata.
+- **Duplicate Trace Updates**: Repeated completed updates for the same tool call edit the existing trace message instead of posting duplicate `Shell` or `WriteFile` panels.
 - **Web Search Rows**: Google search traces keep the canonical `GoogleSearch` label and render completed results on a `↳` sub-result line.
 - **Final Answer Spacing**: Single-line workflow final answers normalize the sparkle prefix so compact results render as `✦ 1183` instead of `✦1183`.
 - **Current-Thread Sends**: MCP-suffixed `discord_message` tool names are normalized before workflow policy checks, so accidental current-thread sends stay hidden and uncounted unless the user explicitly requested a Discord send action.

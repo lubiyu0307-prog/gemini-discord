@@ -110,8 +110,7 @@ export class TraceDispatcher {
             return;
           } else if (event.status === 'completed' || event.status === 'failed' || event.status === 'cancelled') {
             await existingMessage.edit(payload);
-            this.activeMessages.delete(toolCallId);
-            this.lastEditTimes.delete(toolCallId);
+            this.lastEditTimes.set(toolCallId, Date.now());
             return;
           }
         }
@@ -121,7 +120,7 @@ export class TraceDispatcher {
       
       if (isUpdateTopic) {
         this.topicMessage = sent;
-      } else if (toolCallId && (event.status === 'started' || event.status === 'progress')) {
+      } else if (toolCallId) {
         this.activeMessages.set(toolCallId, sent);
         this.lastEditTimes.set(toolCallId, Date.now());
       }

@@ -15,8 +15,12 @@ function stringifyTraceValue(value: unknown, toolName?: string): string {
     const stdout = String(resObj['stdout'] ?? resObj['output'] ?? '');
     const stderr = String(resObj['stderr'] ?? '');
     const lines: string[] = [];
-    if (exitCode !== undefined) lines.push(`exit code: ${String(exitCode)}`);
-    if (stdout) lines.push(`stdout:\n${stdout}`);
+    if (exitCode !== undefined && String(exitCode) !== '0') lines.push(`exit code: ${String(exitCode)}`);
+    if (stdout && stderr) {
+      lines.push(`stdout:\n${stdout}`);
+    } else if (stdout) {
+      lines.push(stdout);
+    }
     if (stderr) lines.push(`stderr:\n${stderr}`);
     return lines.join('\n');
   }
@@ -192,6 +196,12 @@ function resolveTopLevelToolEntry(payload: Record<string, unknown>): ReturnType<
   if (/^Searching\s+the\s+web\s+for:/i.test(title)) {
     return resolveToolEntry('google_web_search');
   }
+  if (/^(?:ReadFolder|ListDirectory)\b/i.test(title) || (kind === 'read' && /^[.~/(]|^[A-Za-z]:[\\/]/.test(title))) {
+    return resolveToolEntry('list_directory');
+  }
+  if (/^ReadFile\b/i.test(title)) {
+    return resolveToolEntry('read_file');
+  }
   return {
     canonical: `acp_${kind}`,
     displayName: title,
@@ -227,6 +237,14 @@ function argsWithTitleCommand(args: Record<string, unknown>, toolEntry: ReturnTy
 
 function argsWithTitleMetadata(args: Record<string, unknown>, toolEntry: ReturnType<typeof resolveToolEntry>, title: string): Record<string, unknown> {
   const withCommand = argsWithTitleCommand(args, toolEntry, title);
+  if (toolEntry.canonical === 'list_directory' && !firstString(withCommand['dir_path'], withCommand['path'])) {
+    const dir = title.replace(/^(?:ReadFolder|ListDirectory)\s*/i, '').trim();
+    return dir ? { ...withCommand, dir_path: dir } : withCommand;
+  }
+  if (toolEntry.canonical === 'read_file' && !firstString(withCommand['file_path'], withCommand['path'])) {
+    const file = title.replace(/^ReadFile\s*/i, '').trim();
+    return file ? { ...withCommand, file_path: file } : withCommand;
+  }
   if (toolEntry.canonical !== 'google_web_search') return withCommand;
   if (firstString(withCommand['query'], withCommand['prompt'])) return withCommand;
 

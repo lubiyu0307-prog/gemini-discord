@@ -222,7 +222,7 @@ function summarizeCommand(cmd: string): string {
   if (heredoc) {
     return `cat << 'EOF' > ${heredoc.file}`;
   }
-  if (collapsed.includes('python')) {
+  if (collapsed.includes('python') && !/\s-c\s/.test(collapsed)) {
     const match = collapsed.match(/(?:^|\/|~)(?:python3|python)\s+(\S+)/);
     if (match) {
       return `python3 ${shortPath(match[1])}`;
@@ -422,6 +422,27 @@ function readFileResult(event: TraceEvent): string {
   return event.resultSummary ? truncate(event.resultSummary.replace(/\s+/g, ' '), 180) : 'Read file';
 }
 
+function cleanSuccessfulMetadata(text: string, event: TraceEvent): string {
+  if (event.status !== 'completed') return text;
+
+  return text
+    .replace(/^\[current working directory[^\]]+\]\s*/gim, '')
+    .replace(/\n?\((?:Executing|Creating|Running|Using)\b[\s\S]*?\)\s*/gi, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function cleanShellOutput(event: TraceEvent): string {
+  const detail = event.resultDetail || event.resultSummary || '';
+  return cleanSuccessfulMetadata(detail, event);
+}
+
+function directoryCount(event: TraceEvent): string {
+  const text = [event.resultSummary, event.resultDetail].filter(Boolean).join('\n');
+  const countMatch = text.match(/Found\s+(\d+)\s+item\(s\)|Listed\s+(\d+)\s+entries|(\d+)\s+entries|(\d+)\s+files|listed\s+(\d+)/i);
+  return countMatch?.[1] || countMatch?.[2] || countMatch?.[3] || countMatch?.[4] || countMatch?.[5] || 'n';
+}
+
 export class ShellRenderer implements ToolRenderer {
   canRender(event: TraceEvent): boolean {
     return event.canonicalToolName === 'run_shell_command' || event.toolFamily === 'shell';
@@ -457,7 +478,8 @@ export class ShellRenderer implements ToolRenderer {
     let heredocContent = '';
     let isPureDirectory = true;
 
-    for (const sub of subCmds) {
+    for (const sub of subCmds.length ? subCmds : [command]) {
+      if (!sub.trim()) continue;
       const heredoc = parseHeredocTarget(sub);
       if (heredoc) {
         hasHeredoc = true;
@@ -482,7 +504,7 @@ export class ShellRenderer implements ToolRenderer {
       previewLines.push(outputBlock(languageForPath(heredocFile), truncatedPreview));
     }
 
-    const detail = event.resultDetail || event.resultSummary || '';
+    const detail = cleanShellOutput(event);
     if (detail.trim() && !isPureDirectory) {
       const attachment = attachmentFor(event, detail);
       const truncatedOutput = truncateLines(detail, 10, event.status === 'failed');
@@ -574,8 +596,7 @@ export class FilesystemRenderer implements ToolRenderer {
 
     if (canonical === 'list_directory') {
       const dir = stringArg(event.args, 'dir_path', 'path');
-      const countMatch = event.resultSummary?.match(/(\d+)\s+entries|(\d+)\s+files|listed\s+(\d+)/i);
-      const count = countMatch?.[1] || countMatch?.[2] || countMatch?.[3] || 'n';
+      const count = directoryCount(event);
       return {
         content: `${statusGlyph(event.status)} **ListDirectory** ${dir ? inlineCode(shortPath(dir)) : 'directory'} → Listed ${count} entries`,
         density: 'row',

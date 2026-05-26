@@ -177,6 +177,72 @@ describe('trace renderers', () => {
     expect(rendered.embeds).toBeUndefined();
   });
 
+  it('renders short shell commands fully with visible stdout', () => {
+    const event: TraceEvent = {
+      type: 'tool_completed',
+      timestamp: Date.now(),
+      toolName: 'run_shell_command',
+      canonicalToolName: 'run_shell_command',
+      displayName: 'Shell',
+      toolFamily: 'shell',
+      args: { command: 'python3 -c "print(\'hello\')"' },
+      status: 'completed',
+      durationMs: 80,
+      resultSummary: 'hello',
+      resultDetail: 'hello',
+      artifactRef: null,
+      redactionMetadata: { fieldsRedacted: [], truncated: false },
+    };
+
+    const rendered = registry.render(event);
+    expect(rendered.content).toContain('✓ **Shell** `python3 -c "print(\'hello\')"`');
+    expect(rendered.content).toContain('```txt\nhello\n```');
+    expect(rendered.content).not.toContain('python3 -c`');
+  });
+
+  it('suppresses successful shell metadata panels when no real output remains', () => {
+    const event: TraceEvent = {
+      type: 'tool_completed',
+      timestamp: Date.now(),
+      toolName: 'run_shell_command',
+      canonicalToolName: 'run_shell_command',
+      displayName: 'Shell',
+      toolFamily: 'shell',
+      args: { command: 'python3 -c "print(\'hello\')"' },
+      status: 'completed',
+      durationMs: 80,
+      resultSummary: '[current working directory ~/project]\n(Executing a simple Python command to print "hello".)',
+      resultDetail: '[current working directory ~/project]\n(Executing a simple Python command to print "hello".)',
+      artifactRef: null,
+      redactionMetadata: { fieldsRedacted: [], truncated: false },
+    };
+
+    const rendered = registry.render(event);
+    expect(rendered.content).toBe('✓ **Shell** `python3 -c "print(\'hello\')"`');
+    expect(rendered.content).not.toContain('current working directory');
+    expect(rendered.content).not.toContain('Executing a simple Python command');
+  });
+
+  it('normalizes shell raw stdout and stderr without hiding output', () => {
+    const event = normalizeAcpUpdate('tool_call_update', {
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'shell-stdout-1',
+      status: 'completed',
+      title: 'Shell python3 -c "print(\'hello\')"',
+      kind: 'execute',
+      rawInput: {
+        name: 'run_shell_command',
+        args: { command: 'python3 -c "print(\'hello\')"' },
+      },
+      rawOutput: { exitCode: 0, stdout: 'hello\n', stderr: '' },
+    }, new Map());
+
+    const rendered = registry.render(event!);
+    expect(rendered.content).toContain('✓ **Shell** `python3 -c "print(\'hello\')"`');
+    expect(rendered.content).toContain('```txt\nhello\n```');
+    expect(rendered.content).not.toContain('exit code: 0');
+  });
+
   it('correctly normalizes paths, splitting compound heredoc commands, and capping previews', () => {
     const event: TraceEvent = {
       type: 'tool_completed',
@@ -306,5 +372,29 @@ describe('trace renderers', () => {
 
     const rendered = registry.render(event!);
     expect(rendered.content).toBe('✓ **GoogleSearch**  Searching the web for: `\"latest One Piece chapter number\"`\n↳ Search results for `\"latest One Piece chapter number\"` returned.');
+  });
+
+  it('renders title-only directory reads with a canonical tool label', () => {
+    const event = normalizeAcpUpdate('tool_call_update', {
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'folder-1',
+      status: 'completed',
+      title: '.',
+      kind: 'read',
+      content: [
+        { type: 'content', content: { type: 'text', text: 'Found 8 item(s).' } },
+      ],
+    }, new Map());
+
+    expect(event).toMatchObject({
+      canonicalToolName: 'list_directory',
+      displayName: 'ListDirectory',
+      toolFamily: 'filesystem',
+      args: { dir_path: '.' },
+    });
+
+    const rendered = registry.render(event!);
+    expect(rendered.content).toBe('✓ **ListDirectory** `.` → Listed 8 entries');
+    expect(rendered.content).not.toContain('✓ .');
   });
 });

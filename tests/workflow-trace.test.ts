@@ -388,6 +388,114 @@ describe('workflow trace events & renderer integration', () => {
     expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('`1` tool call'));
   });
 
+  it('dedupes repeated completed shell updates with the same toolCallId', async () => {
+    const header = { id: 'header', edit: vi.fn().mockResolvedValue(undefined) };
+    const toolMessage = { id: 'tool-1', edit: vi.fn().mockResolvedValue(undefined) };
+    const mockChannel = {
+      send: vi.fn()
+        .mockResolvedValueOnce(header)
+        .mockResolvedValueOnce(toolMessage),
+    } as any;
+
+    const dispatcher = new TraceDispatcher(mockChannel, new TraceRendererRegistry());
+    await dispatcher.dispatchRunHeader({
+      threadId: 'thread-1',
+      parentChannelId: 'parent-1',
+      guildId: 'guild-1',
+      creatorUserId: 'user-1',
+      starterMessageId: 'message-1',
+      createdAt: new Date().toISOString(),
+      mode: 'monitored_workflow',
+      taskSummary: 'Run hello',
+      traceMode: 'compact',
+      originContext: { type: 'channel', sourceChannelId: 'parent-1' },
+    });
+
+    const shellEvent: TraceEvent = {
+      type: 'tool_completed',
+      timestamp: Date.now(),
+      toolName: 'run_shell_command',
+      canonicalToolName: 'run_shell_command',
+      displayName: 'Shell',
+      toolFamily: 'shell',
+      args: { command: 'python3 -c "print(\'hello\')"' },
+      status: 'completed',
+      durationMs: 20,
+      resultSummary: 'hello',
+      resultDetail: 'hello',
+      artifactRef: null,
+      redactionMetadata: { fieldsRedacted: [], truncated: false },
+      raw: { toolCallId: 'shell-1' },
+    };
+
+    await dispatcher.dispatch(shellEvent);
+    await dispatcher.dispatch({
+      ...shellEvent,
+      resultSummary: 'hello\n',
+      resultDetail: 'hello\n',
+    });
+    await dispatcher.dispatchRunComplete();
+
+    expect(mockChannel.send).toHaveBeenCalledTimes(2);
+    expect(toolMessage.edit).toHaveBeenCalledTimes(1);
+    expect(toolMessage.edit).toHaveBeenCalledWith(expect.objectContaining({
+      content: expect.stringContaining('✓ **Shell** `python3 -c "print(\'hello\')"`'),
+    }));
+    expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('`1` tool call'));
+  });
+
+  it('dedupes repeated completed WriteFile updates with the same toolCallId', async () => {
+    const header = { id: 'header', edit: vi.fn().mockResolvedValue(undefined) };
+    const toolMessage = { id: 'tool-1', edit: vi.fn().mockResolvedValue(undefined) };
+    const mockChannel = {
+      send: vi.fn()
+        .mockResolvedValueOnce(header)
+        .mockResolvedValueOnce(toolMessage),
+    } as any;
+
+    const dispatcher = new TraceDispatcher(mockChannel, new TraceRendererRegistry());
+    await dispatcher.dispatchRunHeader({
+      threadId: 'thread-1',
+      parentChannelId: 'parent-1',
+      guildId: 'guild-1',
+      creatorUserId: 'user-1',
+      starterMessageId: 'message-1',
+      createdAt: new Date().toISOString(),
+      mode: 'monitored_workflow',
+      taskSummary: 'Write file',
+      traceMode: 'compact',
+      originContext: { type: 'channel', sourceChannelId: 'parent-1' },
+    });
+
+    const writeEvent: TraceEvent = {
+      type: 'tool_completed',
+      timestamp: Date.now(),
+      toolName: 'write_file',
+      canonicalToolName: 'write_file',
+      displayName: 'WriteFile',
+      toolFamily: 'filesystem',
+      args: { file_path: '~/Desktop/dice_roll.py' },
+      status: 'completed',
+      durationMs: 20,
+      resultSummary: 'Accepted (+2, -0)',
+      resultDetail: 'Diff: ~/Desktop/dice_roll.py\n+++ new\nprint("hello")\n',
+      artifactRef: '~/Desktop/dice_roll.py',
+      redactionMetadata: { fieldsRedacted: [], truncated: false },
+      raw: { toolCallId: 'write-1' },
+    };
+
+    await dispatcher.dispatch(writeEvent);
+    await dispatcher.dispatch(writeEvent);
+    await dispatcher.dispatchRunComplete();
+
+    expect(mockChannel.send).toHaveBeenCalledTimes(2);
+    expect(toolMessage.edit).toHaveBeenCalledTimes(1);
+    expect(toolMessage.edit).toHaveBeenCalledWith(expect.objectContaining({
+      content: expect.stringContaining('✓ **WriteFile** `~/Desktop/dice_roll.py`'),
+    }));
+    expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('`1` tool call'));
+  });
+
   it('renders visible tool-count grammar for zero, one, and multiple calls', async () => {
     const manifest = {
       threadId: 'thread-1',
