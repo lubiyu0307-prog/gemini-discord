@@ -38,3 +38,27 @@ Fix:
 2. Run `gemini extensions config gemini-discord`.
 3. Enter the new token.
 4. Restart Gemini CLI.
+
+## Bare Mentions and Immediate Context
+
+When a Discord message only mentions the bot, the daemon accepts it as a normal mention turn and sends Gemini a small immediate-context block. That block is capped to the last 2-3 messages in the same channel or thread and labels speakers as `BOSS`, `GUEST`, `allowed_agent`, or `self_bot`.
+
+If a bare mention does not respond:
+1. Confirm the message appears in `.gemini-discord/daemon.log` as `Accepted Discord message` with `trigger:"mention"`.
+2. Confirm the preceding messages were in the same channel or thread.
+3. If the bot needs to perform a Discord action from that context, check that the prior message clearly requested the action, such as creating a thread.
+
+## Native Thread Creation
+
+Thread requests use Discord's native thread APIs. With a source message ID, the daemon calls the message thread API; without one, it creates a native thread in the target channel.
+
+If thread creation fails:
+1. Check `.gemini-discord/daemon.log` for `Thread creation requested`, `Thread created`, or `Thread creation failed`.
+2. Confirm the target channel is included in `DISCORD_ALLOWED_CHANNEL_IDS`, or that the server-wide allow mode is active.
+3. Confirm the bot has Discord permissions to create threads in that channel.
+
+## Session Reset
+
+`/new` archives the active Discord transcript, resets the bound Gemini CLI session for that channel, and kills warm pooled CLI processes for that binding. The daemon logs this as `Conversation session reset` with `sessionKey`, `bindingKey`, and the archived Gemini session ID.
+
+After `/new`, bare mentions only receive immediate active-channel context. Older archived sessions are not replayed unless the user explicitly asks to inspect history.

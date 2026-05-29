@@ -30,6 +30,8 @@ const DISCORD_ACTION_PATTERNS = [
   /\bfollow up\b/i,
   /\bcheck back\b/i,
   /\bchannel\b/i,
+  /\b(?:create|start|make|open) (?:a )?(?:new )?(?:discord )?thread\b/i,
+  /\bthread (?:called|named)\b/i,
   /\bdiscord\b/i,
   /\breply to\b/i,
   /\breset (?:the )?(?:session|conversation)\b/i,

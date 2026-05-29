@@ -191,6 +191,14 @@ describe('shouldAcceptMessage', () => {
     });
   });
 
+  it('accepts a bare bot mention so the agent can answer from immediate context', () => {
+    expect(route({ authorId: 'owner-1', mentionedBot: true, content: '<@bot1>' })).toMatchObject({
+      accept: true,
+      trigger: 'mention',
+      content: '',
+    });
+  });
+
   it('allows setup-only server routing before channel discovery has populated channels', () => {
     const config: Config = {
       ...baseConfig,

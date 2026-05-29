@@ -539,24 +539,6 @@ var init_config = __esm({
   }
 });
 
-// src/daemon/log.ts
-function emit(level, msg, data) {
-  const entry = { t: (/* @__PURE__ */ new Date()).toISOString(), l: level, m: msg, ...data };
-  process.stdout.write(JSON.stringify(entry) + "\n");
-}
-var log;
-var init_log = __esm({
-  "src/daemon/log.ts"() {
-    "use strict";
-    log = {
-      info: (msg, data) => emit("\u2139\uFE0F INFO", msg, data),
-      warn: (msg, data) => emit("\u26A0\uFE0F WARN", msg, data),
-      error: (msg, data) => emit("\u274C ERROR", msg, data),
-      debug: (msg, data) => emit("\u{1F50D} DEBUG", msg, data)
-    };
-  }
-});
-
 // src/shared/tool-names.ts
 var DISCORD_BRIDGE_TOOL_NAMES, DISCORD_BRIDGE_TOOLS;
 var init_tool_names = __esm({
@@ -703,6 +685,9 @@ function resolveGeminiAllowedTools(roleContext, toolMode) {
       return "none";
   }
 }
+function resolveEffectiveToolMode(roleContext, requestedToolMode, turnDecisionAction) {
+  return isBoss(roleContext) ? requestedToolMode : turnDecisionAction === "public_web_search" ? "web" : "chat";
+}
 var GUEST_PERMISSION_REFUSAL, DISCORD_SNOWFLAKE_RE, PROMPT_BYPASS_PATTERNS, SHELL_PATTERNS, LOCAL_FILE_PATTERNS, PRIVILEGED_TOOL_NAME_PATTERNS, REPO_PATTERNS, MEDIA_PATTERNS, OUTBOUND_DISCORD_PATTERNS, CRON_PATTERNS, ADMIN_PATTERNS, HISTORY_STATUS_PATTERNS, AMBIGUOUS_PRIVILEGED_PATTERNS, NON_PUBLIC_WEB_PATTERNS;
 var init_permissions = __esm({
   "src/daemon/permissions.ts"() {
@@ -751,6 +736,8 @@ var init_permissions = __esm({
       /\b(?:send|post|reply|edit|delete|pin|unpin|react|unreact) (?:a |the |this |that )?(?:discord )?(?:message|reply|update)\b/i,
       /\b(?:send|post|reply) .*\b(?:to|in) #?[\w-]+\b/i,
       /\b(?:send|post|forward|share) .*\b(?:another|other|different) (?:discord )?channel\b/i,
+      /\b(?:create|start|make|open) (?:a )?(?:new )?(?:discord )?thread\b/i,
+      /\bthread (?:called|named)\b/i,
       /\bcross-channel\b/i
     ];
     CRON_PATTERNS = [
@@ -774,6 +761,76 @@ var init_permissions = __esm({
       /\b(?:private|internal|gated|admin) (?:dashboard|site|portal|page|docs?|wiki|intranet)\b/i,
       /\b(?:download|upload|submit|post|fill (?:out )?form|send data|call (?:an? )?api|external api|api endpoint)\b/i
     ];
+  }
+});
+
+// src/shared/config-sanitize.ts
+function sanitizeAllowedUserIds(config, bridgeAdminUserId) {
+  const warnings = [];
+  const drop = /* @__PURE__ */ new Set();
+  if (bridgeAdminUserId?.trim()) {
+    drop.add(bridgeAdminUserId.trim());
+  }
+  const boss = validateBossConfig(config);
+  if (boss.valid) {
+    drop.add(boss.bossUserId);
+  }
+  for (const id of config.allowedAgentIds) {
+    drop.add(id);
+  }
+  const before = config.allowedUserIds;
+  const allowedUserIds = before.filter((id) => {
+    if (!drop.has(id)) {
+      return true;
+    }
+    if (bridgeAdminUserId && id === bridgeAdminUserId) {
+      warnings.push(
+        `Removed bridge admin ${id} from DISCORD_ALLOWED_USER_IDS. The guest allowlist is for humans only; the bridge admin/service principal must never be allowlisted.`
+      );
+    } else if (boss.valid && id === boss.bossUserId) {
+      warnings.push(
+        `Removed boss user ${id} from DISCORD_ALLOWED_USER_IDS. Boss authority comes from DISCORD_BOSS_USER_ID, not the guest allowlist.`
+      );
+    } else if (config.allowedAgentIds.includes(id)) {
+      warnings.push(
+        `Removed agent/bot user ${id} from DISCORD_ALLOWED_USER_IDS. Agent identities belong in DISCORD_ALLOWED_AGENT_IDS, not the human guest allowlist.`
+      );
+    }
+    return false;
+  });
+  if (boss.valid && bridgeAdminUserId && boss.bossUserId === bridgeAdminUserId) {
+    warnings.push(
+      "DISCORD_BOSS_USER_ID matches the bridge admin account. Set it to the human operator's numeric Discord user ID or privileged actions will fail."
+    );
+  }
+  return {
+    allowedUserIds,
+    changed: allowedUserIds.length !== before.length,
+    warnings
+  };
+}
+var init_config_sanitize = __esm({
+  "src/shared/config-sanitize.ts"() {
+    "use strict";
+    init_permissions();
+  }
+});
+
+// src/daemon/log.ts
+function emit(level, msg, data) {
+  const entry = { t: (/* @__PURE__ */ new Date()).toISOString(), l: level, m: msg, ...data };
+  process.stdout.write(JSON.stringify(entry) + "\n");
+}
+var log;
+var init_log = __esm({
+  "src/daemon/log.ts"() {
+    "use strict";
+    log = {
+      info: (msg, data) => emit("\u2139\uFE0F INFO", msg, data),
+      warn: (msg, data) => emit("\u26A0\uFE0F WARN", msg, data),
+      error: (msg, data) => emit("\u274C ERROR", msg, data),
+      debug: (msg, data) => emit("\u{1F50D} DEBUG", msg, data)
+    };
   }
 });
 
@@ -76583,10 +76640,16 @@ function buildDiscordPrompt(options) {
   );
   const historyBlock = omittedCount > 0 ? `(${omittedCount} earlier messages omitted)
 ${transcript}` : transcript;
+  const immediateContextBlock = formatImmediateMentionContextBlock(options.immediateContext, {
+    bossUserId: options.bossUserId,
+    allowedAgentIds: options.allowedAgentIds,
+    botUserId: options.botUserId
+  });
   return `${buildDiscordAdapterInstruction(options.incoming, { bossUserId: options.bossUserId, ownerIds: options.ownerIds, backgroundContext: options.backgroundContext })}
 
 [Participants]
 ${buildActiveParticipantRoster(history, options.incoming, { bossUserId: options.bossUserId, ownerIds: options.ownerIds })}
+${immediateContextBlock}
 
 [History]
 ${historyBlock}
@@ -76595,10 +76658,38 @@ ${historyBlock}
 ${formatIncomingDiscordMessage(options.incoming, { bossUserId: options.bossUserId, ownerIds: options.ownerIds })}`;
 }
 function buildSessionModePrompt(options) {
+  const immediateContextBlock = formatImmediateMentionContextBlock(options.immediateContext, {
+    bossUserId: options.bossUserId,
+    allowedAgentIds: options.allowedAgentIds,
+    botUserId: options.botUserId
+  });
   return `${buildDiscordAdapterInstruction(options.incoming, { bossUserId: options.bossUserId, ownerIds: options.ownerIds, backgroundContext: options.backgroundContext })}
+${immediateContextBlock}
 
 [Message]
 ${formatIncomingDiscordMessage(options.incoming, { bossUserId: options.bossUserId, ownerIds: options.ownerIds })}`;
+}
+function shouldUseImmediateMentionContext(trigger, content) {
+  if (trigger !== "mention") {
+    return false;
+  }
+  const normalized = content.trim();
+  if (!normalized) {
+    return true;
+  }
+  const words = normalized.split(/\s+/).filter(Boolean);
+  if (words.length <= 4) {
+    return true;
+  }
+  return /^(?:yo|hey|hi|hello|do it|go|go ahead|get on it|this|that|same|yes|yeah|yep|please)$/i.test(normalized);
+}
+function selectImmediateMentionContext(history, incoming, limit = 3) {
+  const sameOrigin = history.filter((entry) => {
+    if (entry.messageId && entry.messageId === incoming.messageId) return false;
+    if (entry.channelId !== incoming.channelId) return false;
+    return (entry.threadId ?? null) === (incoming.threadId ?? null);
+  });
+  return sameOrigin.slice(-Math.max(0, limit));
 }
 function buildDiscordAdapterInstruction(incoming, options = {}) {
   const chatType = incoming && !incoming.guildId ? "direct" : "group";
@@ -76716,6 +76807,46 @@ ${replyContext}`;
 ${imageRefs}`;
   }
   return result;
+}
+function formatImmediateMentionContextBlock(context, options = {}) {
+  if (!context || context.length === 0) {
+    return "";
+  }
+  const lines = [
+    "",
+    "[Immediate Mention Context]",
+    'Only the messages below immediately preceded this mention/follow-up in the same Discord channel or thread. Use them to resolve a bare ping, "do it", "get on it", "this", or "that". Do not pull in older active or archived history unless the user explicitly asks.'
+  ];
+  for (const entry of context) {
+    const role = resolveStoredBridgeRole(entry, options);
+    const speaker = entry.speakerKind ?? (entry.role === "assistant" ? "assistant" : "human");
+    const authorName = entry.authorName ?? (entry.role === "assistant" ? "Assistant" : "Unknown");
+    const authorId = entry.authorId ? ` id ${entry.authorId}` : "";
+    const timestamp = entry.createdAt ? ` [${new Date(entry.createdAt).toLocaleTimeString()}]` : "";
+    const content = truncateText(entry.content || "(no text)", TRANSCRIPT_ENTRY_CHAR_LIMIT);
+    lines.push(`- ${authorName} (${role}; ${speaker}${authorId})${timestamp}: ${content}`);
+  }
+  return `${lines.join("\n")}
+`;
+}
+function resolveStoredBridgeRole(entry, options = {}) {
+  if (entry.authorBridgeRole) {
+    return entry.authorBridgeRole;
+  }
+  if (entry.role === "assistant" || entry.authorId && options.botUserId && entry.authorId === options.botUserId) {
+    return "self_bot";
+  }
+  if (entry.authorId && options.allowedAgentIds?.includes(entry.authorId)) {
+    return "allowed_agent";
+  }
+  if (entry.speakerKind === "agent") {
+    return "allowed_agent";
+  }
+  const bossConfig = validateBossConfig(options.bossUserId);
+  if (entry.authorId && bossConfig.valid && entry.authorId === bossConfig.bossUserId) {
+    return "BOSS";
+  }
+  return "GUEST";
 }
 function formatTranscriptEntry(entry, bossUserId, ownerIds) {
   return formatConversationMessageForContext(entry, { bossUserId, ownerIds });
@@ -76845,6 +76976,7 @@ function coerceMessage(entry) {
     role,
     content: String(entry.content ?? ""),
     speakerKind,
+    authorBridgeRole: coerceAuthorBridgeRole(entry.authorBridgeRole),
     authorId: optionalString(entry.authorId),
     authorName: optionalString(entry.authorName) ?? (role === "assistant" ? "Assistant" : void 0),
     attachments: coerceAttachments(entry.attachments),
@@ -76863,6 +76995,9 @@ function coerceMessage(entry) {
     trigger: optionalString(entry.trigger),
     createdAt: optionalString(entry.createdAt)
   };
+}
+function coerceAuthorBridgeRole(value) {
+  return value === "BOSS" || value === "GUEST" || value === "allowed_agent" || value === "self_bot" ? value : void 0;
 }
 function coerceMentionContext(value) {
   if (value == null) {
@@ -77610,6 +77745,13 @@ function resetConversationSession(config, memory, extensionDir2, context) {
   });
   resetGeminiBindingSession(bindingWorkspace.bindingDir);
   runtimeStore.cliPool?.kill(bindingKey);
+  log.info("Conversation session reset", {
+    sessionKey,
+    bindingKey,
+    archivedGeminiSessionId: bindingState.lastSessionId,
+    channelId: context.channelId,
+    guildId: context.guildId
+  });
   return {
     sessionKey,
     bindingKey
@@ -77621,6 +77763,7 @@ var init_session_reset = __esm({
     init_memory();
     init_binding();
     init_runtime();
+    init_log();
   }
 });
 
@@ -87215,58 +87358,6 @@ var init_cron = __esm({
   }
 });
 
-// src/shared/config-sanitize.ts
-function sanitizeAllowedUserIds(config, botUserId) {
-  const warnings = [];
-  const drop = /* @__PURE__ */ new Set();
-  if (botUserId?.trim()) {
-    drop.add(botUserId.trim());
-  }
-  const boss = validateBossConfig(config);
-  if (boss.valid) {
-    drop.add(boss.bossUserId);
-  }
-  for (const id of config.allowedAgentIds) {
-    drop.add(id);
-  }
-  const before = config.allowedUserIds;
-  const allowedUserIds = before.filter((id) => {
-    if (!drop.has(id)) {
-      return true;
-    }
-    if (botUserId && id === botUserId) {
-      warnings.push(
-        `Removed bot user ${id} from DISCORD_ALLOWED_USER_IDS. The guest allowlist is for humans only; the bot must never be allowlisted.`
-      );
-    } else if (boss.valid && id === boss.bossUserId) {
-      warnings.push(
-        `Removed boss user ${id} from DISCORD_ALLOWED_USER_IDS. Boss authority comes from DISCORD_BOSS_USER_ID, not the guest allowlist.`
-      );
-    } else if (config.allowedAgentIds.includes(id)) {
-      warnings.push(
-        `Removed agent/bot user ${id} from DISCORD_ALLOWED_USER_IDS. Agent identities belong in DISCORD_ALLOWED_AGENT_IDS, not the human guest allowlist.`
-      );
-    }
-    return false;
-  });
-  if (boss.valid && botUserId && boss.bossUserId === botUserId) {
-    warnings.push(
-      "DISCORD_BOSS_USER_ID matches the bot account. Set it to the human operator's numeric Discord user ID or privileged actions will fail."
-    );
-  }
-  return {
-    allowedUserIds,
-    changed: allowedUserIds.length !== before.length,
-    warnings
-  };
-}
-var init_config_sanitize = __esm({
-  "src/shared/config-sanitize.ts"() {
-    "use strict";
-    init_permissions();
-  }
-});
-
 // src/daemon/users.ts
 async function buildGuildUserMap(client, config, options = {}) {
   userAliasMap.clear();
@@ -87684,7 +87775,7 @@ function shouldAcceptMessage(input, config) {
     if (config.requireMention) return trackOnly(normalized, speakerKind);
     if (input.isBot) return trackOnly(normalized, speakerKind);
   }
-  if (!normalized && input.attachmentCount === 0) {
+  if (!normalized && input.attachmentCount === 0 && !input.mentionedBot) {
     return reject();
   }
   const trigger = input.isDM ? "dm" : stripped.usedPrefix ? "prefix" : input.mentionedBot ? "mention" : input.repliedToBot ? "reply" : isCron ? "cron" : "channel";
@@ -88597,21 +88688,30 @@ async function processViaCli(message, accepted, config, memory, processingContex
     channelName: accepted.channelName
   }) : void 0;
   if (allowPersistentSession) {
+    const immediateContext = shouldUseImmediateMentionContext(accepted.trigger, accepted.content) ? selectImmediateMentionContext(memory.snapshot(processingContext.sessionKey), incomingPrompt) : [];
     prompt = buildSessionModePrompt({
       incoming: incomingPrompt,
       bossUserId: config.discordBossUserId,
       ownerIds: config.ownerIds,
+      allowedAgentIds: config.allowedAgentIds,
+      botUserId: message.client.user?.id ?? null,
+      immediateContext,
       backgroundContext
     });
   } else {
-    const historySnapshot = memory.snapshot(processingContext.sessionKey);
+    const fullHistorySnapshot = memory.snapshot(processingContext.sessionKey);
+    const immediateContext = shouldUseImmediateMentionContext(accepted.trigger, accepted.content) ? selectImmediateMentionContext(fullHistorySnapshot, incomingPrompt) : [];
+    const historySnapshot = immediateContext.length > 0 ? [] : fullHistorySnapshot;
     prompt = buildDiscordPrompt({
       history: historySnapshot,
       bossUserId: config.discordBossUserId,
       ownerIds: config.ownerIds,
+      allowedAgentIds: config.allowedAgentIds,
+      botUserId: message.client.user?.id ?? null,
       promptHistoryMessageLimit: config.promptHistoryMessageLimit,
       promptHistoryCharBudget: config.promptHistoryCharBudget,
       incoming: incomingPrompt,
+      immediateContext,
       backgroundContext
     });
   }
@@ -88910,6 +89010,8 @@ var init_tool_mode = __esm({
       /\bfollow up\b/i,
       /\bcheck back\b/i,
       /\bchannel\b/i,
+      /\b(?:create|start|make|open) (?:a )?(?:new )?(?:discord )?thread\b/i,
+      /\bthread (?:called|named)\b/i,
       /\bdiscord\b/i,
       /\breply to\b/i,
       /\breset (?:the )?(?:session|conversation)\b/i,
@@ -89272,6 +89374,7 @@ async function initGateway(config, state2, memory, queue, apiServer, extensionDi
         content: trackOnlyContext.content,
         attachments: attachmentMetadata,
         speakerKind: trackOnlyContext.speakerKind,
+        authorBridgeRole: resolveConversationAuthorBridgeRole(message.author.id, trackOnlyContext.speakerKind, roleContext, config, message.client.user?.id ?? null),
         authorId: message.author.id,
         authorName: message.author.tag,
         channelId: message.channelId,
@@ -89298,6 +89401,18 @@ async function initGateway(config, state2, memory, queue, apiServer, extensionDi
   }, () => runtimeStore.isShuttingDown);
   await client.login(config.discordBotToken);
   log.info("Discord login initiated");
+}
+function resolveConversationAuthorBridgeRole(authorId, speakerKind, roleContext, config, botUserId) {
+  if (botUserId && authorId === botUserId) {
+    return "self_bot";
+  }
+  if (speakerKind === "assistant") {
+    return "self_bot";
+  }
+  if (speakerKind === "agent" || config.allowedAgentIds.includes(authorId)) {
+    return "allowed_agent";
+  }
+  return isBoss(roleContext) ? "BOSS" : "GUEST";
 }
 async function sendSetupValidationMessage(client, config, extensionDir2) {
   if (!config.setupValidationPending) {
@@ -89340,13 +89455,24 @@ function isResetCommand(rawContent, normalizedContent, resetCommand, prefix) {
 async function processMessage(message, accepted, config, memory, state2, processingContext, geminiSemaphore) {
   const channel = message.channel;
   const startTime = Date.now();
-  const requestedToolMode = accepted.trigger === "cron" ? "discord" : resolveToolMode(accepted.content);
+  let requestedToolMode = accepted.trigger === "cron" ? "discord" : resolveToolMode(accepted.content);
+  if (requestedToolMode === "chat" && shouldUseImmediateMentionContext(accepted.trigger, accepted.content)) {
+    const immediateContext = selectImmediateMentionContext(memory.snapshot(processingContext.sessionKey), {
+      channelId: message.channelId,
+      threadId: accepted.origin.threadId,
+      messageId: message.id
+    });
+    const contextToolMode = resolveToolMode(immediateContext.map((entry) => entry.content).join("\n"));
+    if (contextToolMode !== "chat") {
+      requestedToolMode = contextToolMode;
+    }
+  }
   const turnDecision = authorizeGuestRequest({
     content: accepted.content,
     attachmentCount: message.attachments.size,
     toolMode: requestedToolMode
   }, accepted.roleContext);
-  const toolMode = isBoss(accepted.roleContext) ? requestedToolMode : turnDecision.action === "public_web_search" ? "web" : "chat";
+  const toolMode = resolveEffectiveToolMode(accepted.roleContext, requestedToolMode, turnDecision.action);
   const attachmentMetadata = isBoss(accepted.roleContext) ? getSupportedAttachmentMetadata(message) : [];
   let effectiveAttachmentMetadata = attachmentMetadata;
   let response = "";
@@ -89413,6 +89539,7 @@ async function processMessage(message, accepted, config, memory, state2, process
         content: accepted.content,
         attachments: effectiveAttachmentMetadata,
         speakerKind: accepted.speakerKind,
+        authorBridgeRole: resolveConversationAuthorBridgeRole(message.author.id, accepted.speakerKind, accepted.roleContext, config, message.client.user?.id ?? null),
         authorId: message.author.id,
         authorName: message.author.tag,
         channelId: message.channelId,
@@ -89434,6 +89561,7 @@ async function processMessage(message, accepted, config, memory, state2, process
         role: "assistant",
         content: response,
         speakerKind: "assistant",
+        authorBridgeRole: "self_bot",
         authorId: message.client.user?.id,
         authorName: message.client.user?.tag ?? "Assistant",
         channelId: message.channelId,
@@ -89515,6 +89643,8 @@ var init_gateway = __esm({
 
 // src/daemon.ts
 init_config();
+init_config_sanitize();
+init_config_vars();
 
 // src/daemon/preflight.ts
 var import_node_child_process = require("node:child_process");
@@ -89751,7 +89881,7 @@ function roleContextFromLocalControlToken(req, config) {
   });
 }
 function authorizeApiAction(req, res, config, action) {
-  const roleContext = roleContextFromLocalControlToken(req, config) ?? roleContextFromRequest(req, config);
+  const roleContext = roleContextFromRequest(req, config) ?? roleContextFromLocalControlToken(req, config);
   if (!roleContext) {
     respond(res, 403, {
       error: "Missing Discord role context. Use the bridge from an authorized boss message in Discord, or call the local MCP server with a valid daemon token."
@@ -89828,8 +89958,10 @@ function handleStatusRoutes(req, res, url, deps) {
       lastError: state2.lastError,
       queueDepth: queue.depth(queueKey),
       streaming: config.streaming,
-      botTag: deps.client?.user?.tag ?? null,
+      botTag: deps.client?.user?.tag ?? state2.bridgeAdminTag ?? null,
       botId: deps.client?.user?.id ?? null,
+      bridgeAdminUserId: state2.bridgeAdminUserId,
+      bridgeAdminTag: state2.bridgeAdminTag,
       wsPing: deps.client?.ws?.ping ?? -1,
       channelId: config.discordChannelId,
       serverId: config.discordServerId || void 0,
@@ -89842,7 +89974,7 @@ function handleStatusRoutes(req, res, url, deps) {
       useGeminiCliSessions: config.useGeminiCliSessions,
       allowlistedUsers: config.allowedUserIds.length,
       allowlistedAgents: config.allowedAgentIds.length,
-      configWarnings: sanitizeAllowedUserIds(config, deps.client?.user?.id ?? null).warnings,
+      configWarnings: sanitizeAllowedUserIds(config, state2.bridgeAdminUserId ?? deps.client?.user?.id ?? null).warnings,
       requireMention: config.requireMention,
       channels: getChannelMapEntries().map(([name, { id }]) => ({ name, id })),
       cronJobs: listJobs(),
@@ -89979,6 +90111,7 @@ async function handleDiscoveryRoutes(req, res, url, deps) {
 init_chunker();
 init_sender();
 init_channels();
+init_log();
 async function handleMessageRoutes(req, res, pathname, parsed, deps) {
   const { config, memory, extensionDir: extensionDir2 } = deps;
   if (pathname === "/send") {
@@ -90041,6 +90174,7 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
         role: "assistant",
         content: content || "(Sent an attachment)",
         speakerKind: "assistant",
+        authorBridgeRole: "self_bot",
         authorId: deps.client.user?.id,
         authorName: deps.client.user?.tag ?? "Assistant",
         channelId: channel.id,
@@ -90099,6 +90233,7 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
         role: "assistant",
         content: content || "(Sent an attachment)",
         speakerKind: "assistant",
+        authorBridgeRole: "self_bot",
         authorId: deps.client.user?.id,
         authorName: deps.client.user?.tag ?? "Assistant",
         channelId: channel.id,
@@ -90297,6 +90432,49 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
     }
     return true;
   }
+  if (pathname === "/thread") {
+    if (!authorizeApiAction(req, res, config, "outbound_discord")) return true;
+    const channelId = String(parsed["channel_id"] ?? "");
+    const messageId = String(parsed["message_id"] ?? "");
+    const name = String(parsed["name"] ?? "");
+    if (!channelId || !name) {
+      respond(res, 400, { error: "channel_id and name are required" });
+      return true;
+    }
+    try {
+      if (!deps.client) {
+        respond(res, 503, { error: "Client not ready" });
+        return true;
+      }
+      const channel = await fetchTextChannel(deps.client, channelId);
+      if (!channel) {
+        respond(res, 400, { error: "Channel is not text-based" });
+        return true;
+      }
+      if (!isWritableTarget(channelId, channel, config)) {
+        respond(res, 403, { error: `Channel ${channelId} is not allowed for thread creation` });
+        return true;
+      }
+      log.info("Thread creation requested", { channelId, messageId: messageId || null, name });
+      let thread;
+      if (messageId) {
+        const msg = await channel.messages.fetch(messageId);
+        thread = await msg.startThread({ name });
+      } else if ("threads" in channel) {
+        thread = await channel.threads.create({ name });
+      } else {
+        respond(res, 400, { error: "Channel does not support threads" });
+        return true;
+      }
+      log.info("Thread created", { channelId, messageId: messageId || null, threadId: thread.id, name });
+      respond(res, 200, { ok: true, threadId: thread.id });
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      log.warn("Thread creation failed", { channelId, messageId: messageId || null, name, error });
+      respond(res, 500, { error });
+    }
+    return true;
+  }
   return false;
 }
 
@@ -90398,23 +90576,32 @@ async function handleModerationRoutes(req, res, pathname, parsed, deps) {
       });
       return true;
     }
-    if (action === "add" && userId === deps.client?.user?.id) {
-      respond(res, 400, { error: "Refusing to allowlist the bot user. Use user discovery to find a human member instead." });
-      return true;
-    }
-    if (action === "add" && config.allowedAgentIds.includes(userId)) {
-      respond(res, 400, { error: "Refusing to allowlist an agent/bot user ID in the human guest allowlist." });
-      return true;
-    }
-    if (action === "add" && deps.client && config.discordServerId) {
-      try {
-        const guild = await deps.client.guilds.fetch(config.discordServerId);
-        const member = await guild.members.fetch(userId);
-        if (member.user.bot) {
-          respond(res, 400, { error: "Refusing to allowlist a bot account. Use user discovery to find a human member instead." });
-          return true;
+    if (action === "add") {
+      const isBridgeAdmin = deps.state?.bridgeAdminUserId && userId === deps.state.bridgeAdminUserId || deps.client?.user?.id && userId === deps.client.user.id;
+      if (isBridgeAdmin) {
+        respond(res, 400, { error: "Refusing to add the bridge admin bot to the human guest allowlist." });
+        return true;
+      }
+      if (config.discordBossUserId && userId === config.discordBossUserId) {
+        respond(res, 400, {
+          error: "Refusing to add the boss user to the guest allowlist. Boss authority comes from DISCORD_BOSS_USER_ID, not DISCORD_ALLOWED_USER_IDS."
+        });
+        return true;
+      }
+      if (config.allowedAgentIds.includes(userId)) {
+        respond(res, 400, { error: "Refusing to allowlist an agent/bot user ID in the human guest allowlist." });
+        return true;
+      }
+      if (deps.client && config.discordServerId) {
+        try {
+          const guild = await deps.client.guilds.fetch(config.discordServerId);
+          const member = await guild.members.fetch(userId);
+          if (member?.user?.bot) {
+            respond(res, 400, { error: "Refusing to allowlist a bot account. Use user discovery to find a human member instead." });
+            return true;
+          }
+        } catch {
         }
-      } catch {
       }
     }
     const current = new Set(config.allowedUserIds);
@@ -90541,6 +90728,12 @@ function startControlApi(deps) {
       const pathname = url.pathname;
       if (req.method === "GET" && pathname === "/health") {
         respond(res, 200, { ok: true });
+        return;
+      }
+      const publicGet = req.method === "GET" && pathname === "/health";
+      const controlGet = req.method === "GET" && !publicGet;
+      if (controlGet && !requireAuth(req, config)) {
+        respond(res, 401, { error: "Unauthorized" });
         return;
       }
       if (req.method === "POST" && pathname === "/shutdown") {
@@ -91402,11 +91595,14 @@ var CliProcessPool = class {
     }
   }
   kill(bindingKey) {
+    let killed = 0;
     for (const [key] of this.pool) {
       if (key.startsWith(bindingKey + ":")) {
         this.evict(key);
+        killed++;
       }
     }
+    log.info("CLI pool: killed binding processes", { bindingKey, killed });
   }
   killAll() {
     for (const [key] of this.pool) {
@@ -91573,7 +91769,9 @@ var state = {
   messagesHandled: 0,
   lastMessageAt: null,
   lastError: null,
-  exchangeLog: []
+  exchangeLog: [],
+  bridgeAdminUserId: null,
+  bridgeAdminTag: null
 };
 async function main() {
   log.info("gemini-discord daemon starting", { dir: extensionDir });
@@ -91612,6 +91810,7 @@ async function main() {
   runtimeStore.queue = queue;
   runtimeStore.geminiSemaphore = geminiSemaphore;
   runtimeStore.cliPool = cliPool;
+  let apiServer = null;
   async function shutdown(signal) {
     if (shuttingDown) return;
     shuttingDown = true;
@@ -91642,18 +91841,6 @@ async function main() {
       process.exit(1);
     }, 35e3);
   }
-  const apiServer = startControlApi({
-    config,
-    state,
-    memory,
-    queue,
-    extensionDir,
-    get client() {
-      return runtimeStore.client;
-    },
-    isShuttingDown: () => shuttingDown,
-    shutdown
-  });
   const probe = await probeDiscordGateway(config.discordBotToken);
   if (!probe.ok) {
     log.error("Discord Gateway probe failed", { error: probe.error });
@@ -91669,6 +91856,38 @@ async function main() {
     config.enableServerMembersIntent = false;
   }
   log.info("Discord Gateway probe succeeded", { botTag: probe.botTag });
+  state.bridgeAdminUserId = probe.botId;
+  state.bridgeAdminTag = probe.botTag;
+  const sanitizeResult = sanitizeAllowedUserIds(config, probe.botId);
+  if (sanitizeResult.changed) {
+    log.info("Sanitized non-human guest IDs from human guest allowlist on startup", {
+      original: config.allowedUserIds,
+      sanitized: sanitizeResult.allowedUserIds
+    });
+    for (const warning of sanitizeResult.warnings) {
+      log.warn("Sanitize warning:", { warning });
+    }
+    config.allowedUserIds = sanitizeResult.allowedUserIds;
+    try {
+      persistConfigEnvUpdates(extensionDir, {
+        [ENV.DISCORD_ALLOWED_USER_IDS]: sanitizeResult.allowedUserIds.join(",")
+      });
+    } catch (e) {
+      log.warn("Failed to persist sanitized allowlist config", { error: String(e) });
+    }
+  }
+  apiServer = startControlApi({
+    config,
+    state,
+    memory,
+    queue,
+    extensionDir,
+    get client() {
+      return runtimeStore.client;
+    },
+    isShuttingDown: () => shuttingDown,
+    shutdown
+  });
   const { initGateway: initGateway2 } = await Promise.resolve().then(() => (init_gateway(), gateway_exports));
   await initGateway2(config, state, memory, queue, apiServer, extensionDir);
   process.on("SIGTERM", () => shutdown("SIGTERM"));

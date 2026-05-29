@@ -13,6 +13,7 @@
 import * as fs from 'node:fs';
 import * as fsPromises from 'node:fs/promises';
 import type {
+  ConversationAuthorBridgeRole,
   ConversationArchive,
   ConversationAttachment,
   ConversationMessage,
@@ -86,8 +87,11 @@ export interface PromptInput {
 export interface BuildDiscordPromptOptions {
   incoming: PromptInput;
   history?: ConversationMessage[];
+  immediateContext?: ConversationMessage[];
   bossUserId?: string;
   ownerIds?: string[];
+  allowedAgentIds?: string[];
+  botUserId?: string | null;
   promptHistoryMessageLimit?: number;
   promptHistoryCharBudget?: number;
   backgroundContext?: string;
@@ -427,11 +431,17 @@ export function buildDiscordPrompt(options: BuildDiscordPromptOptions): string {
   const historyBlock = omittedCount > 0
     ? `(${omittedCount} earlier messages omitted)\n${transcript}`
     : transcript;
+  const immediateContextBlock = formatImmediateMentionContextBlock(options.immediateContext, {
+    bossUserId: options.bossUserId,
+    allowedAgentIds: options.allowedAgentIds,
+    botUserId: options.botUserId,
+  });
 
   return `${buildDiscordAdapterInstruction(options.incoming, { bossUserId: options.bossUserId, ownerIds: options.ownerIds, backgroundContext: options.backgroundContext })}
 
 [Participants]
 ${buildActiveParticipantRoster(history, options.incoming, { bossUserId: options.bossUserId, ownerIds: options.ownerIds })}
+${immediateContextBlock}
 
 [History]
 ${historyBlock}
@@ -458,11 +468,53 @@ export function buildSessionModePrompt(options: {
   bossUserId?: string;
   ownerIds?: string[];
   backgroundContext?: string;
+  immediateContext?: ConversationMessage[];
+  allowedAgentIds?: string[];
+  botUserId?: string | null;
 }): string {
+  const immediateContextBlock = formatImmediateMentionContextBlock(options.immediateContext, {
+    bossUserId: options.bossUserId,
+    allowedAgentIds: options.allowedAgentIds,
+    botUserId: options.botUserId,
+  });
+
   return `${buildDiscordAdapterInstruction(options.incoming, { bossUserId: options.bossUserId, ownerIds: options.ownerIds, backgroundContext: options.backgroundContext })}
+${immediateContextBlock}
 
 [Message]
 ${formatIncomingDiscordMessage(options.incoming, { bossUserId: options.bossUserId, ownerIds: options.ownerIds })}`;
+}
+
+export function shouldUseImmediateMentionContext(trigger: string | undefined, content: string): boolean {
+  if (trigger !== 'mention') {
+    return false;
+  }
+
+  const normalized = content.trim();
+  if (!normalized) {
+    return true;
+  }
+
+  const words = normalized.split(/\s+/).filter(Boolean);
+  if (words.length <= 4) {
+    return true;
+  }
+
+  return /^(?:yo|hey|hi|hello|do it|go|go ahead|get on it|this|that|same|yes|yeah|yep|please)$/i.test(normalized);
+}
+
+export function selectImmediateMentionContext(
+  history: ConversationMessage[],
+  incoming: Pick<PromptInput, 'channelId' | 'threadId' | 'messageId'>,
+  limit = 3,
+): ConversationMessage[] {
+  const sameOrigin = history.filter((entry) => {
+    if (entry.messageId && entry.messageId === incoming.messageId) return false;
+    if (entry.channelId !== incoming.channelId) return false;
+    return (entry.threadId ?? null) === (incoming.threadId ?? null);
+  });
+
+  return sameOrigin.slice(-Math.max(0, limit));
 }
 
 export function buildDiscordAdapterInstruction(
@@ -604,6 +656,61 @@ export function formatConversationMessageForContext(
     result += `\n${imageRefs}`;
   }
   return result;
+}
+
+function formatImmediateMentionContextBlock(
+  context: ConversationMessage[] | undefined,
+  options: { bossUserId?: string; allowedAgentIds?: string[]; botUserId?: string | null } = {},
+): string {
+  if (!context || context.length === 0) {
+    return '';
+  }
+
+  const lines = [
+    '',
+    '[Immediate Mention Context]',
+    'Only the messages below immediately preceded this mention/follow-up in the same Discord channel or thread. Use them to resolve a bare ping, "do it", "get on it", "this", or "that". Do not pull in older active or archived history unless the user explicitly asks.',
+  ];
+
+  for (const entry of context) {
+    const role = resolveStoredBridgeRole(entry, options);
+    const speaker = entry.speakerKind ?? (entry.role === 'assistant' ? 'assistant' : 'human');
+    const authorName = entry.authorName ?? (entry.role === 'assistant' ? 'Assistant' : 'Unknown');
+    const authorId = entry.authorId ? ` id ${entry.authorId}` : '';
+    const timestamp = entry.createdAt ? ` [${new Date(entry.createdAt).toLocaleTimeString()}]` : '';
+    const content = truncateText(entry.content || '(no text)', TRANSCRIPT_ENTRY_CHAR_LIMIT);
+    lines.push(`- ${authorName} (${role}; ${speaker}${authorId})${timestamp}: ${content}`);
+  }
+
+  return `${lines.join('\n')}\n`;
+}
+
+function resolveStoredBridgeRole(
+  entry: ConversationMessage,
+  options: { bossUserId?: string; allowedAgentIds?: string[]; botUserId?: string | null } = {},
+): ConversationAuthorBridgeRole {
+  if (entry.authorBridgeRole) {
+    return entry.authorBridgeRole;
+  }
+
+  if (entry.role === 'assistant' || (entry.authorId && options.botUserId && entry.authorId === options.botUserId)) {
+    return 'self_bot';
+  }
+
+  if (entry.authorId && options.allowedAgentIds?.includes(entry.authorId)) {
+    return 'allowed_agent';
+  }
+
+  if (entry.speakerKind === 'agent') {
+    return 'allowed_agent';
+  }
+
+  const bossConfig = validateBossConfig(options.bossUserId);
+  if (entry.authorId && bossConfig.valid && entry.authorId === bossConfig.bossUserId) {
+    return 'BOSS';
+  }
+
+  return 'GUEST';
 }
 
 function formatTranscriptEntry(entry: ConversationMessage, bossUserId?: string, ownerIds?: string[]): string {
@@ -802,6 +909,7 @@ function coerceMessage(entry: Record<string, unknown>): ConversationMessage {
     role,
     content: String(entry.content ?? ''),
     speakerKind,
+    authorBridgeRole: coerceAuthorBridgeRole(entry.authorBridgeRole),
     authorId: optionalString(entry.authorId),
     authorName: optionalString(entry.authorName) ?? (role === 'assistant' ? 'Assistant' : undefined),
     attachments: coerceAttachments(entry.attachments),
@@ -820,6 +928,15 @@ function coerceMessage(entry: Record<string, unknown>): ConversationMessage {
     trigger: optionalString(entry.trigger),
     createdAt: optionalString(entry.createdAt),
   };
+}
+
+function coerceAuthorBridgeRole(value: unknown): ConversationAuthorBridgeRole | undefined {
+  return value === 'BOSS'
+    || value === 'GUEST'
+    || value === 'allowed_agent'
+    || value === 'self_bot'
+    ? value
+    : undefined;
 }
 
 function coerceMentionContext(value: unknown): DiscordMentionContext | null | undefined {
