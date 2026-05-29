@@ -5,6 +5,7 @@ import { normalizeAcpUpdate } from '../src/daemon/workflow/trace-normalizer.js';
 import { TraceDispatcher } from '../src/daemon/workflow/trace-dispatcher.js';
 import { TraceRendererRegistry } from '../src/daemon/workflow/trace-renderer.js';
 import { finalizeAssistantResponse } from '../src/daemon/engine-cli.js';
+import { formatWorkflowFinalDisplay } from '../src/daemon/workflow/final-display.js';
 
 describe('Workflow Thread Policy & Interception', () => {
   beforeEach(() => {
@@ -152,7 +153,10 @@ describe('Workflow Thread Policy & Interception', () => {
 
       expect(mockChannel.send).not.toHaveBeenCalled();
       expect((dispatcher as any).toolCallCount).toBe(0);
-      expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('`0` tool calls'));
+      expect(header.edit).toHaveBeenLastCalledWith(expect.objectContaining({
+        content: expect.stringContaining('`0` tool calls'),
+        allowedMentions: { parse: [], repliedUser: false },
+      }));
     });
 
     it('allows and counts explicit user-requested Discord send tools', async () => {
@@ -261,8 +265,8 @@ describe('Workflow Thread Policy & Interception', () => {
     });
   });
 
-  describe('finalizeAssistantResponse options', () => {
-    it('normal channel/DM final response path remains unchanged and handles options cleanly', async () => {
+  describe('finalizeAssistantResponse', () => {
+    it('keeps normal channel/DM single-line final responses plain', async () => {
       const mockMessage = {
         client: {
           channels: { fetch: vi.fn() },
@@ -273,70 +277,52 @@ describe('Workflow Thread Policy & Interception', () => {
         allowPrivilegedActions: true,
       });
 
-      expect(res.displayText).toBe('✦ Hello World');
+      expect(res.displayText).toBe('Hello World');
       expect(res.responseText).toBe('Hello World');
     });
 
-    it('does not prepend newlines when prependNewlines is false', async () => {
+    it('keeps normal channel/DM multi-line final responses plain', async () => {
       const mockMessage = {
         client: {
           channels: { fetch: vi.fn() },
         },
       } as any;
 
-      const res = await finalizeAssistantResponse('Hello World', mockMessage, {
+      const res = await finalizeAssistantResponse('Hello World\nSecond line', mockMessage, {
         allowPrivilegedActions: true,
-        prependNewlines: false,
       });
 
-      expect(res.displayText).toBe('✦ Hello World');
+      expect(res.displayText).toBe('Hello World\nSecond line');
+      expect(res.responseText).toBe('Hello World\nSecond line');
     });
 
-    it('normalizes compact sparkle-prefixed workflow final answers', async () => {
+    it('does not normalize compact workflow markers in shared finalization', async () => {
       const mockMessage = {
         client: {
           channels: { fetch: vi.fn() },
         },
       } as any;
 
-      const res = await finalizeAssistantResponse('✦1183', mockMessage, {
+      const res = await finalizeAssistantResponse('✦Done.', mockMessage, {
         allowPrivilegedActions: true,
-        prependNewlines: false,
       });
 
-      expect(res.displayText).toBe('✦ 1183');
-      expect(res.responseText).toBe('✦1183');
+      expect(res.displayText).toBe('✦Done.');
+      expect(res.responseText).toBe('✦Done.');
+    });
+  });
+
+  describe('formatWorkflowFinalDisplay', () => {
+    it('adds the workflow marker to final workflow answers', () => {
+      expect(formatWorkflowFinalDisplay('Done.')).toBe('✦ Done.');
     });
 
-    it('keeps grouped workflow final answers readable with leading spacing', async () => {
-      const mockMessage = {
-        client: {
-          channels: { fetch: vi.fn() },
-        },
-      } as any;
-
-      const res = await finalizeAssistantResponse('✦1183', mockMessage, {
-        allowPrivilegedActions: true,
-        prependNewlines: true,
-      });
-
-      expect(res.displayText).toBe('\n\n✦ 1183');
-      expect(res.responseText).toBe('✦1183');
+    it('normalizes compact workflow markers only in workflow final display', () => {
+      expect(formatWorkflowFinalDisplay('✦Done.')).toBe('✦ Done.');
     });
 
-    it('prepends newlines when prependNewlines is true', async () => {
-      const mockMessage = {
-        client: {
-          channels: { fetch: vi.fn() },
-        },
-      } as any;
-
-      const res = await finalizeAssistantResponse('Hello World', mockMessage, {
-        allowPrivilegedActions: true,
-        prependNewlines: true,
-      });
-
-      expect(res.displayText).toBe('\n\n✦ Hello World');
+    it('leaves empty workflow final answers empty', () => {
+      expect(formatWorkflowFinalDisplay('   ')).toBe('');
     });
   });
 });
