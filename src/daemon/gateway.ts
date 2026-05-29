@@ -53,6 +53,7 @@ import { TraceRendererRegistry } from './workflow/trace-renderer.js';
 import { TraceDispatcher } from './workflow/trace-dispatcher.js';
 import type { TraceEvent } from './workflow/trace-event.js';
 import { SUPPRESS_DISCORD_MENTIONS } from './mention-safety.js';
+import { formatWorkflowFinalDisplay } from './workflow/final-display.js';
 
 const MAX_AGENT_EXCHANGES = 6;
 
@@ -795,10 +796,10 @@ async function processMessage(
         if (response.trim().length > 0) {
           const prepared = await finalizeAssistantResponse(response, message, {
             allowPrivilegedActions: isBoss(accepted.roleContext),
-            prependNewlines: true,
           });
           response = prepared.responseText;
-          const finalMsgIds = await sendPreparedDisplayText(channel as any, prepared.displayText, { suppressMentions: true });
+          const displayText = formatWorkflowFinalDisplay(prepared.displayText);
+          const finalMsgIds = await sendPreparedDisplayText(channel as any, displayText, { suppressMentions: true });
           responseMessageIds.push(...finalMsgIds);
           responseMessageIds.push(...prepared.actionMessageIds);
         }

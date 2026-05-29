@@ -252,7 +252,6 @@ export async function processViaCli(
 
       const prepared = await finalizeAssistantResponse(response, message, {
         allowPrivilegedActions: isBoss(accepted.roleContext),
-        prependNewlines: isWorkflow,
       });
       response = prepared.responseText;
       responseMessageIds = await editor.finalize(prepared.displayText, chunkMessage, {
@@ -301,7 +300,6 @@ export async function processViaCli(
 
         const prepared = await finalizeAssistantResponse(response, message, {
           allowPrivilegedActions: isBoss(accepted.roleContext),
-          prependNewlines: isWorkflow,
         });
         response = prepared.responseText;
         responseMessageIds = await sendPreparedDisplayText(channel, prepared.displayText);
@@ -358,7 +356,6 @@ export interface FinalizedAssistantResponse {
 
 export interface FinalizeOptions {
   allowPrivilegedActions: boolean;
-  prependNewlines?: boolean;
 }
 
 export async function finalizeAssistantResponse(
@@ -374,20 +371,8 @@ export async function finalizeAssistantResponse(
     allowPrivileged: options.allowPrivilegedActions,
   });
 
-  let displayText = actionResult.cleanedResponse;
-  const trimmed = displayText.trim();
-  if (trimmed && !trimmed.includes('\n')) {
-    displayText = trimmed.startsWith('✦')
-      ? trimmed.replace(/^✦\s*/, '✦ ')
-      : `✦ ${trimmed}`;
-  }
-
-  if (options.prependNewlines && trimmed) {
-    displayText = `\n\n${displayText}`;
-  }
-
   return {
-    displayText: displayText,
+    displayText: actionResult.cleanedResponse,
     responseText: actionResult.cleanedResponse,
     allowEmpty: true,
     actionMessageIds: actionResult.messageIds,

@@ -89238,8 +89238,7 @@ async function processViaCli(message, accepted, config, memory, processingContex
         }
       );
       const prepared = await finalizeAssistantResponse(response, message, {
-        allowPrivilegedActions: isBoss(accepted.roleContext),
-        prependNewlines: isWorkflow
+        allowPrivilegedActions: isBoss(accepted.roleContext)
       });
       response = prepared.responseText;
       responseMessageIds = await editor.finalize(prepared.displayText, chunkMessage, {
@@ -89286,8 +89285,7 @@ async function processViaCli(message, accepted, config, memory, processingContex
           };
         }
         const prepared = await finalizeAssistantResponse(response, message, {
-          allowPrivilegedActions: isBoss(accepted.roleContext),
-          prependNewlines: isWorkflow
+          allowPrivilegedActions: isBoss(accepted.roleContext)
         });
         response = prepared.responseText;
         responseMessageIds = await sendPreparedDisplayText(channel, prepared.displayText);
@@ -89340,18 +89338,8 @@ async function finalizeAssistantResponse(rawResponse, message, options) {
   const actionResult = await processCrossChannelSends(sanitized, message.client, {
     allowPrivileged: options.allowPrivilegedActions
   });
-  let displayText = actionResult.cleanedResponse;
-  const trimmed = displayText.trim();
-  if (trimmed && !trimmed.includes("\n")) {
-    displayText = trimmed.startsWith("\u2726") ? trimmed.replace(/^✦\s*/, "\u2726 ") : `\u2726 ${trimmed}`;
-  }
-  if (options.prependNewlines && trimmed) {
-    displayText = `
-
-${displayText}`;
-  }
   return {
-    displayText,
+    displayText: actionResult.cleanedResponse,
     responseText: actionResult.cleanedResponse,
     allowEmpty: true,
     actionMessageIds: actionResult.messageIds
@@ -90607,6 +90595,25 @@ var init_trace_dispatcher = __esm({
   }
 });
 
+// src/daemon/workflow/final-display.ts
+function formatWorkflowFinalDisplay(text) {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (trimmed.startsWith(WORKFLOW_FINAL_MARKER)) {
+    return trimmed.replace(/^\u2726\s*/, `${WORKFLOW_FINAL_MARKER} `);
+  }
+  return `${WORKFLOW_FINAL_MARKER} ${trimmed}`;
+}
+var WORKFLOW_FINAL_MARKER;
+var init_final_display = __esm({
+  "src/daemon/workflow/final-display.ts"() {
+    "use strict";
+    WORKFLOW_FINAL_MARKER = "\u2726";
+  }
+});
+
 // src/daemon/gateway.ts
 var gateway_exports = {};
 __export(gateway_exports, {
@@ -91212,11 +91219,11 @@ async function processMessage(message, accepted, config, memory, state2, process
         runtimeStore.workflowResponseCandidates.delete(candidateKey);
         if (response.trim().length > 0) {
           const prepared = await finalizeAssistantResponse(response, message, {
-            allowPrivilegedActions: isBoss(accepted.roleContext),
-            prependNewlines: true
+            allowPrivilegedActions: isBoss(accepted.roleContext)
           });
           response = prepared.responseText;
-          const finalMsgIds = await sendPreparedDisplayText(channel, prepared.displayText, { suppressMentions: true });
+          const displayText = formatWorkflowFinalDisplay(prepared.displayText);
+          const finalMsgIds = await sendPreparedDisplayText(channel, displayText, { suppressMentions: true });
           responseMessageIds.push(...finalMsgIds);
           responseMessageIds.push(...prepared.actionMessageIds);
         }
@@ -91368,6 +91375,7 @@ var init_gateway = __esm({
     init_trace_renderer();
     init_trace_dispatcher();
     init_mention_safety();
+    init_final_display();
     MAX_AGENT_EXCHANGES = 6;
   }
 });

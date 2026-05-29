@@ -451,7 +451,10 @@ describe('workflow trace events & renderer integration', () => {
     expect(toolMessage.edit).toHaveBeenCalledWith(expect.objectContaining({
       content: expect.stringContaining('✓ **Shell** `python3 -c "print(\'hello\')"`'),
     }));
-    expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('`1` tool call'));
+    expect(header.edit).toHaveBeenLastCalledWith(expect.objectContaining({
+      content: expect.stringContaining('`1` tool call'),
+      allowedMentions: { parse: [], repliedUser: false },
+    }));
   });
 
   it('suppresses shell lifecycle narration and counts only the visible completed shell call', async () => {
@@ -506,7 +509,10 @@ describe('workflow trace events & renderer integration', () => {
     expect(sentTool.content).toContain('✓ **Shell** `cat ~/Desktop/dice_roll.c`');
     expect(sentTool.content).toContain('```txt\n#include <stdio.h>\n```');
     expect(sentTool.content).not.toContain('Reading the current dice roll script');
-    expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('`1` tool call'));
+    expect(header.edit).toHaveBeenLastCalledWith(expect.objectContaining({
+      content: expect.stringContaining('`1` tool call'),
+      allowedMentions: { parse: [], repliedUser: false },
+    }));
   });
 
   it('dedupes completed shell updates with different lifecycle ids but the same command', async () => {
@@ -564,7 +570,10 @@ describe('workflow trace events & renderer integration', () => {
     expect(toolMessage.edit).toHaveBeenCalledWith(expect.objectContaining({
       content: expect.stringContaining('```txt\ncompiled\n```'),
     }));
-    expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('`1` tool call'));
+    expect(header.edit).toHaveBeenLastCalledWith(expect.objectContaining({
+      content: expect.stringContaining('`1` tool call'),
+      allowedMentions: { parse: [], repliedUser: false },
+    }));
   });
 
   it('dedupes repeated completed WriteFile updates with the same toolCallId', async () => {
@@ -616,7 +625,10 @@ describe('workflow trace events & renderer integration', () => {
     expect(toolMessage.edit).toHaveBeenCalledWith(expect.objectContaining({
       content: expect.stringContaining('✓ **WriteFile** `~/Desktop/dice_roll.py`'),
     }));
-    expect(header.edit).toHaveBeenLastCalledWith(expect.stringContaining('`1` tool call'));
+    expect(header.edit).toHaveBeenLastCalledWith(expect.objectContaining({
+      content: expect.stringContaining('`1` tool call'),
+      allowedMentions: { parse: [], repliedUser: false },
+    }));
   });
 
   it('renders visible tool-count grammar for zero, one, and multiple calls', async () => {
@@ -638,7 +650,10 @@ describe('workflow trace events & renderer integration', () => {
     const zeroDispatcher = new TraceDispatcher(zeroChannel, new TraceRendererRegistry());
     await zeroDispatcher.dispatchRunHeader(manifest);
     await zeroDispatcher.dispatchRunComplete();
-    expect(zeroHeader.edit).toHaveBeenLastCalledWith(expect.stringContaining('`0` tool calls'));
+    expect(zeroHeader.edit).toHaveBeenLastCalledWith(expect.objectContaining({
+      content: expect.stringContaining('`0` tool calls'),
+      allowedMentions: { parse: [], repliedUser: false },
+    }));
 
     const oneHeader = { id: 'one-header', edit: vi.fn().mockResolvedValue(undefined) };
     const oneChannel = { send: vi.fn().mockResolvedValue(oneHeader) } as any;
@@ -660,7 +675,10 @@ describe('workflow trace events & renderer integration', () => {
       raw: { toolCallId: 'read-1' },
     });
     await oneDispatcher.dispatchRunComplete();
-    expect(oneHeader.edit).toHaveBeenLastCalledWith(expect.stringContaining('`1` tool call'));
+    expect(oneHeader.edit).toHaveBeenLastCalledWith(expect.objectContaining({
+      content: expect.stringContaining('`1` tool call'),
+      allowedMentions: { parse: [], repliedUser: false },
+    }));
 
     const twoHeader = { id: 'two-header', edit: vi.fn().mockResolvedValue(undefined) };
     const twoChannel = { send: vi.fn().mockResolvedValue(twoHeader) } as any;
@@ -684,7 +702,10 @@ describe('workflow trace events & renderer integration', () => {
       });
     }
     await twoDispatcher.dispatchRunComplete();
-    expect(twoHeader.edit).toHaveBeenLastCalledWith(expect.stringContaining('`2` tool calls'));
+    expect(twoHeader.edit).toHaveBeenLastCalledWith(expect.objectContaining({
+      content: expect.stringContaining('`2` tool calls'),
+      allowedMentions: { parse: [], repliedUser: false },
+    }));
   });
 
   it('does not count update_topic as a tool call and only renders it at most once', async () => {
