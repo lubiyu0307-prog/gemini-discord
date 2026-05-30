@@ -9,6 +9,8 @@ Refined monitored workflow output so Discord threads read more like a compact op
 - **Compact File Writes**: `WriteFile` traces show compact Accepted/Created/Updated rows instead of generated content previews.
 - **Internal Planning Noise**: Tactical intent updates and phase-start planning events are suppressed from the visible trace while the run header continues tracking progress.
 - **Tool Labels**: Directory reads render as `ReadFolder`, and MCP `activate_skill` events get a compact dedicated row.
+- **Title-Only Tool Labels**: ACP web fetch and skill activation updates now render as compact `Web Fetch` and `Activate Skill` cards instead of exposing verbose ACP titles in Discord.
+- **Opt-In Daemon Singleton Guard**: Branch testing can set `GEMINI_DISCORD_DAEMON_SINGLETON=1` so startup refuses to run when another same-token `gemini-discord` daemon is already active.
 
 ## [2026-05-26] Workflow Trace Polish
 

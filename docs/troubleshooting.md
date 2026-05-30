@@ -16,6 +16,15 @@ Fix:
 3. If MCP tools still report the daemon as offline, restart Gemini CLI so the extension process reloads runtime state.
 4. Only change `DAEMON_PORT` manually if you need a stable preferred port; do not edit `gemini-extension.json` for routine conflicts.
 
+## Duplicate Discord Replies
+
+For branch testing, start the daemon with `GEMINI_DISCORD_DAEMON_SINGLETON=1` to allow only one daemon per Discord bot token and OS user. With the guard enabled, startup takes a token-scoped lock in the system temp directory. During upgrades it also checks for older same-user `gemini-discord/dist/daemon.cjs` processes that predate the lock. If startup reports that another daemon is already running, stop the older install or test process before starting the branch you want to use.
+
+Fix:
+1. Run `pgrep -af "gemini-discord.*dist/daemon.cjs"` to find duplicate daemons.
+2. Stop the process for the install or branch you are not testing.
+3. Start only the branch daemon you want Discord to receive events from.
+
 ## Disallowed Intents (4014)
 
 Discord closes the gateway with code `4014` when the bot requests privileged intents that are not enabled in the Discord Developer Portal.

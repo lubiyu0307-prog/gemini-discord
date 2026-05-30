@@ -467,7 +467,7 @@ function cleanSuccessfulMetadata(text: string, event: TraceEvent): string {
     .filter((line) => {
       const trimmed = line.trim();
       return !/^\[current working directory\b[^\]]*\]$/i.test(trimmed) &&
-        !/^\((?:Executing|Creating|Running|Using|Reading|Compiling|Listing)\b[\s\S]*\)$/i.test(trimmed);
+        !/^\((?:Executing|Creating|Running|Using|Reading|Compiling|Listing|Writing)\b[\s\S]*\)$/i.test(trimmed);
     })
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
@@ -476,6 +476,9 @@ function cleanSuccessfulMetadata(text: string, event: TraceEvent): string {
 
 function cleanShellOutput(event: TraceEvent): string {
   const detail = event.resultDetail || event.resultSummary || '';
+  if (/command substitution detected in shell command/i.test(detail)) {
+    return '';
+  }
   return cleanSuccessfulMetadata(detail, event);
 }
 
@@ -493,6 +496,12 @@ function writeFileAction(event: TraceEvent): string {
   }
   if (/created|new file|\+\+\+\s+new/i.test(text)) return 'Created';
   return 'Updated';
+}
+
+function compactToolResult(text: string, maxLength = 180): string {
+  return oneLine(text, maxLength)
+    .replace(/\/Users\/yamato\//g, '~/')
+    .replace(/:\s*Showing up to \d+ items.*$/i, '.');
 }
 
 export class ShellRenderer implements ToolRenderer {
@@ -695,9 +704,26 @@ export class WebRenderer implements ToolRenderer {
       };
     }
 
+    if (canonical === 'web_fetch') {
+      const target = query ? inlineCode(oneLine(query, 160)) : 'prompt';
+      const summary = event.status === 'completed'
+        ? compactToolResult(event.resultSummary || 'Content retrieved')
+        : event.status === 'failed'
+          ? compactToolResult(event.resultSummary || 'Fetch failed')
+          : '';
+      return {
+        content: [
+          `${statusGlyph(event.status)} **Web Fetch** ${target}`,
+          summary ? `↳ ${summary}` : '',
+        ].filter(Boolean).join('\n'),
+        density: summary ? 'card' : 'row',
+        flags: flags(),
+      };
+    }
+
     if (event.status === 'started' || event.status === 'progress') {
       return {
-        content: `${statusGlyph(event.status)} **WebFetch** "${oneLine(query, 120)}"`,
+        content: `${statusGlyph(event.status)} **WebFetch** ${query ? inlineCode(oneLine(query, 160)) : ''}`.trim(),
         density: 'row',
         flags: flags(),
       };
@@ -781,14 +807,19 @@ export class McpRenderer implements ToolRenderer {
 
   render(event: TraceEvent): RenderedTrace {
     if (event.canonicalToolName === 'activate_skill') {
-      const skillName = stringArg(event.args, 'skill', 'name', 'skillName');
-      const target = skillName ? ` ${inlineCode(skillName)}` : '';
-      const resultText = event.status === 'completed' && event.resultSummary
-        ? ` → ${oneLine(event.resultSummary, 120)}`
-        : '';
+      const skillName = stringArg(event.args, 'name', 'skill', 'skillName');
+      const label = skillName ? inlineCode(skillName) : 'skill';
+      const summary = event.status === 'completed'
+        ? compactToolResult(event.resultSummary || 'Skill activated')
+        : event.status === 'failed'
+          ? compactToolResult(event.resultSummary || 'Activation failed')
+          : '';
       return {
-        content: `${statusGlyph(event.status)} **Activate Skill**${target}${resultText}`,
-        density: 'row',
+        content: [
+          `${statusGlyph(event.status)} **Activate Skill** ${label}`,
+          summary ? `↳ ${summary}` : '',
+        ].filter(Boolean).join('\n'),
+        density: summary ? 'card' : 'row',
         flags: flags(),
       };
     }

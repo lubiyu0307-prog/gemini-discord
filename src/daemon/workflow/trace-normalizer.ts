@@ -209,6 +209,12 @@ function resolveTopLevelToolEntry(payload: Record<string, unknown>): ReturnType<
   if (/^Searching\s+the\s+web\s+for:/i.test(title)) {
     return resolveToolEntry('google_web_search');
   }
+  if (kind === 'fetch' || /^Processing\s+URLs\s+and\s+instructions\s+from\s+prompt:/i.test(title)) {
+    return resolveToolEntry('web_fetch');
+  }
+  if (/^"[^"]+":\s+\S/.test(title)) {
+    return resolveToolEntry('activate_skill');
+  }
   if (/^(?:ReadFolder|ListDirectory)\b/i.test(title) || (kind === 'read' && /^[.~/(]|^[A-Za-z]:[\\/]/.test(title))) {
     return {
       canonical: 'list_directory',
@@ -261,6 +267,14 @@ function argsWithTitleMetadata(args: Record<string, unknown>, toolEntry: ReturnT
   if (toolEntry.canonical === 'read_file' && !firstString(withCommand['file_path'], withCommand['path'])) {
     const file = title.replace(/^ReadFile\s*/i, '').trim();
     return file ? { ...withCommand, file_path: file } : withCommand;
+  }
+  if (toolEntry.canonical === 'activate_skill' && !firstString(withCommand['name'], withCommand['skill'])) {
+    const skill = title.match(/^"([^"]+)":\s+/)?.[1];
+    return skill ? { ...withCommand, name: skill } : withCommand;
+  }
+  if (toolEntry.canonical === 'web_fetch' && !firstString(withCommand['url'], withCommand['prompt'], withCommand['query'])) {
+    const prompt = title.match(/^Processing\s+URLs\s+and\s+instructions\s+from\s+prompt:\s*["“]?(.+?)["”]?\s*$/i)?.[1];
+    return prompt ? { ...withCommand, prompt } : withCommand;
   }
   if (toolEntry.canonical !== 'google_web_search') return withCommand;
   if (firstString(withCommand['query'], withCommand['prompt'])) return withCommand;

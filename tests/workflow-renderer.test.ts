@@ -130,6 +130,26 @@ describe('trace renderers', () => {
     expect(rendered.suppressed).toBe(true);
   });
 
+  it('suppresses markdown-heavy planning phase headings', () => {
+    const event: TraceEvent = {
+      type: 'phase_started',
+      timestamp: Date.now(),
+      toolName: null,
+      canonicalToolName: null,
+      displayName: null,
+      toolFamily: 'planning',
+      args: {},
+      status: 'started',
+      durationMs: null,
+      resultSummary: '**Researching Destination Folder:**\nI am checking Desktop test folders.',
+      artifactRef: null,
+      redactionMetadata: { fieldsRedacted: [], truncated: false },
+    };
+
+    const rendered = registry.render(event);
+    expect(rendered.suppressed).toBe(true);
+  });
+
   it('renders simple reads and searches as compact rows', () => {
     const event: TraceEvent = {
       type: 'tool_completed',
@@ -221,6 +241,28 @@ describe('trace renderers', () => {
     expect(rendered.content).toBe('✓ **Shell** `python3 -c "print(\'hello\')"`');
     expect(rendered.content).not.toContain('current working directory');
     expect(rendered.content).not.toContain('Executing a simple Python command');
+  });
+
+  it('suppresses shell guardrail-only output such as command substitution blocks', () => {
+    const event: TraceEvent = {
+      type: 'tool_failed',
+      timestamp: Date.now(),
+      toolName: 'run_shell_command',
+      canonicalToolName: 'run_shell_command',
+      displayName: 'Shell',
+      toolFamily: 'shell',
+      args: { command: 'cat > hello.py <<EOF\nprint("$(date)")\nEOF' },
+      status: 'failed',
+      durationMs: 80,
+      resultSummary: 'Blocked: command substitution detected in shell command.',
+      resultDetail: 'Blocked: command substitution detected in shell command.',
+      artifactRef: null,
+      redactionMetadata: { fieldsRedacted: [], truncated: false },
+    };
+
+    const rendered = registry.render(event);
+    expect(rendered.content).toContain('✗ **Shell**');
+    expect(rendered.content).not.toContain('Blocked: command substitution');
   });
 
   it('normalizes shell raw stdout and stderr without hiding output', () => {
@@ -493,6 +535,59 @@ describe('trace renderers', () => {
 
     const rendered = registry.render(event!);
     expect(rendered.content).toBe('✓ **GoogleSearch**  Searching the web for: `\"latest One Piece chapter number\"`\n↳ Search results for `\"latest One Piece chapter number\"` returned.');
+  });
+
+  it('normalizes title-only ACP web fetch events to compact WebFetch rows', () => {
+    const event = normalizeAcpUpdate('tool_call_update', {
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'fetch-1',
+      status: 'completed',
+      title: 'Processing URLs and instructions from prompt: "https://en.wikipedia.org/wiki/Samurai Summarize the key characteristics"',
+      kind: 'fetch',
+      content: [
+        { type: 'content', content: { type: 'text', text: 'Content processed from prompt.' } },
+      ],
+    }, new Map());
+
+    expect(event).toMatchObject({
+      canonicalToolName: 'web_fetch',
+      displayName: 'WebFetch',
+      toolFamily: 'web',
+      args: { prompt: 'https://en.wikipedia.org/wiki/Samurai Summarize the key characteristics' },
+    });
+
+    const rendered = registry.render(event!);
+    expect(rendered.content).toBe('✓ **Web Fetch** `https://en.wikipedia.org/wiki/Samurai Summarize the key characteristics`\n↳ Content processed from prompt.');
+    expect(rendered.content).not.toContain('Processing URLs and instructions');
+  });
+
+  it('normalizes title-only ACP skill activations to compact ActivateSkill rows', () => {
+    const started = normalizeAcpUpdate('tool_call', {
+      sessionUpdate: 'tool_call',
+      toolCallId: 'skill-1',
+      title: '"skill-creator": Guide for creating effective skills. Use when users want to create a new skill.',
+      kind: 'other',
+    }, new Map());
+    const completed = normalizeAcpUpdate('tool_call_update', {
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'skill-1',
+      status: 'completed',
+      title: '"skill-creator": Guide for creating effective skills. Use when users want to create a new skill.',
+      kind: 'other',
+      content: [
+        { type: 'content', content: { type: 'text', text: 'Skill skill-creator activated. Resources loaded from ~/.gemini/skills/skill-creator.' } },
+      ],
+    }, new Map());
+
+    expect(started).toMatchObject({
+      canonicalToolName: 'activate_skill',
+      displayName: 'ActivateSkill',
+      toolFamily: 'mcp',
+      args: { name: 'skill-creator' },
+    });
+
+    expect(registry.render(started!).content).toBe('⌁ **Activate Skill** `skill-creator`');
+    expect(registry.render(completed!).content).toBe('✓ **Activate Skill** `skill-creator`\n↳ Skill skill-creator activated. Resources loaded from ~/.gemini/skills/skill-creator.');
   });
 
   it('renders title-only directory reads with a canonical tool label', () => {

@@ -112,7 +112,7 @@ All message sends require an explicit target. If a target can't be proven, the a
 
 Credentials and runtime state stay local. Do not commit `.env`, `.gemini-discord/`, logs, databases, tokens, or real Discord IDs.
 
-Workflow thread traces are generated only from observed Gemini CLI ACP `tool_call`, `tool_call_update`, and `plan` events. `/workflow`, `!workflow`, `!thread`, and `discord_admin action:"workflow"` validate the task, create the thread, and immediately enqueue the first task inside that thread. Low-information one-word tasks such as `job` are rejected before a thread is created. While the run is waiting for its first tool event, the header stays live with elapsed time instead of leaving only Discord's typing indicator. Trace messages render as a clean Gemini CLI-style transcript: noisy started/progress-only tool rows are hidden, reads/searches stay compact, shell commands use fenced output blocks, file writes stay as compact Accepted/Created rows without content previews, and long sanitized output is attached instead of pasted inline. Final workflow answers are posted as a quoted `Final Answer` block using the same Discord-safe chunking as normal replies. Discord's native typing indicator represents thinking state, so the bot does not post separate "thinking" trace cards.
+Workflow thread traces are generated only from observed Gemini CLI ACP `tool_call`, `tool_call_update`, and `plan` events. `/workflow`, `!workflow`, `!thread`, and `discord_admin action:"workflow"` validate the task, create the thread, and immediately enqueue the first task inside that thread. Low-information one-word tasks such as `job` are rejected before a thread is created. While the run is waiting for its first tool event, the header stays live with elapsed time instead of leaving only Discord's typing indicator. Trace messages render as a clean Gemini CLI-style transcript: noisy started/progress-only tool rows are hidden, reads/searches stay compact, title-only web fetch and skill activation events use canonical labels, shell commands use fenced output blocks, file writes stay as compact Accepted/Created rows without content previews, and long sanitized output is attached instead of pasted inline. Final workflow answers are posted as a quoted `Final Answer` block using the same Discord-safe chunking as normal replies. Discord's native typing indicator represents thinking state, so the bot does not post separate "thinking" trace cards.
 
 ---
 
@@ -158,6 +158,8 @@ npm run start:daemon    # Start daemon
 npm run start:server    # Start MCP server
 npm run install-service # Install as system service
 ```
+
+For branch testing, set `GEMINI_DISCORD_DAEMON_SINGLETON=1` before starting the daemon to fail fast when another same-token daemon may already be connected. The guard is opt-in and does not change default product startup behavior.
 
 Before releasing: run typecheck + tests + build, commit `dist/`, keep `.env` and `.gemini-discord/` untracked, use placeholder IDs in examples, add the `gemini-cli-extension` GitHub topic.
 

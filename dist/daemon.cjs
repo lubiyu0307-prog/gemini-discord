@@ -1395,13 +1395,13 @@ function __disposeResources(env) {
   }
   return next();
 }
-function __rewriteRelativeImportExtension(path14, preserveJsx) {
-  if (typeof path14 === "string" && /^\.\.?\//.test(path14)) {
-    return path14.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
+function __rewriteRelativeImportExtension(path15, preserveJsx) {
+  if (typeof path15 === "string" && /^\.\.?\//.test(path15)) {
+    return path15.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
       return tsx ? preserveJsx ? ".jsx" : ".js" : d && (!ext || !cm) ? m : d + ext + "." + cm.toLowerCase() + "js";
     });
   }
-  return path14;
+  return path15;
 }
 var extendStatics, __assign, __createBinding, __setModuleDefault, ownKeys, _SuppressedError, tslib_es6_default;
 var init_tslib_es6 = __esm({
@@ -2293,14 +2293,14 @@ var require_util = __commonJS({
         }
         const port = url.port != null ? url.port : url.protocol === "https:" ? 443 : 80;
         let origin = url.origin != null ? url.origin : `${url.protocol || ""}//${url.hostname || ""}:${port}`;
-        let path14 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
+        let path15 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
         if (origin[origin.length - 1] === "/") {
           origin = origin.slice(0, origin.length - 1);
         }
-        if (path14 && path14[0] !== "/") {
-          path14 = `/${path14}`;
+        if (path15 && path15[0] !== "/") {
+          path15 = `/${path15}`;
         }
-        return new URL(`${origin}${path14}`);
+        return new URL(`${origin}${path15}`);
       }
       if (!isHttpOrHttpsPrefixed(url.origin || url.protocol)) {
         throw new InvalidArgumentError("Invalid URL protocol: the URL must start with `http:` or `https:`.");
@@ -2751,39 +2751,39 @@ var require_diagnostics = __commonJS({
       });
       diagnosticsChannel.channel("undici:client:sendHeaders").subscribe((evt) => {
         const {
-          request: { method, path: path14, origin }
+          request: { method, path: path15, origin }
         } = evt;
-        debuglog("sending request to %s %s/%s", method, origin, path14);
+        debuglog("sending request to %s %s/%s", method, origin, path15);
       });
       diagnosticsChannel.channel("undici:request:headers").subscribe((evt) => {
         const {
-          request: { method, path: path14, origin },
+          request: { method, path: path15, origin },
           response: { statusCode }
         } = evt;
         debuglog(
           "received response to %s %s/%s - HTTP %d",
           method,
           origin,
-          path14,
+          path15,
           statusCode
         );
       });
       diagnosticsChannel.channel("undici:request:trailers").subscribe((evt) => {
         const {
-          request: { method, path: path14, origin }
+          request: { method, path: path15, origin }
         } = evt;
-        debuglog("trailers received from %s %s/%s", method, origin, path14);
+        debuglog("trailers received from %s %s/%s", method, origin, path15);
       });
       diagnosticsChannel.channel("undici:request:error").subscribe((evt) => {
         const {
-          request: { method, path: path14, origin },
+          request: { method, path: path15, origin },
           error
         } = evt;
         debuglog(
           "request to %s %s/%s errored - %s",
           method,
           origin,
-          path14,
+          path15,
           error.message
         );
       });
@@ -2832,9 +2832,9 @@ var require_diagnostics = __commonJS({
         });
         diagnosticsChannel.channel("undici:client:sendHeaders").subscribe((evt) => {
           const {
-            request: { method, path: path14, origin }
+            request: { method, path: path15, origin }
           } = evt;
-          debuglog("sending request to %s %s/%s", method, origin, path14);
+          debuglog("sending request to %s %s/%s", method, origin, path15);
         });
       }
       diagnosticsChannel.channel("undici:websocket:open").subscribe((evt) => {
@@ -2897,7 +2897,7 @@ var require_request = __commonJS({
     var kHandler = Symbol("handler");
     var Request = class {
       constructor(origin, {
-        path: path14,
+        path: path15,
         method,
         body,
         headers,
@@ -2912,11 +2912,11 @@ var require_request = __commonJS({
         expectContinue,
         servername
       }, handler) {
-        if (typeof path14 !== "string") {
+        if (typeof path15 !== "string") {
           throw new InvalidArgumentError("path must be a string");
-        } else if (path14[0] !== "/" && !(path14.startsWith("http://") || path14.startsWith("https://")) && method !== "CONNECT") {
+        } else if (path15[0] !== "/" && !(path15.startsWith("http://") || path15.startsWith("https://")) && method !== "CONNECT") {
           throw new InvalidArgumentError("path must be an absolute URL or start with a slash");
-        } else if (invalidPathRegex.test(path14)) {
+        } else if (invalidPathRegex.test(path15)) {
           throw new InvalidArgumentError("invalid request path");
         }
         if (typeof method !== "string") {
@@ -2982,7 +2982,7 @@ var require_request = __commonJS({
         this.completed = false;
         this.aborted = false;
         this.upgrade = upgrade || null;
-        this.path = query ? buildURL(path14, query) : path14;
+        this.path = query ? buildURL(path15, query) : path15;
         this.origin = origin;
         this.idempotent = idempotent == null ? method === "HEAD" || method === "GET" : idempotent;
         this.blocking = blocking == null ? false : blocking;
@@ -7501,7 +7501,7 @@ var require_client_h1 = __commonJS({
       return method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && method !== "TRACE" && method !== "CONNECT";
     }
     function writeH1(client, request) {
-      const { method, path: path14, host, upgrade, blocking, reset } = request;
+      const { method, path: path15, host, upgrade, blocking, reset } = request;
       let { body, headers, contentLength } = request;
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH" || method === "QUERY" || method === "PROPFIND" || method === "PROPPATCH";
       if (util.isFormDataLike(body)) {
@@ -7567,7 +7567,7 @@ var require_client_h1 = __commonJS({
       if (blocking) {
         socket[kBlocking] = true;
       }
-      let header = `${method} ${path14} HTTP/1.1\r
+      let header = `${method} ${path15} HTTP/1.1\r
 `;
       if (typeof host === "string") {
         header += `host: ${host}\r
@@ -8093,7 +8093,7 @@ var require_client_h2 = __commonJS({
     }
     function writeH2(client, request) {
       const session = client[kHTTP2Session];
-      const { method, path: path14, host, upgrade, expectContinue, signal, headers: reqHeaders } = request;
+      const { method, path: path15, host, upgrade, expectContinue, signal, headers: reqHeaders } = request;
       let { body } = request;
       if (upgrade) {
         util.errorRequest(client, request, new Error("Upgrade not supported for H2"));
@@ -8160,7 +8160,7 @@ var require_client_h2 = __commonJS({
         });
         return true;
       }
-      headers[HTTP2_HEADER_PATH] = path14;
+      headers[HTTP2_HEADER_PATH] = path15;
       headers[HTTP2_HEADER_SCHEME] = "https";
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH";
       if (body && typeof body.read === "function") {
@@ -8513,9 +8513,9 @@ var require_redirect_handler = __commonJS({
           return this.handler.onHeaders(statusCode, headers, resume, statusText);
         }
         const { origin, pathname, search } = util.parseURL(new URL(this.location, this.opts.origin && new URL(this.opts.path, this.opts.origin)));
-        const path14 = search ? `${pathname}${search}` : pathname;
+        const path15 = search ? `${pathname}${search}` : pathname;
         this.opts.headers = cleanRequestHeaders(this.opts.headers, statusCode === 303, this.opts.origin !== origin);
-        this.opts.path = path14;
+        this.opts.path = path15;
         this.opts.origin = origin;
         this.opts.maxRedirections = 0;
         this.opts.query = null;
@@ -9749,10 +9749,10 @@ var require_proxy_agent = __commonJS({
         };
         const {
           origin,
-          path: path14 = "/",
+          path: path15 = "/",
           headers = {}
         } = opts;
-        opts.path = origin + path14;
+        opts.path = origin + path15;
         if (!("host" in headers) && !("Host" in headers)) {
           const { host } = new URL2(origin);
           headers.host = host;
@@ -11673,20 +11673,20 @@ var require_mock_utils = __commonJS({
       }
       return true;
     }
-    function safeUrl(path14) {
-      if (typeof path14 !== "string") {
-        return path14;
+    function safeUrl(path15) {
+      if (typeof path15 !== "string") {
+        return path15;
       }
-      const pathSegments = path14.split("?");
+      const pathSegments = path15.split("?");
       if (pathSegments.length !== 2) {
-        return path14;
+        return path15;
       }
       const qp = new URLSearchParams(pathSegments.pop());
       qp.sort();
       return [...pathSegments, qp.toString()].join("?");
     }
-    function matchKey(mockDispatch2, { path: path14, method, body, headers }) {
-      const pathMatch = matchValue(mockDispatch2.path, path14);
+    function matchKey(mockDispatch2, { path: path15, method, body, headers }) {
+      const pathMatch = matchValue(mockDispatch2.path, path15);
       const methodMatch = matchValue(mockDispatch2.method, method);
       const bodyMatch = typeof mockDispatch2.body !== "undefined" ? matchValue(mockDispatch2.body, body) : true;
       const headersMatch = matchHeaders(mockDispatch2, headers);
@@ -11708,7 +11708,7 @@ var require_mock_utils = __commonJS({
     function getMockDispatch(mockDispatches, key) {
       const basePath = key.query ? buildURL(key.path, key.query) : key.path;
       const resolvedPath = typeof basePath === "string" ? safeUrl(basePath) : basePath;
-      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path14 }) => matchValue(safeUrl(path14), resolvedPath));
+      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path15 }) => matchValue(safeUrl(path15), resolvedPath));
       if (matchedMockDispatches.length === 0) {
         throw new MockNotMatchedError(`Mock dispatch not matched for path '${resolvedPath}'`);
       }
@@ -11746,9 +11746,9 @@ var require_mock_utils = __commonJS({
       }
     }
     function buildKey(opts) {
-      const { path: path14, method, body, headers, query } = opts;
+      const { path: path15, method, body, headers, query } = opts;
       return {
-        path: path14,
+        path: path15,
         method,
         body,
         headers,
@@ -12211,10 +12211,10 @@ var require_pending_interceptors_formatter = __commonJS({
       }
       format(pendingInterceptors) {
         const withPrettyHeaders = pendingInterceptors.map(
-          ({ method, path: path14, data: { statusCode }, persist, times, timesInvoked, origin }) => ({
+          ({ method, path: path15, data: { statusCode }, persist, times, timesInvoked, origin }) => ({
             Method: method,
             Origin: origin,
-            Path: path14,
+            Path: path15,
             "Status code": statusCode,
             Persistent: persist ? PERSISTENT : NOT_PERSISTENT,
             Invocations: timesInvoked,
@@ -17095,9 +17095,9 @@ var require_util6 = __commonJS({
         }
       }
     }
-    function validateCookiePath(path14) {
-      for (let i = 0; i < path14.length; ++i) {
-        const code = path14.charCodeAt(i);
+    function validateCookiePath(path15) {
+      for (let i = 0; i < path15.length; ++i) {
+        const code = path15.charCodeAt(i);
         if (code < 32 || // exclude CTLs (0-31)
         code === 127 || // DEL
         code === 59) {
@@ -19737,11 +19737,11 @@ var require_undici = __commonJS({
           if (typeof opts.path !== "string") {
             throw new InvalidArgumentError("invalid opts.path");
           }
-          let path14 = opts.path;
+          let path15 = opts.path;
           if (!opts.path.startsWith("/")) {
-            path14 = `/${path14}`;
+            path15 = `/${path15}`;
           }
-          url = new URL(util.parseOrigin(url).origin + path14);
+          url = new URL(util.parseOrigin(url).origin + path15);
         } else {
           if (!opts) {
             opts = typeof url === "object" ? url : {};
@@ -27145,13 +27145,13 @@ var require_tree2 = __commonJS({
       mime: leaf.info.mime,
       extension: leaf.info.extension
     });
-    var isLeafNode = (tree, path14) => tree && path14.length === 0;
+    var isLeafNode = (tree, path15) => tree && path15.length === 0;
     var merge = (node, tree) => {
       if (node.bytes.length === 0)
         return tree;
-      const [currentByte, ...path14] = node.bytes;
+      const [currentByte, ...path15] = node.bytes;
       const currentTree = tree.bytes[currentByte];
-      if (isLeafNode(currentTree, path14)) {
+      if (isLeafNode(currentTree, path15)) {
         const matchingNode = tree.bytes[currentByte];
         tree.bytes[currentByte] = {
           ...matchingNode,
@@ -27163,9 +27163,9 @@ var require_tree2 = __commonJS({
         return tree;
       }
       if (tree.bytes[currentByte]) {
-        tree.bytes[currentByte] = exports2.merge(exports2.createNode(node.typename, path14, node.info), tree.bytes[currentByte]);
+        tree.bytes[currentByte] = exports2.merge(exports2.createNode(node.typename, path15, node.info), tree.bytes[currentByte]);
       } else {
-        tree.bytes[currentByte] = exports2.createComplexNode(node.typename, path14, node.info);
+        tree.bytes[currentByte] = exports2.createComplexNode(node.typename, path15, node.info);
       }
       return tree;
     };
@@ -27179,7 +27179,7 @@ var require_tree2 = __commonJS({
         bytes: {},
         matches: void 0
       };
-      const [currentKey, ...path14] = bytes;
+      const [currentKey, ...path15] = bytes;
       if (bytes.length === 0) {
         return {
           matches: [
@@ -27191,7 +27191,7 @@ var require_tree2 = __commonJS({
           bytes: {}
         };
       }
-      obj.bytes[currentKey] = exports2.createComplexNode(typename, path14, info);
+      obj.bytes[currentKey] = exports2.createComplexNode(typename, path15, info);
       return obj;
     };
     exports2.createComplexNode = createComplexNode;
@@ -33878,8 +33878,8 @@ var require_Util = __commonJS({
       await client.rest.patch(route, { body: updatedItems, reason });
       return updatedItems;
     }
-    function basename5(path14, ext) {
-      const res = parse(path14);
+    function basename5(path15, ext) {
+      const res = parse(path15);
       return ext && res.ext.startsWith(ext) ? res.name : res.base.split("?")[0];
     }
     function cleanContent(str, channel) {
@@ -36361,8 +36361,8 @@ var require_DataResolver = __commonJS({
   "node_modules/discord.js/src/util/DataResolver.js"(exports2, module2) {
     "use strict";
     var { Buffer: Buffer2 } = require("node:buffer");
-    var fs13 = require("node:fs/promises");
-    var path14 = require("node:path");
+    var fs14 = require("node:fs/promises");
+    var path15 = require("node:path");
     var { fetch: fetch2 } = require_undici();
     var { DiscordjsError: DiscordjsError2, DiscordjsTypeError: DiscordjsTypeError2, ErrorCodes: ErrorCodes2 } = require_errors2();
     var Invite2 = require_Invite();
@@ -36388,10 +36388,10 @@ var require_DataResolver = __commonJS({
           const res = await fetch2(resource);
           return { data: Buffer2.from(await res.arrayBuffer()), contentType: res.headers.get("content-type") };
         }
-        const file = path14.resolve(resource);
-        const stats = await fs13.stat(file);
+        const file = path15.resolve(resource);
+        const stats = await fs14.stat(file);
         if (!stats.isFile()) throw new DiscordjsError2(ErrorCodes2.FileNotFound, file);
-        return { data: await fs13.readFile(file) };
+        return { data: await fs14.readFile(file) };
       }
       throw new DiscordjsTypeError2(ErrorCodes2.ReqResourceType);
     }
@@ -39542,11 +39542,11 @@ var require_baseGet = __commonJS({
   "node_modules/lodash/_baseGet.js"(exports2, module2) {
     var castPath = require_castPath();
     var toKey = require_toKey();
-    function baseGet(object, path14) {
-      path14 = castPath(path14, object);
-      var index = 0, length = path14.length;
+    function baseGet(object, path15) {
+      path15 = castPath(path15, object);
+      var index = 0, length = path15.length;
       while (object != null && index < length) {
-        object = object[toKey(path14[index++])];
+        object = object[toKey(path15[index++])];
       }
       return index && index == length ? object : void 0;
     }
@@ -39558,8 +39558,8 @@ var require_baseGet = __commonJS({
 var require_get = __commonJS({
   "node_modules/lodash/get.js"(exports2, module2) {
     var baseGet = require_baseGet();
-    function get(object, path14, defaultValue) {
-      var result = object == null ? void 0 : baseGet(object, path14);
+    function get(object, path15, defaultValue) {
+      var result = object == null ? void 0 : baseGet(object, path15);
       return result === void 0 ? defaultValue : result;
     }
     module2.exports = get;
@@ -55561,9 +55561,9 @@ var require_ThreadManager = __commonJS({
        * @returns {Promise<FetchedThreadsMore>}
        */
       async fetchArchived({ type = "public", fetchAll = false, before, limit } = {}, cache = true) {
-        let path14 = Routes3.channelThreads(this.channel.id, type);
+        let path15 = Routes3.channelThreads(this.channel.id, type);
         if (type === "private" && !fetchAll) {
-          path14 = Routes3.channelJoinedArchivedThreads(this.channel.id);
+          path15 = Routes3.channelJoinedArchivedThreads(this.channel.id);
         }
         let timestamp;
         let id;
@@ -55587,7 +55587,7 @@ var require_ThreadManager = __commonJS({
             }
           }
         }
-        const raw = await this.client.rest.get(path14, { query });
+        const raw = await this.client.rest.get(path15, { query });
         return this.constructor._mapThreads(raw, this.client, { parent: this.channel, cache });
       }
       /**
@@ -63563,7 +63563,7 @@ var require_websocket2 = __commonJS({
     var http2 = require("http");
     var net = require("net");
     var tls = require("tls");
-    var { randomBytes: randomBytes2, createHash } = require("crypto");
+    var { randomBytes: randomBytes2, createHash: createHash2 } = require("crypto");
     var { Duplex, Readable } = require("stream");
     var { URL: URL2 } = require("url");
     var PerMessageDeflate = require_permessage_deflate2();
@@ -64223,7 +64223,7 @@ var require_websocket2 = __commonJS({
           abortHandshake(websocket, socket, "Invalid Upgrade header");
           return;
         }
-        const digest = createHash("sha1").update(key + GUID).digest("base64");
+        const digest = createHash2("sha1").update(key + GUID).digest("base64");
         if (res.headers["sec-websocket-accept"] !== digest) {
           abortHandshake(websocket, socket, "Invalid Sec-WebSocket-Accept header");
           return;
@@ -64590,7 +64590,7 @@ var require_websocket_server = __commonJS({
     var EventEmitter = require("events");
     var http2 = require("http");
     var { Duplex } = require("stream");
-    var { createHash } = require("crypto");
+    var { createHash: createHash2 } = require("crypto");
     var extension = require_extension();
     var PerMessageDeflate = require_permessage_deflate2();
     var subprotocol = require_subprotocol();
@@ -64891,7 +64891,7 @@ var require_websocket_server = __commonJS({
           );
         }
         if (this._state > RUNNING) return abortHandshake(socket, 503);
-        const digest = createHash("sha1").update(key + GUID).digest("base64");
+        const digest = createHash2("sha1").update(key + GUID).digest("base64");
         const headers = [
           "HTTP/1.1 101 Switching Protocols",
           "Upgrade: websocket",
@@ -65263,20 +65263,20 @@ var require_dist10 = __commonJS({
         }
       }
       resolveWorkerPath() {
-        const path14 = this.options.workerPath;
-        if (!path14) {
+        const path15 = this.options.workerPath;
+        if (!path15) {
           return (0, import_node_path.join)(__dirname, "defaultWorker.js");
         }
-        if ((0, import_node_path.isAbsolute)(path14)) {
-          return path14;
+        if ((0, import_node_path.isAbsolute)(path15)) {
+          return path15;
         }
-        if (/^\.\.?[/\\]/.test(path14)) {
-          return (0, import_node_path.resolve)(path14);
+        if (/^\.\.?[/\\]/.test(path15)) {
+          return (0, import_node_path.resolve)(path15);
         }
         try {
-          return require.resolve(path14);
+          return require.resolve(path15);
         } catch {
-          return (0, import_node_path.resolve)(path14);
+          return (0, import_node_path.resolve)(path15);
         }
       }
       async waitForWorkerReady(worker) {
@@ -75017,7 +75017,7 @@ var require_Shard = __commonJS({
   "node_modules/discord.js/src/sharding/Shard.js"(exports2, module2) {
     "use strict";
     var EventEmitter = require("node:events");
-    var path14 = require("node:path");
+    var path15 = require("node:path");
     var process2 = require("node:process");
     var { setTimeout: setTimeout2, clearTimeout: clearTimeout2 } = require("node:timers");
     var { setTimeout: sleep2 } = require("node:timers/promises");
@@ -75069,14 +75069,14 @@ var require_Shard = __commonJS({
         this._exitListener = this._handleExit.bind(this, void 0, timeout);
         switch (this.manager.mode) {
           case "process":
-            this.process = childProcess.fork(path14.resolve(this.manager.file), this.args, {
+            this.process = childProcess.fork(path15.resolve(this.manager.file), this.args, {
               env: this.env,
               execArgv: this.execArgv,
               silent: this.silent
             }).on("message", this._handleMessage.bind(this)).on("exit", this._exitListener);
             break;
           case "worker":
-            this.worker = new Worker(path14.resolve(this.manager.file), {
+            this.worker = new Worker(path15.resolve(this.manager.file), {
               workerData: this.env,
               env: SHARE_ENV,
               execArgv: this.execArgv,
@@ -75337,8 +75337,8 @@ var require_ShardingManager = __commonJS({
   "node_modules/discord.js/src/sharding/ShardingManager.js"(exports2, module2) {
     "use strict";
     var EventEmitter = require("node:events");
-    var fs13 = require("node:fs");
-    var path14 = require("node:path");
+    var fs14 = require("node:fs");
+    var path15 = require("node:path");
     var process2 = require("node:process");
     var { setTimeout: sleep2 } = require("node:timers/promises");
     var { Collection: Collection2 } = require_dist6();
@@ -75383,8 +75383,8 @@ var require_ShardingManager = __commonJS({
         };
         this.file = file;
         if (!file) throw new DiscordjsError2(ErrorCodes2.ClientInvalidOption, "File", "specified.");
-        if (!path14.isAbsolute(file)) this.file = path14.resolve(process2.cwd(), file);
-        const stats = fs13.statSync(this.file);
+        if (!path15.isAbsolute(file)) this.file = path15.resolve(process2.cwd(), file);
+        const stats = fs14.statSync(this.file);
         if (!stats.isFile()) throw new DiscordjsError2(ErrorCodes2.ClientInvalidOption, "File", "a file");
         this.shardList = _options.shardList ?? "auto";
         if (this.shardList !== "auto") {
@@ -86980,8 +86980,8 @@ var require_CronFileParser = __commonJS({
        * @throws If file cannot be read
        */
       static parseFileSync(filePath2) {
-        const { readFileSync: readFileSync8 } = require("fs");
-        const data = readFileSync8(filePath2, "utf8");
+        const { readFileSync: readFileSync9 } = require("fs");
+        const data = readFileSync9(filePath2, "utf8");
         return _CronFileParser.#parseContent(data);
       }
       /**
@@ -87843,8 +87843,8 @@ async function downloadSupportedAttachments(message, attachmentsRootDir, geminiP
   if (attachments.length === 0) {
     return [];
   }
-  const targetDir = path11.join(attachmentsRootDir, sanitizeFilename(message.id));
-  await fs12.mkdir(targetDir, { recursive: true });
+  const targetDir = path12.join(attachmentsRootDir, sanitizeFilename(message.id));
+  await fs13.mkdir(targetDir, { recursive: true });
   const downloads = attachments.map(async (attachment, index) => {
     try {
       const response = await fetch(attachment.url);
@@ -87853,9 +87853,9 @@ async function downloadSupportedAttachments(message, attachmentsRootDir, geminiP
       }
       const buffer = Buffer.from(await response.arrayBuffer());
       const safeName = sanitizeFilename(attachment.name || `${attachment.kind}-${index + 1}.bin`);
-      const localPath = path11.join(targetDir, `${index + 1}-${safeName}`);
-      await fs12.writeFile(localPath, buffer);
-      const relativePath = path11.relative(geminiProjectDir, localPath);
+      const localPath = path12.join(targetDir, `${index + 1}-${safeName}`);
+      await fs13.writeFile(localPath, buffer);
+      const relativePath = path12.relative(geminiProjectDir, localPath);
       const metadata = toConversationAttachment({
         ...attachment,
         sizeBytes: buffer.length
@@ -87882,7 +87882,7 @@ async function downloadSupportedAttachments(message, attachmentsRootDir, geminiP
     (item) => item !== null
   );
   if (downloaded.length === 0) {
-    await fs12.rm(targetDir, { recursive: true, force: true }).catch(() => {
+    await fs13.rm(targetDir, { recursive: true, force: true }).catch(() => {
     });
   }
   return downloaded;
@@ -87913,7 +87913,7 @@ function classifySupportedAttachment(contentType, name) {
     if (baseType === "application/pdf") return "pdf";
     if (isTextLikeApplicationType(baseType)) return "text";
   }
-  const extension = path11.extname(name).toLowerCase();
+  const extension = path12.extname(name).toLowerCase();
   if (IMAGE_EXTENSIONS.has(extension)) return "image";
   if (VIDEO_EXTENSIONS.has(extension)) return "video";
   if (AUDIO_EXTENSIONS.has(extension)) return "audio";
@@ -87954,7 +87954,7 @@ function resolveAttachmentMimeType(attachment) {
   if (attachment.contentType) {
     return normalizeContentType(attachment.contentType);
   }
-  const extension = path11.extname(attachment.name).toLowerCase();
+  const extension = path12.extname(attachment.name).toLowerCase();
   switch (extension) {
     case ".jpg":
     case ".jpeg":
@@ -88008,12 +88008,12 @@ function toConversationAttachment(attachment) {
 function sanitizeFilename(filename) {
   return filename.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
-var fs12, path11, MAX_SUPPORTED_ATTACHMENTS, MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, MAX_AUDIO_BYTES, MAX_PDF_BYTES, MAX_TEXT_BYTES, MAX_INLINE_ATTACHMENT_BYTES, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, AUDIO_EXTENSIONS, PDF_EXTENSIONS, TEXT_EXTENSIONS;
+var fs13, path12, MAX_SUPPORTED_ATTACHMENTS, MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, MAX_AUDIO_BYTES, MAX_PDF_BYTES, MAX_TEXT_BYTES, MAX_INLINE_ATTACHMENT_BYTES, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, AUDIO_EXTENSIONS, PDF_EXTENSIONS, TEXT_EXTENSIONS;
 var init_attachments = __esm({
   "src/daemon/attachments.ts"() {
     "use strict";
-    fs12 = __toESM(require("node:fs/promises"), 1);
-    path11 = __toESM(require("node:path"), 1);
+    fs13 = __toESM(require("node:fs/promises"), 1);
+    path12 = __toESM(require("node:path"), 1);
     init_log();
     MAX_SUPPORTED_ATTACHMENTS = 4;
     MAX_IMAGE_BYTES = 35 * 1024 * 1024;
@@ -88675,7 +88675,7 @@ async function handleAutocomplete(interaction) {
 }
 async function validateModel(geminiPath, model) {
   return new Promise((resolve2) => {
-    const proc = (0, import_node_child_process3.spawn)(geminiPath, ["--model", model, "-p", "ping", "--output-format", "json"], {
+    const proc = (0, import_node_child_process4.spawn)(geminiPath, ["--model", model, "-p", "ping", "--output-format", "json"], {
       timeout: 15e3,
       env: { ...process.env }
     });
@@ -88687,13 +88687,13 @@ async function validateModel(geminiPath, model) {
     });
   });
 }
-var import_discord5, import_node_child_process3, COMMANDS, DM_COMMAND_NAMES, AVAILABLE_MODELS;
+var import_discord5, import_node_child_process4, COMMANDS, DM_COMMAND_NAMES, AVAILABLE_MODELS;
 var init_commands = __esm({
   "src/daemon/commands.ts"() {
     "use strict";
     import_discord5 = __toESM(require_src(), 1);
     init_log();
-    import_node_child_process3 = require("node:child_process");
+    import_node_child_process4 = require("node:child_process");
     init_config();
     init_runtime();
     init_session_reset();
@@ -89068,12 +89068,12 @@ var init_seed_context = __esm({
 
 // src/daemon/gemini-project.ts
 function resolveGeminiProjectDir(extensionDir2) {
-  const resolved = path12.resolve(extensionDir2);
-  const parts = resolved.split(path12.sep);
+  const resolved = path13.resolve(extensionDir2);
+  const parts = resolved.split(path13.sep);
   for (let index = parts.length - 1; index >= 0; index -= 1) {
     if (parts[index] === ".gemini") {
-      const prefix = parts.slice(0, index + 1).join(path12.sep);
-      return prefix || path12.sep;
+      const prefix = parts.slice(0, index + 1).join(path13.sep);
+      return prefix || path13.sep;
     }
   }
   return resolved;
@@ -89082,11 +89082,11 @@ function resolveBindingResumeSessionId(state2) {
   const sessionId = state2.lastSessionId?.trim();
   return sessionId ? sessionId : null;
 }
-var path12;
+var path13;
 var init_gemini_project = __esm({
   "src/daemon/gemini-project.ts"() {
     "use strict";
-    path12 = __toESM(require("node:path"), 1);
+    path13 = __toESM(require("node:path"), 1);
   }
 });
 
@@ -89319,7 +89319,7 @@ async function processViaCli(message, accepted, config, memory, processingContex
       });
     }
     if (downloadedAttachments.length > 0) {
-      const targetDir = path13.dirname(downloadedAttachments[0].localPath);
+      const targetDir = path14.dirname(downloadedAttachments[0].localPath);
       for (const att of downloadedAttachments) {
         try {
           await fsp2.unlink(att.localPath);
@@ -89413,7 +89413,7 @@ function shouldRetryWithFreshSession(error, resumeSessionId) {
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return message.includes("exited with code") || message.includes("returned no assistant output") || message.includes("resume_session_unavailable");
 }
-var fsp2, path13, ERROR_MATCHERS;
+var fsp2, path14, ERROR_MATCHERS;
 var init_engine_cli = __esm({
   "src/daemon/engine-cli.ts"() {
     "use strict";
@@ -89434,7 +89434,7 @@ var init_engine_cli = __esm({
     init_seed_context();
     init_gemini_project();
     fsp2 = __toESM(require("node:fs/promises"), 1);
-    path13 = __toESM(require("node:path"), 1);
+    path14 = __toESM(require("node:path"), 1);
     ERROR_MATCHERS = [
       {
         match: (msg) => msg.includes("timed out") || msg.includes("stalled"),
@@ -89775,9 +89775,9 @@ function intArg(args, ...keys) {
   }
   return null;
 }
-function shortPath(path14) {
-  if (!path14) return "";
-  const normalized = path14.replace(/\\/g, "/");
+function shortPath(path15) {
+  if (!path15) return "";
+  const normalized = path15.replace(/\\/g, "/");
   if (normalized.startsWith("/Users/yamato/")) {
     return normalized.replace(/^\/Users\/yamato\//, "~/");
   } else if (normalized === "/Users/yamato") {
@@ -89898,8 +89898,8 @@ function outputBlock(language, text) {
   const value = text.trimEnd();
   return value ? codeBlock(language, value) : "";
 }
-function languageForPath(path14) {
-  const ext = path14.split(".").pop()?.toLowerCase();
+function languageForPath(path15) {
+  const ext = path15.split(".").pop()?.toLowerCase();
   switch (ext) {
     case "go":
       return "go";
@@ -89984,11 +89984,14 @@ function cleanSuccessfulMetadata(text, event) {
   if (event.status !== "completed") return text;
   return text.split(/\r?\n/).filter((line) => {
     const trimmed = line.trim();
-    return !/^\[current working directory\b[^\]]*\]$/i.test(trimmed) && !/^\((?:Executing|Creating|Running|Using|Reading|Compiling|Listing)\b[\s\S]*\)$/i.test(trimmed);
+    return !/^\[current working directory\b[^\]]*\]$/i.test(trimmed) && !/^\((?:Executing|Creating|Running|Using|Reading|Compiling|Listing|Writing)\b[\s\S]*\)$/i.test(trimmed);
   }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 function cleanShellOutput(event) {
   const detail = event.resultDetail || event.resultSummary || "";
+  if (/command substitution detected in shell command/i.test(detail)) {
+    return "";
+  }
   return cleanSuccessfulMetadata(detail, event);
 }
 function directoryCount(event) {
@@ -90004,6 +90007,9 @@ function writeFileAction(event) {
   }
   if (/created|new file|\+\+\+\s+new/i.test(text)) return "Created";
   return "Updated";
+}
+function compactToolResult(text, maxLength = 180) {
+  return oneLine(text, maxLength).replace(/\/Users\/yamato\//g, "~/").replace(/:\s*Showing up to \d+ items.*$/i, ".");
 }
 var import_discord7, TRACE_LIMIT, ATTACHMENT_THRESHOLD, ShellRenderer, FilesystemRenderer, SearchRenderer, WebRenderer, PlanningRenderer, McpRenderer, InteractionRenderer, GenericFallbackRenderer, TraceRendererRegistry;
 var init_trace_renderer = __esm({
@@ -90061,7 +90067,7 @@ var init_trace_renderer = __esm({
       }
       render(event) {
         const canonical = event.canonicalToolName;
-        const path14 = filePath(event);
+        const path15 = filePath(event);
         if (event.status === "started" || event.status === "progress") {
           return suppressed();
         }
@@ -90072,7 +90078,7 @@ var init_trace_renderer = __esm({
           const hunk = event.resultDetail ? compactDiffHunk(event.resultDetail) : "";
           return {
             content: [
-              `${statusGlyph(event.status)} **Edit** ${path14 ? inlineCode(shortPath(path14)) : ""} \u2192 Accepted${delta}`,
+              `${statusGlyph(event.status)} **Edit** ${path15 ? inlineCode(shortPath(path15)) : ""} \u2192 Accepted${delta}`,
               hunk ? outputBlock("diff", truncateLines(hunk, 12)) : ""
             ].filter(Boolean).join("\n"),
             density: hunk ? "panel" : "row",
@@ -90083,7 +90089,7 @@ var init_trace_renderer = __esm({
           const action = writeFileAction(event);
           const statusText = event.status === "completed" ? ` \u2192 ${action}` : "";
           return {
-            content: `${statusGlyph(event.status)} **WriteFile** ${path14 ? inlineCode(shortPath(path14)) : ""}${statusText}`,
+            content: `${statusGlyph(event.status)} **WriteFile** ${path15 ? inlineCode(shortPath(path15)) : ""}${statusText}`,
             density: "row",
             flags: flags()
           };
@@ -90092,8 +90098,8 @@ var init_trace_renderer = __esm({
           const detail = event.resultDetail || "";
           return {
             content: [
-              `${statusGlyph(event.status)} **ReadFile** ${path14 ? inlineCode(shortPath(path14)) : ""} \u2192 ${readFileResult(event)}`,
-              detail ? outputBlock(languageForPath(path14), truncateLines(detail, 10)) : ""
+              `${statusGlyph(event.status)} **ReadFile** ${path15 ? inlineCode(shortPath(path15)) : ""} \u2192 ${readFileResult(event)}`,
+              detail ? outputBlock(languageForPath(path15), truncateLines(detail, 10)) : ""
             ].filter(Boolean).join("\n"),
             density: detail ? "panel" : "row",
             flags: flags()
@@ -90119,7 +90125,7 @@ var init_trace_renderer = __esm({
           };
         }
         return {
-          content: `${statusGlyph(event.status)} **${event.displayName || event.toolName}** ${path14 ? inlineCode(shortPath(path14)) : ""}${resultSuffix(event)}`,
+          content: `${statusGlyph(event.status)} **${event.displayName || event.toolName}** ${path15 ? inlineCode(shortPath(path15)) : ""}${resultSuffix(event)}`,
           density: "row",
           flags: flags()
         };
@@ -90184,9 +90190,21 @@ ${resultText}`,
             flags: flags()
           };
         }
+        if (canonical === "web_fetch") {
+          const target = query ? inlineCode(oneLine(query, 160)) : "prompt";
+          const summary = event.status === "completed" ? compactToolResult(event.resultSummary || "Content retrieved") : event.status === "failed" ? compactToolResult(event.resultSummary || "Fetch failed") : "";
+          return {
+            content: [
+              `${statusGlyph(event.status)} **Web Fetch** ${target}`,
+              summary ? `\u21B3 ${summary}` : ""
+            ].filter(Boolean).join("\n"),
+            density: summary ? "card" : "row",
+            flags: flags()
+          };
+        }
         if (event.status === "started" || event.status === "progress") {
           return {
-            content: `${statusGlyph(event.status)} **WebFetch** "${oneLine(query, 120)}"`,
+            content: `${statusGlyph(event.status)} **WebFetch** ${query ? inlineCode(oneLine(query, 160)) : ""}`.trim(),
             density: "row",
             flags: flags()
           };
@@ -90248,12 +90266,15 @@ ${resultText}`,
       }
       render(event) {
         if (event.canonicalToolName === "activate_skill") {
-          const skillName = stringArg(event.args, "skill", "name", "skillName");
-          const target = skillName ? ` ${inlineCode(skillName)}` : "";
-          const resultText2 = event.status === "completed" && event.resultSummary ? ` \u2192 ${oneLine(event.resultSummary, 120)}` : "";
+          const skillName = stringArg(event.args, "name", "skill", "skillName");
+          const label = skillName ? inlineCode(skillName) : "skill";
+          const summary = event.status === "completed" ? compactToolResult(event.resultSummary || "Skill activated") : event.status === "failed" ? compactToolResult(event.resultSummary || "Activation failed") : "";
           return {
-            content: `${statusGlyph(event.status)} **Activate Skill**${target}${resultText2}`,
-            density: "row",
+            content: [
+              `${statusGlyph(event.status)} **Activate Skill** ${label}`,
+              summary ? `\u21B3 ${summary}` : ""
+            ].filter(Boolean).join("\n"),
+            density: summary ? "card" : "row",
             flags: flags()
           };
         }
@@ -90368,8 +90389,8 @@ function resolveLogicalToolKey(event) {
     return command ? `logical:shell:${command.replace(/\s+/g, " ").trim()}` : null;
   }
   if (canonical === "write_file" || canonical === "replace") {
-    const path14 = stringArg2(event.args, "file_path", "path", "filePath", "TargetFile");
-    return path14 ? `logical:${canonical}:${path14}` : null;
+    const path15 = stringArg2(event.args, "file_path", "path", "filePath", "TargetFile");
+    return path15 ? `logical:${canonical}:${path15}` : null;
   }
   return null;
 }
@@ -92813,9 +92834,9 @@ function resolveToolEntry(rawToolName) {
 }
 
 // src/daemon/workflow/redaction.ts
-function redactFilePath(path14) {
-  if (typeof path14 !== "string") return path14;
-  return path14.replace(/\/Users\/[^/]+\//g, "~/");
+function redactFilePath(path15) {
+  if (typeof path15 !== "string") return path15;
+  return path15.replace(/\/Users\/[^/]+\//g, "~/");
 }
 function redactDiscordId(id) {
   if (typeof id !== "string") return id;
@@ -92987,11 +93008,11 @@ function extractToolContentText(value) {
     const record = recordValue(entry);
     if (!record) return "";
     if (record["type"] === "diff") {
-      const path14 = firstString(record["path"]) ?? "diff";
+      const path15 = firstString(record["path"]) ?? "diff";
       const oldText = typeof record["oldText"] === "string" ? record["oldText"] : "";
       const newText = typeof record["newText"] === "string" ? record["newText"] : "";
       return [
-        `Diff: ${path14}`,
+        `Diff: ${path15}`,
         oldText ? `--- old
 ${oldText}` : "",
         newText ? `+++ new
@@ -93082,6 +93103,12 @@ function resolveTopLevelToolEntry(payload) {
   if (/^Searching\s+the\s+web\s+for:/i.test(title)) {
     return resolveToolEntry("google_web_search");
   }
+  if (kind === "fetch" || /^Processing\s+URLs\s+and\s+instructions\s+from\s+prompt:/i.test(title)) {
+    return resolveToolEntry("web_fetch");
+  }
+  if (/^"[^"]+":\s+\S/.test(title)) {
+    return resolveToolEntry("activate_skill");
+  }
   if (/^(?:ReadFolder|ListDirectory)\b/i.test(title) || kind === "read" && /^[.~/(]|^[A-Za-z]:[\\/]/.test(title)) {
     return {
       canonical: "list_directory",
@@ -93127,6 +93154,14 @@ function argsWithTitleMetadata(args, toolEntry, title) {
   if (toolEntry.canonical === "read_file" && !firstString(withCommand["file_path"], withCommand["path"])) {
     const file = title.replace(/^ReadFile\s*/i, "").trim();
     return file ? { ...withCommand, file_path: file } : withCommand;
+  }
+  if (toolEntry.canonical === "activate_skill" && !firstString(withCommand["name"], withCommand["skill"])) {
+    const skill = title.match(/^"([^"]+)":\s+/)?.[1];
+    return skill ? { ...withCommand, name: skill } : withCommand;
+  }
+  if (toolEntry.canonical === "web_fetch" && !firstString(withCommand["url"], withCommand["prompt"], withCommand["query"])) {
+    const prompt = title.match(/^Processing\s+URLs\s+and\s+instructions\s+from\s+prompt:\s*["“]?(.+?)["”]?\s*$/i)?.[1];
+    return prompt ? { ...withCommand, prompt } : withCommand;
   }
   if (toolEntry.canonical !== "google_web_search") return withCommand;
   if (firstString(withCommand["query"], withCommand["prompt"])) return withCommand;
@@ -94096,6 +94131,143 @@ function startTmpAttachmentCleanup(extensionDir2, options = {}) {
 
 // src/daemon.ts
 init_permissions();
+
+// src/daemon/singleton.ts
+var fs12 = __toESM(require("node:fs"), 1);
+var os = __toESM(require("node:os"), 1);
+var path11 = __toESM(require("node:path"), 1);
+var import_node_crypto = require("node:crypto");
+var import_node_child_process3 = require("node:child_process");
+var LOCK_PREFIX = "gemini-discord-daemon";
+function acquireDaemonSingletonLock(deps = {}) {
+  const pid = deps.pid ?? process.pid;
+  const scope = deps.scope ?? "default";
+  const lockPath = deps.lockPath ?? defaultDaemonLockPath(scope, deps.uid ?? getProcessUid());
+  const listPeerProcesses = deps.listPeerProcesses ?? (() => listSameUserDaemonProcesses(pid));
+  const peers = listPeerProcesses().filter((peer) => peer.pid !== pid);
+  if (peers.length > 0) {
+    const peer = peers[0];
+    throw new Error(`Another gemini-discord daemon may already be connected (pid ${peer.pid}: ${peer.command}). Stop it before starting this daemon.`);
+  }
+  return acquireLockFile(lockPath, pid);
+}
+function defaultDaemonLockPath(scope = "default", uid = getProcessUid()) {
+  const suffix = uid == null ? "unknown" : String(uid);
+  const safeScope = scope.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "default";
+  return path11.join(os.tmpdir(), `${LOCK_PREFIX}-${safeScope}-${suffix}.lock`);
+}
+function daemonSingletonScope(discordBotToken) {
+  const normalized = discordBotToken.trim();
+  if (!normalized) {
+    return "missing-token";
+  }
+  return `token-${(0, import_node_crypto.createHash)("sha256").update(normalized).digest("hex").slice(0, 16)}`;
+}
+function listSameUserDaemonProcesses(currentPid = process.pid) {
+  const uid = getProcessUid();
+  if (uid == null) {
+    return [];
+  }
+  let output = "";
+  try {
+    output = (0, import_node_child_process3.execFileSync)("ps", ["-axo", "pid=,uid=,command="], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"]
+    });
+  } catch {
+    return [];
+  }
+  return parseDaemonProcesses(output, uid, currentPid);
+}
+function parseDaemonProcesses(psOutput, uid, currentPid) {
+  const rows = [];
+  for (const line of psOutput.split("\n")) {
+    const match = line.match(/^\s*(\d+)\s+(\d+)\s+(.+)$/);
+    if (!match) continue;
+    const pid = Number(match[1]);
+    const rowUid = Number(match[2]);
+    const command = match[3] ?? "";
+    if (!Number.isFinite(pid) || !Number.isFinite(rowUid) || pid === currentPid || rowUid !== uid) {
+      continue;
+    }
+    if (isGeminiDiscordDaemonCommand(command)) {
+      rows.push({ pid, command: command.trim() });
+    }
+  }
+  return rows;
+}
+function acquireLockFile(lockPath, pid) {
+  fs12.mkdirSync(path11.dirname(lockPath), { recursive: true });
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const fd = fs12.openSync(lockPath, "wx");
+      fs12.writeFileSync(fd, `${pid}
+`, "utf8");
+      return {
+        lockPath,
+        release: () => releaseLockFile(lockPath, fd, pid)
+      };
+    } catch (error) {
+      if (!isAlreadyExistsError(error)) {
+        throw error;
+      }
+      if (!removeStaleLock(lockPath)) {
+        throw new Error(`Another gemini-discord daemon is already running (lock: ${lockPath}).`);
+      }
+    }
+  }
+  throw new Error(`Could not acquire gemini-discord daemon lock: ${lockPath}`);
+}
+function releaseLockFile(lockPath, fd, pid) {
+  try {
+    fs12.closeSync(fd);
+  } catch {
+  }
+  try {
+    const lockPid = fs12.readFileSync(lockPath, "utf8").trim();
+    if (lockPid === String(pid)) {
+      fs12.unlinkSync(lockPath);
+    }
+  } catch {
+  }
+}
+function removeStaleLock(lockPath) {
+  let lockPid = null;
+  try {
+    const raw = fs12.readFileSync(lockPath, "utf8").trim();
+    lockPid = raw ? Number(raw) : null;
+  } catch {
+    return false;
+  }
+  if (lockPid && Number.isFinite(lockPid) && isProcessAlive(lockPid)) {
+    return false;
+  }
+  try {
+    fs12.unlinkSync(lockPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function isGeminiDiscordDaemonCommand(command) {
+  return command.includes("gemini-discord") && command.includes("dist/daemon.cjs") && !command.includes("dist/server.cjs");
+}
+function isProcessAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function getProcessUid() {
+  return typeof process.getuid === "function" ? process.getuid() : null;
+}
+function isAlreadyExistsError(error) {
+  return Boolean(error && typeof error === "object" && error.code === "EEXIST");
+}
+
+// src/daemon.ts
 var tmpDir = process.cwd();
 try {
   tmpDir = __dirname;
@@ -94104,6 +94276,11 @@ try {
 var extensionDir = resolveExtensionDir(tmpDir);
 var shuttingDown = false;
 var attachmentCleanupTimer = null;
+var singletonLock = null;
+function releaseSingletonLock() {
+  singletonLock?.release();
+  singletonLock = null;
+}
 var state = {
   status: "starting",
   startedAt: (/* @__PURE__ */ new Date()).toISOString(),
@@ -94125,6 +94302,10 @@ async function main() {
     state.status = "degraded";
   }
   const config = loadConfig(extensionDir);
+  if (process.env.GEMINI_DISCORD_DAEMON_SINGLETON === "1") {
+    singletonLock = acquireDaemonSingletonLock({ scope: daemonSingletonScope(config.discordBotToken) });
+    process.once("exit", releaseSingletonLock);
+  }
   attachmentCleanupTimer = startTmpAttachmentCleanup(extensionDir);
   const removedLegacyContextFiles = cleanupLegacyBindingContextFiles(extensionDir);
   if (removedLegacyContextFiles > 0) {
@@ -94170,6 +94351,7 @@ async function main() {
       runtimeStore.client.destroy();
     }
     shutdownCron();
+    releaseSingletonLock();
     if (apiServer) {
       apiServer.close(() => {
         log.info("Shutdown complete");
@@ -94238,5 +94420,6 @@ async function main() {
 }
 main().catch((err) => {
   log.error("Fatal startup error", { error: err instanceof Error ? err.message : String(err) });
+  releaseSingletonLock();
   process.exit(1);
 });

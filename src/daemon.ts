@@ -21,6 +21,7 @@ import { shutdownCron } from './daemon/cron.js';
 import { cleanupLegacyBindingContextFiles } from './daemon/binding.js';
 import { startTmpAttachmentCleanup } from './daemon/attachment-cleanup.js';
 import { validateBossConfig } from './daemon/permissions.js';
+import { acquireDaemonSingletonLock, daemonSingletonScope, type DaemonSingletonLock } from './daemon/singleton.js';
 
 let tmpDir = process.cwd();
 try { tmpDir = __dirname; } catch {}
@@ -28,6 +29,12 @@ const extensionDir = resolveExtensionDir(tmpDir);
 
 let shuttingDown = false;
 let attachmentCleanupTimer: NodeJS.Timeout | null = null;
+let singletonLock: DaemonSingletonLock | null = null;
+
+function releaseSingletonLock(): void {
+  singletonLock?.release();
+  singletonLock = null;
+}
 
 const state: DaemonState = {
   status: 'starting',
@@ -54,6 +61,11 @@ async function main(): Promise<void> {
   }
 
   const config = loadConfig(extensionDir);
+  if (process.env.GEMINI_DISCORD_DAEMON_SINGLETON === '1') {
+    singletonLock = acquireDaemonSingletonLock({ scope: daemonSingletonScope(config.discordBotToken) });
+    process.once('exit', releaseSingletonLock);
+  }
+
   attachmentCleanupTimer = startTmpAttachmentCleanup(extensionDir);
   const removedLegacyContextFiles = cleanupLegacyBindingContextFiles(extensionDir);
   if (removedLegacyContextFiles > 0) {
@@ -108,6 +120,7 @@ async function main(): Promise<void> {
     }
 
     shutdownCron();
+    releaseSingletonLock();
     
     if (apiServer) {
       apiServer.close(() => {
@@ -185,5 +198,6 @@ async function main(): Promise<void> {
 
 main().catch((err) => {
   log.error('Fatal startup error', { error: err instanceof Error ? err.message : String(err) });
+  releaseSingletonLock();
   process.exit(1);
 });
