@@ -3,6 +3,7 @@ import type { ConversationMemory } from './memory.js';
 import { resolveSessionKey } from './memory.js';
 import { ensureGeminiBindingWorkspace, loadGeminiBindingState, resetGeminiBindingSession, resolveGeminiBindingKey } from './binding.js';
 import { runtimeStore } from './runtime.js';
+import { log } from './log.js';
 
 export interface SessionResetResult {
   sessionKey: string;
@@ -31,6 +32,14 @@ export function resetConversationSession(
   });
   resetGeminiBindingSession(bindingWorkspace.bindingDir);
   runtimeStore.cliPool?.kill(bindingKey);
+
+  log.info('Conversation session reset', {
+    sessionKey,
+    bindingKey,
+    archivedGeminiSessionId: bindingState.lastSessionId,
+    channelId: context.channelId,
+    guildId: context.guildId,
+  });
 
   return {
     sessionKey,

@@ -79,7 +79,7 @@ npm run setup
 
 | Tool | Actions |
 | --- | --- |
-| `discord_message` | Send, reply, edit, delete, react, fetch reactions, pin, unpin |
+| `discord_message` | Send, reply, create native Discord threads, edit, delete, react, fetch reactions, pin, unpin |
 | `discord_admin` | Status, restart, reset sessions, discover channels/users, set presence, kick, timeout |
 | `discord_history` | Read recent exchanges and archived sessions |
 | `discord_cron` | Schedule and manage reminders and recurring jobs |

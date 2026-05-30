@@ -10,7 +10,14 @@ import { type loadConfig } from '../shared/config.js';
 import { chunkMessage } from '../shared/chunker.js';
 import type { ConversationAttachment } from '../shared/types.js';
 import type { AcceptedDiscordMessage } from './bot.js';
-import { type ConversationMemory, buildDiscordPrompt, buildSessionModePrompt, resolveSessionKey } from './memory.js';
+import {
+  type ConversationMemory,
+  buildDiscordPrompt,
+  buildSessionModePrompt,
+  resolveSessionKey,
+  selectImmediateMentionContext,
+  shouldUseImmediateMentionContext,
+} from './memory.js';
 import { Semaphore } from './semaphore.js';
 import { retrySend } from './retry.js';
 import { LiveEditor } from './editor.js';
@@ -130,21 +137,34 @@ export async function processViaCli(
     : undefined;
 
   if (allowPersistentSession) {
+    const immediateContext = shouldUseImmediateMentionContext(accepted.trigger, accepted.content)
+      ? selectImmediateMentionContext(memory.snapshot(processingContext.sessionKey), incomingPrompt)
+      : [];
     prompt = buildSessionModePrompt({
       incoming: incomingPrompt,
       bossUserId: config.discordBossUserId,
       ownerIds: config.ownerIds,
+      allowedAgentIds: config.allowedAgentIds,
+      botUserId: message.client.user?.id ?? null,
+      immediateContext,
       backgroundContext,
     });
   } else {
-    const historySnapshot = memory.snapshot(processingContext.sessionKey);
+    const fullHistorySnapshot = memory.snapshot(processingContext.sessionKey);
+    const immediateContext = shouldUseImmediateMentionContext(accepted.trigger, accepted.content)
+      ? selectImmediateMentionContext(fullHistorySnapshot, incomingPrompt)
+      : [];
+    const historySnapshot = immediateContext.length > 0 ? [] : fullHistorySnapshot;
     prompt = buildDiscordPrompt({
       history: historySnapshot,
       bossUserId: config.discordBossUserId,
       ownerIds: config.ownerIds,
+      allowedAgentIds: config.allowedAgentIds,
+      botUserId: message.client.user?.id ?? null,
       promptHistoryMessageLimit: config.promptHistoryMessageLimit,
       promptHistoryCharBudget: config.promptHistoryCharBudget,
       incoming: incomingPrompt,
+      immediateContext,
       backgroundContext,
     });
   }

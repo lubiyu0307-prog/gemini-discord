@@ -784,11 +784,14 @@ export class CliProcessPool {
   }
 
   kill(bindingKey: string): void {
+    let killed = 0;
     for (const [key] of this.pool) {
       if (key.startsWith(bindingKey + ':')) {
         this.evict(key);
+        killed++;
       }
     }
+    log.info('CLI pool: killed binding processes', { bindingKey, killed });
   }
 
   killAll(): void {

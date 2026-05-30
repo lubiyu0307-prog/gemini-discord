@@ -86,7 +86,7 @@ export function shouldAcceptMessage(input: RoutingInput, config: Config): Routin
     if (input.isBot) return trackOnly(normalized, speakerKind);
   }
 
-  if (!normalized && input.attachmentCount === 0) {
+  if (!normalized && input.attachmentCount === 0 && !input.mentionedBot) {
     return reject();
   }
 

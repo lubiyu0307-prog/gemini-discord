@@ -22300,6 +22300,7 @@ function registerMessageTool(server2, config3) {
       "Interact with Discord messages. Actions:",
       '\u2022 "send" \u2014 send a new message to an explicit channel_id or channel_name (use silent:true to suppress notifications)',
       '\u2022 "reply" \u2014 reply to a specific message ID',
+      '\u2022 "thread" \u2014 create a native Discord thread from a message or in a channel',
       '\u2022 "edit" \u2014 edit a bot-owned message',
       '\u2022 "delete" \u2014 delete a bot-owned message',
       '\u2022 "react" \u2014 add a reaction (only when the reaction conveys specific meaning: acknowledgment, approval, flagging. Do not react for decoration)',
@@ -22313,6 +22314,7 @@ function registerMessageTool(server2, config3) {
       action: external_exports.enum([
         "send",
         "reply",
+        "thread",
         "edit",
         "delete",
         "react",
@@ -22322,7 +22324,7 @@ function registerMessageTool(server2, config3) {
         "unpin",
         "list_pins"
       ]).describe("Action to perform"),
-      content: external_exports.string().optional().describe('Message text. For "send"/"reply": optional text to accompany files (your normal conversational response streams automatically). For "edit": the new message content.'),
+      content: external_exports.string().optional().describe('Message text. For "send"/"reply": optional text to accompany files (your normal conversational response streams automatically). For "edit": the new message content. For "thread": the thread name.'),
       channel_id: external_exports.string().optional().describe("Target channel ID. Required for send unless channel_name is provided. Required for most other actions."),
       channel_name: external_exports.string().optional().describe('Target channel name (only used for "send").'),
       message_id: external_exports.string().optional().describe("Message ID (required for reply/edit/delete/react/unreact/fetch_reactions/pin/unpin)."),
@@ -22381,6 +22383,19 @@ function registerMessageTool(server2, config3) {
         }
         clearPendingDelivery("reply", body);
         return text2("\u2705 Reply sent with the attached content/files.");
+      }
+      if (action === "thread") {
+        if (!channel_id || !content.trim()) {
+          return text2("\u274C Error: channel_id and content (as thread name) are required for thread creation.", true);
+        }
+        const res = await daemonRequest({
+          method: "POST",
+          path: "/thread",
+          config: config3,
+          body: { channel_id, message_id, name: content }
+        });
+        if (!res.ok) return text2(`\u274C Thread creation failed: ${res.data["error"] ?? "unknown error"}`, true);
+        return text2(`\u2705 Thread "${content}" created (ID: ${res.data["threadId"]}).`);
       }
       if (action === "edit") {
         if (!channel_id || !message_id || !content.trim()) {

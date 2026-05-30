@@ -2,6 +2,7 @@ import * as http from 'node:http';
 import { chunkMessage } from '../../shared/chunker.js';
 import { sendDiscordMessage } from '../sender.js';
 import { resolveDiscoveredChannel } from '../channels.js';
+import { log } from '../log.js';
 import {
   respond,
   authorizeApiAction,
@@ -85,6 +86,7 @@ export async function handleMessageRoutes(
         role: 'assistant',
         content: content || '(Sent an attachment)',
         speakerKind: 'assistant',
+        authorBridgeRole: 'self_bot',
         authorId: deps.client.user?.id,
         authorName: deps.client.user?.tag ?? 'Assistant',
         channelId: channel.id,
@@ -146,6 +148,7 @@ export async function handleMessageRoutes(
         role: 'assistant',
         content: content || '(Sent an attachment)',
         speakerKind: 'assistant',
+        authorBridgeRole: 'self_bot',
         authorId: deps.client.user?.id,
         authorName: deps.client.user?.tag ?? 'Assistant',
         channelId: channel.id,
@@ -312,6 +315,47 @@ export async function handleMessageRoutes(
       respond(res, 200, { ok: true });
     } catch (err) {
       respond(res, 500, { error: err instanceof Error ? err.message : String(err) });
+    }
+    return true;
+  }
+
+  if (pathname === '/thread') {
+    if (!authorizeApiAction(req, res, config, 'outbound_discord')) return true;
+    const channelId = String(parsed['channel_id'] ?? '');
+    const messageId = String(parsed['message_id'] ?? '');
+    const name = String(parsed['name'] ?? '');
+    if (!channelId || !name) {
+      respond(res, 400, { error: 'channel_id and name are required' });
+      return true;
+    }
+    try {
+      if (!deps.client) { respond(res, 503, { error: 'Client not ready' }); return true; }
+      const channel = await fetchTextChannel(deps.client, channelId);
+      if (!channel) { respond(res, 400, { error: 'Channel is not text-based' }); return true; }
+      if (!isWritableTarget(channelId, channel, config)) {
+        respond(res, 403, { error: `Channel ${channelId} is not allowed for thread creation` });
+        return true;
+      }
+
+      log.info('Thread creation requested', { channelId, messageId: messageId || null, name });
+
+      let thread;
+      if (messageId) {
+        const msg = await channel.messages.fetch(messageId);
+        thread = await msg.startThread({ name });
+      } else if ('threads' in channel) {
+        thread = await (channel as any).threads.create({ name });
+      } else {
+        respond(res, 400, { error: 'Channel does not support threads' });
+        return true;
+      }
+
+      log.info('Thread created', { channelId, messageId: messageId || null, threadId: thread.id, name });
+      respond(res, 200, { ok: true, threadId: thread.id });
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      log.warn('Thread creation failed', { channelId, messageId: messageId || null, name, error });
+      respond(res, 500, { error });
     }
     return true;
   }

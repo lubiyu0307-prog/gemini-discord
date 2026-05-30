@@ -2,7 +2,15 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { ConversationMemory, buildDiscordPrompt, buildSessionModePrompt, resolveSessionKey, extractHistoryImageUrls } from '../src/daemon/memory.js';
+import {
+  ConversationMemory,
+  buildDiscordPrompt,
+  buildSessionModePrompt,
+  resolveSessionKey,
+  extractHistoryImageUrls,
+  selectImmediateMentionContext,
+  shouldUseImmediateMentionContext,
+} from '../src/daemon/memory.js';
 
 let tmpDir: string;
 
@@ -365,6 +373,78 @@ describe('buildDiscordPrompt', () => {
 
     expect(prompt).toContain('[Background Operations]');
     expect(prompt).toContain('Active cron jobs: 1.');
+  });
+
+  it('adds only the immediate role-aware context for bare mentions', () => {
+    const history = [
+      userMessage('older message', { messageId: 'm-old', authorBridgeRole: 'GUEST' }),
+      userMessage('please create a thread called GO', {
+        messageId: 'm-boss',
+        authorId: '111111111111111111',
+        authorName: 'Yamato#0001',
+        authorBridgeRole: 'BOSS',
+      }),
+      userMessage('I can help too', {
+        messageId: 'm-agent',
+        speakerKind: 'agent',
+        authorId: 'agent-1',
+        authorName: 'PeerBot#0001',
+        authorBridgeRole: 'allowed_agent',
+      }),
+      {
+        role: 'assistant' as const,
+        content: 'Waiting for a ping.',
+        speakerKind: 'assistant' as const,
+        authorId: 'bot-1',
+        authorName: 'Bot#0001',
+        authorBridgeRole: 'self_bot' as const,
+        channelId: 'ch1',
+        channelName: 'bridge-channel',
+        guildId: 'g1',
+        guildName: 'Test Guild',
+        messageId: 'm-bot',
+        createdAt: '2026-04-14T00:00:03.000Z',
+      },
+    ];
+    const immediateContext = selectImmediateMentionContext(history, {
+      channelId: 'ch1',
+      threadId: null,
+      messageId: 'm-current',
+    });
+    const prompt = buildSessionModePrompt({
+      incoming: {
+        content: '',
+        speakerKind: 'human',
+        authorId: '111111111111111111',
+        authorName: 'Yamato#0001',
+        channelId: 'ch1',
+        channelName: 'bridge-channel',
+        guildId: 'g1',
+        guildName: 'Test Guild',
+        messageId: 'm-current',
+        trigger: 'mention',
+      },
+      immediateContext,
+      bossUserId: '111111111111111111',
+      allowedAgentIds: ['agent-1'],
+      botUserId: 'bot-1',
+    });
+
+    expect(immediateContext).toHaveLength(3);
+    expect(prompt).toContain('[Immediate Mention Context]');
+    expect(prompt).not.toContain('older message');
+    expect(prompt).toContain('please create a thread called GO');
+    expect(prompt).toContain('Yamato#0001 (BOSS; human');
+    expect(prompt).toContain('PeerBot#0001 (allowed_agent; agent');
+    expect(prompt).toContain('Bot#0001 (self_bot; assistant');
+    expect(prompt).not.toContain('[History]');
+  });
+
+  it('limits immediate context to mentions and tiny follow-ups', () => {
+    expect(shouldUseImmediateMentionContext('mention', '')).toBe(true);
+    expect(shouldUseImmediateMentionContext('mention', 'get on it')).toBe(true);
+    expect(shouldUseImmediateMentionContext('channel', 'get on it')).toBe(false);
+    expect(shouldUseImmediateMentionContext('mention', 'please explain the last few things in detail')).toBe(false);
   });
 
   it('generates DM prompt for non-guild context', () => {

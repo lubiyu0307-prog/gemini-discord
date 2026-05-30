@@ -16,6 +16,7 @@ export function registerMessageTool(server: McpServer, config: Config): void {
       'Interact with Discord messages. Actions:',
       '• "send" — send a new message to an explicit channel_id or channel_name (use silent:true to suppress notifications)',
       '• "reply" — reply to a specific message ID',
+      '• "thread" — create a native Discord thread from a message or in a channel',
       '• "edit" — edit a bot-owned message',
       '• "delete" — delete a bot-owned message',
       '• "react" — add a reaction (only when the reaction conveys specific meaning: acknowledgment, approval, flagging. Do not react for decoration)',
@@ -27,11 +28,11 @@ export function registerMessageTool(server: McpServer, config: Config): void {
     ].join('\n'),
     {
       action: z.enum([
-        'send', 'reply', 'edit', 'delete',
+        'send', 'reply', 'thread', 'edit', 'delete',
         'react', 'unreact', 'fetch_reactions',
         'pin', 'unpin', 'list_pins',
       ]).describe('Action to perform'),
-      content: z.string().optional().describe('Message text. For "send"/"reply": optional text to accompany files (your normal conversational response streams automatically). For "edit": the new message content.'),
+      content: z.string().optional().describe('Message text. For "send"/"reply": optional text to accompany files (your normal conversational response streams automatically). For "edit": the new message content. For "thread": the thread name.'),
       channel_id: z.string().optional().describe('Target channel ID. Required for send unless channel_name is provided. Required for most other actions.'),
       channel_name: z.string().optional().describe('Target channel name (only used for "send").'),
       message_id: z.string().optional().describe('Message ID (required for reply/edit/delete/react/unreact/fetch_reactions/pin/unpin).'),
@@ -100,6 +101,21 @@ export function registerMessageTool(server: McpServer, config: Config): void {
 
         clearPendingDelivery('reply', body);
         return text('✅ Reply sent with the attached content/files.');
+      }
+
+      // --- Thread ---
+      if (action === 'thread') {
+        if (!channel_id || !content.trim()) {
+          return text('❌ Error: channel_id and content (as thread name) are required for thread creation.', true);
+        }
+        const res = await daemonRequest({
+          method: 'POST',
+          path: '/thread',
+          config,
+          body: { channel_id, message_id, name: content },
+        });
+        if (!res.ok) return text(`❌ Thread creation failed: ${res.data['error'] ?? 'unknown error'}`, true);
+        return text(`✅ Thread "${content}" created (ID: ${res.data['threadId']}).`);
       }
 
       // --- Edit ---
