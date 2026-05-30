@@ -1,5 +1,15 @@
 # Change History
 
+## [2026-05-30] Workflow Trace Presentation Refinement
+
+Refined monitored workflow output so Discord threads read more like a compact operator transcript.
+
+### Changed
+- **Final Answer Block**: Workflow final replies now render as a quoted `Final Answer` block with mention suppression and Discord-safe chunking for long responses.
+- **Compact File Writes**: `WriteFile` traces show compact Accepted/Created/Updated rows instead of generated content previews.
+- **Internal Planning Noise**: Tactical intent updates and phase-start planning events are suppressed from the visible trace while the run header continues tracking progress.
+- **Tool Labels**: Directory reads render as `ReadFolder`, and MCP `activate_skill` events get a compact dedicated row.
+
 ## [2026-05-26] Workflow Trace Polish
 
 Tightened monitored workflow Discord rendering without changing agent behavior.

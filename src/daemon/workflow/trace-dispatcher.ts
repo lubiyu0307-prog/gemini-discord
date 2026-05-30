@@ -4,6 +4,7 @@ import { TraceRendererRegistry } from './trace-renderer.js';
 import type { ThreadManifest } from './thread-manifest.js';
 import { log } from '../log.js';
 import { SUPPRESS_DISCORD_MENTIONS } from '../mention-safety.js';
+import { chunkMessage } from '../../shared/chunker.js';
 
 export class TraceDispatcher {
   private activeMessages = new Map<string, Message>();
@@ -197,12 +198,17 @@ export class TraceDispatcher {
     const content = formatFinalResponseBlock(response);
     if (!content) return [];
 
+    const messageIds: string[] = [];
+
     try {
-      const sent = await this.threadChannel.send({
-        content,
-        allowedMentions: SUPPRESS_DISCORD_MENTIONS,
-      });
-      return [sent.id];
+      for (const chunk of chunkMessage(content)) {
+        const sent = await this.threadChannel.send({
+          content: chunk,
+          allowedMentions: SUPPRESS_DISCORD_MENTIONS,
+        });
+        messageIds.push(sent.id);
+      }
+      return messageIds;
     } catch (error) {
       log.warn('Failed to dispatch final response', { error: String(error) });
       return [];

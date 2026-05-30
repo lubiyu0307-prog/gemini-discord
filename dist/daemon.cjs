@@ -90393,6 +90393,7 @@ var init_trace_dispatcher = __esm({
     "use strict";
     init_log();
     init_mention_safety();
+    init_chunker();
     TraceDispatcher = class {
       constructor(threadChannel, registry) {
         this.threadChannel = threadChannel;
@@ -90562,12 +90563,16 @@ var init_trace_dispatcher = __esm({
       async dispatchFinalResponse(response) {
         const content = formatFinalResponseBlock(response);
         if (!content) return [];
+        const messageIds = [];
         try {
-          const sent = await this.threadChannel.send({
-            content,
-            allowedMentions: SUPPRESS_DISCORD_MENTIONS
-          });
-          return [sent.id];
+          for (const chunk of chunkMessage(content)) {
+            const sent = await this.threadChannel.send({
+              content: chunk,
+              allowedMentions: SUPPRESS_DISCORD_MENTIONS
+            });
+            messageIds.push(sent.id);
+          }
+          return messageIds;
         } catch (error) {
           log.warn("Failed to dispatch final response", { error: String(error) });
           return [];

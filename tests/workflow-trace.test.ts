@@ -852,4 +852,28 @@ describe('workflow trace events & renderer integration', () => {
     });
     expect(messageIds).toEqual(['sent-msg-1']);
   });
+
+  it('chunks long final workflow responses before dispatching them', async () => {
+    let nextId = 1;
+    const mockChannel = {
+      send: vi.fn().mockImplementation(async () => ({ id: `sent-msg-${nextId++}` })),
+    } as any;
+
+    const dispatcher = new TraceDispatcher(mockChannel, new TraceRendererRegistry());
+    const longResponse = `\u2726 ${Array.from({ length: 80 }, (_, index) =>
+      `Line ${index} ${'x'.repeat(70)}`,
+    ).join('\n')}`;
+
+    const messageIds = await dispatcher.dispatchFinalResponse(longResponse);
+    type SentPayload = { content: string; allowedMentions: { parse: string[]; repliedUser: boolean } };
+    const payloads: SentPayload[] = mockChannel.send.mock.calls.map((call: [SentPayload]) => call[0]);
+
+    expect(payloads.length).toBeGreaterThan(1);
+    expect(messageIds).toEqual(payloads.map((_payload: SentPayload, index: number) => `sent-msg-${index + 1}`));
+    expect(payloads[0].content).toContain('**Final Answer**\n> Line 0');
+    for (const payload of payloads) {
+      expect(payload.content.length).toBeLessThanOrEqual(2000);
+      expect(payload.allowedMentions).toEqual({ parse: [], repliedUser: false });
+    }
+  });
 });
