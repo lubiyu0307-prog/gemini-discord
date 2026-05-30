@@ -19,7 +19,7 @@ import { log } from './log.js';
 import { registerGuildCommands, setupInteractionHandler } from './commands.js';
 import { buildGuildChannelMap } from './channels.js';
 import { buildGuildUserMap } from './users.js';
-import { processViaCli, resolveProcessingContext, formatError, type ProcessingContext, finalizeAssistantResponse, sendPreparedDisplayText } from './engine-cli.js';
+import { processViaCli, resolveProcessingContext, formatError, type ProcessingContext, finalizeAssistantResponse } from './engine-cli.js';
 import { retrySend } from './retry.js';
 import { resolveToolMode, type ToolMode } from './tool-mode.js';
 import { getSupportedAttachmentMetadata } from './attachments.js';
@@ -799,7 +799,7 @@ async function processMessage(
           });
           response = prepared.responseText;
           const displayText = formatWorkflowFinalDisplay(prepared.displayText);
-          const finalMsgIds = await sendPreparedDisplayText(channel as any, displayText, { suppressMentions: true });
+          const finalMsgIds = await traceDispatcher!.dispatchFinalResponse(displayText);
           responseMessageIds.push(...finalMsgIds);
           responseMessageIds.push(...prepared.actionMessageIds);
         }

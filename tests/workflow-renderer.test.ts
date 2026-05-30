@@ -55,7 +55,7 @@ describe('trace renderers', () => {
     });
   });
 
-  it('renders filesystem writes as code previews instead of inline diffs', () => {
+  it('renders WriteFile compactly without generated content previews by default', () => {
     const event: TraceEvent = {
       type: 'tool_completed',
       timestamp: Date.now(),
@@ -73,12 +73,12 @@ describe('trace renderers', () => {
     };
 
     const rendered = registry.render(event);
-    expect(rendered.density).toBe('card');
+    expect(rendered.density).toBe('row');
     expect(rendered.content).toContain('WriteFile');
     expect(rendered.content).toContain('/tmp/triangle.go');
-    expect(rendered.content).toContain('→ Updated');
-    expect(rendered.content).toContain('```go');
-    expect(rendered.content).toContain('package main');
+    expect(rendered.content).toContain('→ Accepted `(+14, -0)`');
+    expect(rendered.content).not.toContain('```go');
+    expect(rendered.content).not.toContain('package main');
     expect(rendered.content).not.toContain('+++ new');
     expect(rendered.embeds).toBeUndefined();
   });
@@ -110,7 +110,7 @@ describe('trace renderers', () => {
     expect(rendered.content).toBe('**Creating Go Triangle Script:** Large verbose summary');
   });
 
-  it('renders planning phases correctly', () => {
+  it('hides internal planning phases by default', () => {
     const event: TraceEvent = {
       type: 'phase_started',
       timestamp: Date.now(),
@@ -127,8 +127,7 @@ describe('trace renderers', () => {
     };
 
     const rendered = registry.render(event);
-    expect(rendered.content).toContain('Phase');
-    expect(rendered.content).toContain('Investigating routing table');
+    expect(rendered.suppressed).toBe(true);
   });
 
   it('renders simple reads and searches as compact rows', () => {
@@ -309,7 +308,7 @@ describe('trace renderers', () => {
     expect(rendered.content).toContain('```txt\nexit code: 1\nstdout:\nbefore fail\n\nstderr:\nboom\n```');
   });
 
-  it('uses create/update labels for WriteFile rows', () => {
+  it('uses create/update labels for compact WriteFile rows', () => {
     const created: TraceEvent = {
       type: 'tool_completed',
       timestamp: Date.now(),
@@ -332,7 +331,27 @@ describe('trace renderers', () => {
     };
 
     expect(registry.render(created).content).toContain('✓ **WriteFile** `~/Desktop/new.py` → Created');
-    expect(registry.render(updated).content).toContain('✓ **WriteFile** `~/Desktop/existing.py` → Updated');
+    expect(registry.render(updated).content).toContain('✓ **WriteFile** `~/Desktop/existing.py` → Accepted `(+1, -0)`');
+    expect(registry.render(created).content).not.toContain('print("hello")');
+  });
+
+  it('suppresses internal tactical status updates', () => {
+    const event: TraceEvent = {
+      type: 'phase_started',
+      timestamp: Date.now(),
+      toolName: null,
+      canonicalToolName: null,
+      displayName: 'Update tactical intent',
+      toolFamily: 'planning',
+      args: {},
+      status: 'started',
+      durationMs: null,
+      resultSummary: 'Keep checking files before editing',
+      artifactRef: null,
+      redactionMetadata: { fieldsRedacted: [], truncated: false },
+    };
+
+    expect(registry.render(event).suppressed).toBe(true);
   });
 
   it('renders Edit rows with compact diff hunks instead of full-file dumps', () => {
@@ -490,13 +509,13 @@ describe('trace renderers', () => {
 
     expect(event).toMatchObject({
       canonicalToolName: 'list_directory',
-      displayName: 'ListDirectory',
+      displayName: 'ReadFolder',
       toolFamily: 'filesystem',
       args: { dir_path: '.' },
     });
 
     const rendered = registry.render(event!);
-    expect(rendered.content).toBe('✓ **ListDirectory** `.` → Listed 8 entries');
+    expect(rendered.content).toBe('✓ **ReadFolder** `.` → Found 8 item(s)');
     expect(rendered.content).not.toContain('✓ .');
   });
 });

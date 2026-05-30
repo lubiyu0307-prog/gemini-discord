@@ -485,6 +485,16 @@ function directoryCount(event: TraceEvent): string {
   return countMatch?.[1] || countMatch?.[2] || countMatch?.[3] || countMatch?.[4] || countMatch?.[5] || 'n';
 }
 
+function writeFileAction(event: TraceEvent): string {
+  const text = [event.resultSummary, event.resultDetail].filter(Boolean).join('\n');
+  const accepted = text.match(/\bAccepted\s*(\(\+\d+,\s*-\d+\))?/i);
+  if (accepted) {
+    return accepted[1] ? `Accepted \`${accepted[1].replace(/\s+/g, ' ')}\`` : 'Accepted';
+  }
+  if (/created|new file|\+\+\+\s+new/i.test(text)) return 'Created';
+  return 'Updated';
+}
+
 export class ShellRenderer implements ToolRenderer {
   canRender(event: TraceEvent): boolean {
     return event.canonicalToolName === 'run_shell_command' || event.toolFamily === 'shell';
@@ -565,17 +575,11 @@ export class FilesystemRenderer implements ToolRenderer {
     }
 
     if (canonical === 'write_file') {
-      const detail = event.resultDetail || '';
-      const newContent = diffNewContent(detail) || detail;
-      const summary = event.resultSummary || '';
-      const action = /created/i.test(summary) ? 'Created' : 'Updated';
+      const action = writeFileAction(event);
       const statusText = event.status === 'completed' ? ` → ${action}` : '';
       return {
-        content: [
-          `${statusGlyph(event.status)} **WriteFile** ${path ? inlineCode(shortPath(path)) : ''}${statusText}`,
-          newContent ? outputBlock(languageForPath(path), truncateLines(newContent, 10)) : '',
-        ].filter(Boolean).join('\n'),
-        density: newContent ? 'card' : 'row',
+        content: `${statusGlyph(event.status)} **WriteFile** ${path ? inlineCode(shortPath(path)) : ''}${statusText}`,
+        density: 'row',
         flags: flags(),
       };
     }
@@ -606,7 +610,7 @@ export class FilesystemRenderer implements ToolRenderer {
       const dir = stringArg(event.args, 'dir_path', 'path');
       const count = directoryCount(event);
       return {
-        content: `${statusGlyph(event.status)} **ListDirectory** ${dir ? inlineCode(shortPath(dir)) : 'directory'} → Listed ${count} entries`,
+        content: `${statusGlyph(event.status)} **ReadFolder** ${dir ? inlineCode(shortPath(dir)) : 'directory'} → Found ${count} item(s)`,
         density: 'row',
         flags: flags(),
       };
@@ -718,10 +722,15 @@ export class PlanningRenderer implements ToolRenderer {
   }
 
   render(event: TraceEvent): RenderedTrace {
+    const displayName = event.displayName || '';
+    if (/update\s+tactical\s+intent|tactical\s+intent/i.test(displayName)) {
+      return suppressed();
+    }
+
     const isUpdateTopic = event.canonicalToolName === 'update_topic' ||
       event.toolName === 'update_topic' ||
-      !!event.displayName?.toLowerCase().includes('update topic') ||
-      !!event.displayName?.toLowerCase().includes('updatetopic');
+      !!displayName.toLowerCase().includes('update topic') ||
+      !!displayName.toLowerCase().includes('updatetopic');
 
     if (isUpdateTopic) {
       if (event.status === 'started' || event.status === 'progress') {
@@ -759,12 +768,7 @@ export class PlanningRenderer implements ToolRenderer {
 
     const summary = event.resultSummary || compactArgs(event.args, ['title', 'summary', 'reason', 'taskId']);
     if (event.type === 'phase_started') {
-      const phase = summary || 'Planning next step';
-      return {
-        content: phase.includes(':') ? `**${phase.split(':')[0]}:**${phase.slice(phase.indexOf(':') + 1)}` : `**Phase:** ${phase}`,
-        density: 'row',
-        flags: flags(),
-      };
+      return suppressed();
     }
     return card(event, event.displayName || 'Planning', summary ? [summary] : []);
   }
@@ -776,6 +780,19 @@ export class McpRenderer implements ToolRenderer {
   }
 
   render(event: TraceEvent): RenderedTrace {
+    if (event.canonicalToolName === 'activate_skill') {
+      const skillName = stringArg(event.args, 'skill', 'name', 'skillName');
+      const target = skillName ? ` ${inlineCode(skillName)}` : '';
+      const resultText = event.status === 'completed' && event.resultSummary
+        ? ` → ${oneLine(event.resultSummary, 120)}`
+        : '';
+      return {
+        content: `${statusGlyph(event.status)} **Activate Skill**${target}${resultText}`,
+        density: 'row',
+        flags: flags(),
+      };
+    }
+
     const rawToolName = event.toolName || '';
     let serverName = '';
     if (rawToolName.includes('/')) {
@@ -827,8 +844,12 @@ export class GenericFallbackRenderer implements ToolRenderer {
   }
 
   render(event: TraceEvent): RenderedTrace {
-    const args = compactArgs(event.args, Object.keys(event.args));
     const title = event.displayName || event.toolName || 'Tool';
+    if (/update\s+tactical\s+intent|tactical\s+intent/i.test(title)) {
+      return suppressed();
+    }
+
+    const args = compactArgs(event.args, Object.keys(event.args));
     if (event.status === 'started' || event.status === 'progress') {
       return {
         content: `${statusGlyph(event.status)} **${title}** ${args ? `\`{${args}}\`` : ''}`,

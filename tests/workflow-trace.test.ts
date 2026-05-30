@@ -625,6 +625,68 @@ describe('workflow trace events & renderer integration', () => {
     expect(toolMessage.edit).toHaveBeenCalledWith(expect.objectContaining({
       content: expect.stringContaining('✓ **WriteFile** `~/Desktop/dice_roll.py`'),
     }));
+    expect(toolMessage.edit).toHaveBeenCalledWith(expect.objectContaining({
+      content: expect.not.stringContaining('print("hello")'),
+    }));
+    expect(header.edit).toHaveBeenLastCalledWith(expect.objectContaining({
+      content: expect.stringContaining('`1` tool call'),
+      allowedMentions: { parse: [], repliedUser: false },
+    }));
+  });
+
+  it('dedupes repeated WriteFile completion events for the same path', async () => {
+    const header = { id: 'header', edit: vi.fn().mockResolvedValue(undefined) };
+    const toolMessage = { id: 'tool-1', edit: vi.fn().mockResolvedValue(undefined) };
+    const mockChannel = {
+      send: vi.fn()
+        .mockResolvedValueOnce(header)
+        .mockResolvedValueOnce(toolMessage),
+    } as any;
+
+    const dispatcher = new TraceDispatcher(mockChannel, new TraceRendererRegistry());
+    await dispatcher.dispatchRunHeader({
+      threadId: 'thread-1',
+      parentChannelId: 'parent-1',
+      guildId: 'guild-1',
+      creatorUserId: 'user-1',
+      starterMessageId: 'message-1',
+      createdAt: new Date().toISOString(),
+      mode: 'monitored_workflow',
+      taskSummary: 'Write file',
+      traceMode: 'compact',
+      originContext: { type: 'channel', sourceChannelId: 'parent-1' },
+    });
+
+    const firstWrite: TraceEvent = {
+      type: 'tool_completed',
+      timestamp: Date.now(),
+      toolName: 'write_file',
+      canonicalToolName: 'write_file',
+      displayName: 'WriteFile',
+      toolFamily: 'filesystem',
+      args: { file_path: '~/Desktop/dice_roll.py' },
+      status: 'completed',
+      durationMs: 20,
+      resultSummary: 'Accepted (+2, -0)',
+      resultDetail: 'Diff: ~/Desktop/dice_roll.py\n+++ new\nprint("hello")\n',
+      artifactRef: '~/Desktop/dice_roll.py',
+      redactionMetadata: { fieldsRedacted: [], truncated: false },
+      raw: { toolCallId: 'write-a' },
+    };
+
+    await dispatcher.dispatch(firstWrite);
+    await dispatcher.dispatch({
+      ...firstWrite,
+      raw: { toolCallId: 'write-b' },
+      resultSummary: 'Accepted (+2, -0)',
+    });
+    await dispatcher.dispatchRunComplete();
+
+    expect(mockChannel.send).toHaveBeenCalledTimes(2);
+    expect(toolMessage.edit).toHaveBeenCalledTimes(1);
+    expect(toolMessage.edit).toHaveBeenCalledWith(expect.objectContaining({
+      content: '✓ **WriteFile** `~/Desktop/dice_roll.py` → Accepted `(+2, -0)`',
+    }));
     expect(header.edit).toHaveBeenLastCalledWith(expect.objectContaining({
       content: expect.stringContaining('`1` tool call'),
       allowedMentions: { parse: [], repliedUser: false },
@@ -775,18 +837,19 @@ describe('workflow trace events & renderer integration', () => {
     }));
   });
 
-  it('suppresses mentions on final workflow responses dispatched after traces', async () => {
+  it('renders final workflow responses through the workflow presentation layer', async () => {
     const mockChannel = {
       send: vi.fn().mockResolvedValue({ id: 'sent-msg-1' }),
     } as any;
 
     const dispatcher = new TraceDispatcher(mockChannel, new TraceRendererRegistry());
 
-    await dispatcher.dispatchFinalResponse('@everyone review <@123456789012345678>');
+    const messageIds = await dispatcher.dispatchFinalResponse('✦ Done.\n@everyone review <@123456789012345678>');
 
     expect(mockChannel.send).toHaveBeenCalledWith({
-      content: '@everyone review <@123456789012345678>',
+      content: '**Final Answer**\n> Done.\n> @everyone review <@123456789012345678>',
       allowedMentions: { parse: [], repliedUser: false },
     });
+    expect(messageIds).toEqual(['sent-msg-1']);
   });
 });

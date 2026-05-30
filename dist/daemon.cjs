@@ -89996,6 +89996,15 @@ function directoryCount(event) {
   const countMatch = text.match(/Found\s+(\d+)\s+item\(s\)|Listed\s+(\d+)\s+entries|(\d+)\s+entries|(\d+)\s+files|listed\s+(\d+)/i);
   return countMatch?.[1] || countMatch?.[2] || countMatch?.[3] || countMatch?.[4] || countMatch?.[5] || "n";
 }
+function writeFileAction(event) {
+  const text = [event.resultSummary, event.resultDetail].filter(Boolean).join("\n");
+  const accepted = text.match(/\bAccepted\s*(\(\+\d+,\s*-\d+\))?/i);
+  if (accepted) {
+    return accepted[1] ? `Accepted \`${accepted[1].replace(/\s+/g, " ")}\`` : "Accepted";
+  }
+  if (/created|new file|\+\+\+\s+new/i.test(text)) return "Created";
+  return "Updated";
+}
 var import_discord7, TRACE_LIMIT, ATTACHMENT_THRESHOLD, ShellRenderer, FilesystemRenderer, SearchRenderer, WebRenderer, PlanningRenderer, McpRenderer, InteractionRenderer, GenericFallbackRenderer, TraceRendererRegistry;
 var init_trace_renderer = __esm({
   "src/daemon/workflow/trace-renderer.ts"() {
@@ -90071,17 +90080,11 @@ var init_trace_renderer = __esm({
           };
         }
         if (canonical === "write_file") {
-          const detail = event.resultDetail || "";
-          const newContent = diffNewContent(detail) || detail;
-          const summary = event.resultSummary || "";
-          const action = /created/i.test(summary) ? "Created" : "Updated";
+          const action = writeFileAction(event);
           const statusText = event.status === "completed" ? ` \u2192 ${action}` : "";
           return {
-            content: [
-              `${statusGlyph(event.status)} **WriteFile** ${path14 ? inlineCode(shortPath(path14)) : ""}${statusText}`,
-              newContent ? outputBlock(languageForPath(path14), truncateLines(newContent, 10)) : ""
-            ].filter(Boolean).join("\n"),
-            density: newContent ? "card" : "row",
+            content: `${statusGlyph(event.status)} **WriteFile** ${path14 ? inlineCode(shortPath(path14)) : ""}${statusText}`,
+            density: "row",
             flags: flags()
           };
         }
@@ -90110,7 +90113,7 @@ var init_trace_renderer = __esm({
           const dir = stringArg(event.args, "dir_path", "path");
           const count = directoryCount(event);
           return {
-            content: `${statusGlyph(event.status)} **ListDirectory** ${dir ? inlineCode(shortPath(dir)) : "directory"} \u2192 Listed ${count} entries`,
+            content: `${statusGlyph(event.status)} **ReadFolder** ${dir ? inlineCode(shortPath(dir)) : "directory"} \u2192 Found ${count} item(s)`,
             density: "row",
             flags: flags()
           };
@@ -90202,7 +90205,11 @@ ${resultText}`,
         return event.toolFamily === "planning" || event.type === "phase_started" || isUpdateTopic;
       }
       render(event) {
-        const isUpdateTopic = event.canonicalToolName === "update_topic" || event.toolName === "update_topic" || !!event.displayName?.toLowerCase().includes("update topic") || !!event.displayName?.toLowerCase().includes("updatetopic");
+        const displayName = event.displayName || "";
+        if (/update\s+tactical\s+intent|tactical\s+intent/i.test(displayName)) {
+          return suppressed();
+        }
+        const isUpdateTopic = event.canonicalToolName === "update_topic" || event.toolName === "update_topic" || !!displayName.toLowerCase().includes("update topic") || !!displayName.toLowerCase().includes("updatetopic");
         if (isUpdateTopic) {
           if (event.status === "started" || event.status === "progress") {
             return suppressed();
@@ -90230,12 +90237,7 @@ ${resultText}`,
         }
         const summary = event.resultSummary || compactArgs(event.args, ["title", "summary", "reason", "taskId"]);
         if (event.type === "phase_started") {
-          const phase = summary || "Planning next step";
-          return {
-            content: phase.includes(":") ? `**${phase.split(":")[0]}:**${phase.slice(phase.indexOf(":") + 1)}` : `**Phase:** ${phase}`,
-            density: "row",
-            flags: flags()
-          };
+          return suppressed();
         }
         return card(event, event.displayName || "Planning", summary ? [summary] : []);
       }
@@ -90245,6 +90247,16 @@ ${resultText}`,
         return event.toolFamily === "mcp";
       }
       render(event) {
+        if (event.canonicalToolName === "activate_skill") {
+          const skillName = stringArg(event.args, "skill", "name", "skillName");
+          const target = skillName ? ` ${inlineCode(skillName)}` : "";
+          const resultText2 = event.status === "completed" && event.resultSummary ? ` \u2192 ${oneLine(event.resultSummary, 120)}` : "";
+          return {
+            content: `${statusGlyph(event.status)} **Activate Skill**${target}${resultText2}`,
+            density: "row",
+            flags: flags()
+          };
+        }
         const rawToolName = event.toolName || "";
         let serverName = "";
         if (rawToolName.includes("/")) {
@@ -90289,8 +90301,11 @@ ${resultText}`,
         return true;
       }
       render(event) {
-        const args = compactArgs(event.args, Object.keys(event.args));
         const title = event.displayName || event.toolName || "Tool";
+        if (/update\s+tactical\s+intent|tactical\s+intent/i.test(title)) {
+          return suppressed();
+        }
+        const args = compactArgs(event.args, Object.keys(event.args));
         if (event.status === "started" || event.status === "progress") {
           return {
             content: `${statusGlyph(event.status)} **${title}** ${args ? `\`{${args}}\`` : ""}`,
@@ -90364,6 +90379,13 @@ function stringArg2(args, ...keys) {
     if (typeof value === "string" && value.trim()) return value;
   }
   return "";
+}
+function formatFinalResponseBlock(response) {
+  const trimmed = response.trim().replace(/^\u2726\s*/, "");
+  if (!trimmed) return "";
+  const quoted = trimmed.split(/\r?\n/).map((line) => `> ${line}`).join("\n");
+  return `**Final Answer**
+${quoted}`;
 }
 var TraceDispatcher;
 var init_trace_dispatcher = __esm({
@@ -90538,13 +90560,17 @@ var init_trace_dispatcher = __esm({
         }
       }
       async dispatchFinalResponse(response) {
+        const content = formatFinalResponseBlock(response);
+        if (!content) return [];
         try {
-          await this.threadChannel.send({
-            content: response,
+          const sent = await this.threadChannel.send({
+            content,
             allowedMentions: SUPPRESS_DISCORD_MENTIONS
           });
+          return [sent.id];
         } catch (error) {
           log.warn("Failed to dispatch final response", { error: String(error) });
+          return [];
         }
       }
       async updateRunHeader(state2, detail) {
@@ -91223,7 +91249,7 @@ async function processMessage(message, accepted, config, memory, state2, process
           });
           response = prepared.responseText;
           const displayText = formatWorkflowFinalDisplay(prepared.displayText);
-          const finalMsgIds = await sendPreparedDisplayText(channel, displayText, { suppressMentions: true });
+          const finalMsgIds = await traceDispatcher.dispatchFinalResponse(displayText);
           responseMessageIds.push(...finalMsgIds);
           responseMessageIds.push(...prepared.actionMessageIds);
         }
@@ -93052,7 +93078,11 @@ function resolveTopLevelToolEntry(payload) {
     return resolveToolEntry("google_web_search");
   }
   if (/^(?:ReadFolder|ListDirectory)\b/i.test(title) || kind === "read" && /^[.~/(]|^[A-Za-z]:[\\/]/.test(title)) {
-    return resolveToolEntry("list_directory");
+    return {
+      canonical: "list_directory",
+      displayName: "ReadFolder",
+      family: "filesystem"
+    };
   }
   if (/^ReadFile\b/i.test(title)) {
     return resolveToolEntry("read_file");

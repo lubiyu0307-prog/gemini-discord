@@ -210,7 +210,11 @@ function resolveTopLevelToolEntry(payload: Record<string, unknown>): ReturnType<
     return resolveToolEntry('google_web_search');
   }
   if (/^(?:ReadFolder|ListDirectory)\b/i.test(title) || (kind === 'read' && /^[.~/(]|^[A-Za-z]:[\\/]/.test(title))) {
-    return resolveToolEntry('list_directory');
+    return {
+      canonical: 'list_directory',
+      displayName: 'ReadFolder',
+      family: 'filesystem',
+    };
   }
   if (/^ReadFile\b/i.test(title)) {
     return resolveToolEntry('read_file');

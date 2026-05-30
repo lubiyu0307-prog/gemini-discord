@@ -193,14 +193,19 @@ export class TraceDispatcher {
     }
   }
 
-  async dispatchFinalResponse(response: string): Promise<void> {
+  async dispatchFinalResponse(response: string): Promise<string[]> {
+    const content = formatFinalResponseBlock(response);
+    if (!content) return [];
+
     try {
-      await this.threadChannel.send({
-        content: response,
+      const sent = await this.threadChannel.send({
+        content,
         allowedMentions: SUPPRESS_DISCORD_MENTIONS,
       });
+      return [sent.id];
     } catch (error) {
       log.warn('Failed to dispatch final response', { error: String(error) });
+      return [];
     }
   }
 
@@ -289,4 +294,15 @@ function stringArg(args: Record<string, unknown>, ...keys: string[]): string {
     if (typeof value === 'string' && value.trim()) return value;
   }
   return '';
+}
+
+function formatFinalResponseBlock(response: string): string {
+  const trimmed = response.trim().replace(/^\u2726\s*/, '');
+  if (!trimmed) return '';
+
+  const quoted = trimmed
+    .split(/\r?\n/)
+    .map((line) => `> ${line}`)
+    .join('\n');
+  return `**Final Answer**\n${quoted}`;
 }
