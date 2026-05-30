@@ -75,7 +75,7 @@ function parseBoolean(value: string | undefined, fallback: boolean): boolean {
 }
 
 function parseMemoryScope(value: string | undefined): MemoryScope {
-  return value === 'channel' ? 'channel' : 'global';
+  return value === 'global' ? 'global' : 'channel';
 }
 
 function parseGeminiSessionBindingScope(value: string | undefined): GeminiSessionBindingScope {

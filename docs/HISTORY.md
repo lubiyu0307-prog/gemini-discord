@@ -1,5 +1,10 @@
 # Change History
 
+## Unreleased
+
+- **Config Safety**: Invalid `MEMORY_SCOPE` values now fall back to channel-scoped Discord memory. `global` remains available only as an explicit opt-in.
+- **Project Checks**: Added `npm run check` as the Node-native gate for typecheck, tests, and build.
+
 ## [2026-05-30] Workflow Trace Presentation Refinement
 
 Refined monitored workflow output so Discord threads read more like a compact operator transcript.

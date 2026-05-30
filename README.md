@@ -153,6 +153,7 @@ gemini extensions install /absolute/path/to/gemini-discord
 ```bash
 npm run typecheck       # Type-check
 npm test                # Run tests
+npm run check           # Type-check, test, and build
 npm run dev:daemon      # Daemon in dev mode
 npm run start:daemon    # Start daemon
 npm run start:server    # Start MCP server
@@ -161,7 +162,7 @@ npm run install-service # Install as system service
 
 For branch testing, set `GEMINI_DISCORD_DAEMON_SINGLETON=1` before starting the daemon to fail fast when another same-token daemon may already be connected. The guard is opt-in and does not change default product startup behavior.
 
-Before releasing: run typecheck + tests + build, commit `dist/`, keep `.env` and `.gemini-discord/` untracked, use placeholder IDs in examples, add the `gemini-cli-extension` GitHub topic.
+Before releasing: run `npm run check`, commit `dist/`, keep `.env` and `.gemini-discord/` untracked, use placeholder IDs in examples, add the `gemini-cli-extension` GitHub topic.
 
 ## Contributing
 

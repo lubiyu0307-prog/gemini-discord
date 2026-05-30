@@ -46,7 +46,7 @@ These are auto-derived from the core settings above unless explicitly overridden
 | `ENABLE_DMS` | `true` | Whether the bot should respond to Direct Messages. |
 | `REQUIRE_MENTION` | `false` | If true, the bot only responds in servers when explicitly mentioned. |
 | `RESPOND_TO_REPLIES` | `true` | Whether the bot should respond to direct replies to its messages. |
-| `MEMORY_SCOPE` | `channel` | Isolation level for Discord memory (`channel` or `global`). |
+| `MEMORY_SCOPE` | `channel` | Isolation level for Discord memory. Use `channel` for separate channel/DM transcripts or `global` for one shared transcript. Invalid values fall back to `channel`. |
 | `AUTO_START_DAEMON` | `true` | Automatically start the Discord daemon when the MCP server is initialized. |
 | `USE_GEMINI_CLI_SESSIONS` | `true` | Use native Gemini CLI session management. |
 | `GEMINI_SESSION_BINDING_SCOPE`| `channel` | Isolation level for Gemini CLI sessions (`channel`, `server`, or `global`). |

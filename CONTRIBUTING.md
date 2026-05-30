@@ -12,6 +12,7 @@ First off, thank you for considering contributing to `gemini-discord`!
 
 - `npm run dev:daemon` will start the daemon in watch mode.
 - Ensure any new features are covered by tests (`npm test`).
+- Run `npm run check` before opening or merging a PR; it type-checks, tests, and rebuilds the committed `dist/` artifacts.
 - Ensure no powerful tools like `run_shell_command` are exposed via MCP unless explicitly needed and guarded.
 
 ## Pull Requests

@@ -304,7 +304,7 @@ function parseBoolean(value, fallback) {
   return value.toLowerCase() === "true";
 }
 function parseMemoryScope(value) {
-  return value === "channel" ? "channel" : "global";
+  return value === "global" ? "global" : "channel";
 }
 function parseGeminiSessionBindingScope(value) {
   switch (value) {

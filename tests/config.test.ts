@@ -49,6 +49,44 @@ describe('loadConfig', () => {
     }
   });
 
+  it('allows explicit global Discord memory scope', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-'));
+
+    try {
+      fs.writeFileSync(path.join(tmpDir, '.env'), [
+        'DISCORD_BOT_TOKEN=test-token',
+        'DISCORD_SERVER_ID=server-1',
+        'DISCORD_OWNER_IDS=owner-1',
+        'MEMORY_SCOPE=global',
+      ].join('\n'));
+
+      const config = loadConfig(tmpDir);
+
+      expect(config.memoryScope).toBe('global');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('falls back to channel memory scope for invalid values', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-'));
+
+    try {
+      fs.writeFileSync(path.join(tmpDir, '.env'), [
+        'DISCORD_BOT_TOKEN=test-token',
+        'DISCORD_SERVER_ID=server-1',
+        'DISCORD_OWNER_IDS=owner-1',
+        'MEMORY_SCOPE=server',
+      ].join('\n'));
+
+      const config = loadConfig(tmpDir);
+
+      expect(config.memoryScope).toBe('channel');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('creates a managed runtime config file with the resolved install settings', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-'));
 
