@@ -22004,6 +22004,8 @@ function registerAdminTool(server2, config3) {
       '\u2022 "restart" \u2014 restart the daemon process',
       '\u2022 "reset" \u2014 clear the current conversation and archive the session',
       '\u2022 "channels" \u2014 list discovered channels (optional query filter)',
+      '\u2022 "channel_allowlist_add" \u2014 add a channel to the allowed channels list',
+      '\u2022 "channel_allowlist_remove" \u2014 remove a channel from the allowed channels list',
       '\u2022 "users" \u2014 list discovered server users or resolve a user lookup hint (use when [Mentions] has no matching human, or the target is ambiguous)',
       '\u2022 "allowlist_add" \u2014 add a human user to the guest allowlist (never the bot itself; resolve with users discovery first)',
       '\u2022 "allowlist_remove" \u2014 remove a human user from the guest allowlist',
@@ -22013,9 +22015,10 @@ function registerAdminTool(server2, config3) {
       '\u2022 "remove_timeout" \u2014 remove an active timeout from a member'
     ].join("\n"),
     {
-      action: external_exports.enum(["status", "restart", "reset", "channels", "users", "allowlist_add", "allowlist_remove", "set_presence", "kick", "timeout", "remove_timeout"]).describe("The administrative action to perform."),
+      action: external_exports.enum(["status", "restart", "reset", "channels", "channel_allowlist_add", "channel_allowlist_remove", "users", "allowlist_add", "allowlist_remove", "set_presence", "kick", "timeout", "remove_timeout"]).describe("The administrative action to perform."),
       query: external_exports.string().optional().describe("Optional channel/user name, mention, ID, or partial string to filter discovery actions."),
-      channel_id: external_exports.string().optional().describe("Explicit Discord channel ID for reset actions."),
+      channel_id: external_exports.string().optional().describe("Explicit Discord channel ID for reset or channel allowlist actions."),
+      all: external_exports.boolean().optional().describe("If true, lists all channels in the guild, even those not currently allowlisted (only for channels action)."),
       status: external_exports.enum(["online", "idle", "dnd", "invisible"]).optional().describe("Bot online status (only for set_presence)."),
       activity_type: external_exports.enum(["playing", "watching", "listening", "competing"]).optional().describe("Activity type (only for set_presence)."),
       activity_name: external_exports.string().optional().describe('Activity name, e.g. "with fire" (only for set_presence).'),
@@ -22024,8 +22027,8 @@ function registerAdminTool(server2, config3) {
       reason: external_exports.string().optional().describe("Optional audit-log reason (only for kick/timeout/remove_timeout)."),
       duration_minutes: external_exports.number().optional().describe("Timeout duration in minutes. Required for timeout. Maximum 40320 (28 days).")
     },
-    async ({ action, query, channel_id, status, activity_type, activity_name, user_id, guild_id, reason, duration_minutes }) => {
-      const permAction = action === "status" ? "status" : action === "users" ? "user_discovery" : ["kick", "timeout", "remove_timeout", "allowlist_add", "allowlist_remove"].includes(action) ? "moderation" : "admin_command";
+    async ({ action, query, channel_id, all, status, activity_type, activity_name, user_id, guild_id, reason, duration_minutes }) => {
+      const permAction = action === "status" ? "status" : action === "users" ? "user_discovery" : ["kick", "timeout", "remove_timeout", "allowlist_add", "allowlist_remove", "channel_allowlist_add", "channel_allowlist_remove"].includes(action) ? "moderation" : "admin_command";
       const gate = authorizeMcpToolAction(permAction, config3);
       if (gate.decision !== "allow") {
         return text(formatPermissionDenial(gate), true);
@@ -22139,22 +22142,46 @@ ${retryMessage}` : ""}` }]
           return text("\u2705 Started a fresh conversation. The active Discord transcript was archived and the bound Gemini CLI session was restarted for the current channel.");
         }
         case "channels": {
-          const res = await daemonRequest({ method: "GET", path: "/status", config: config3 });
+          const params = new URLSearchParams();
+          if (query?.trim()) params.set("query", query.trim());
+          if (all) params.set("all", "true");
+          const res = await daemonRequest({
+            method: "GET",
+            path: params.size > 0 ? `/channels?${params.toString()}` : "/channels",
+            config: config3
+          });
           if (res.data["error"] === "daemon_offline") {
             return text("\u274C Daemon is offline. Reopen Gemini CLI or run `npm run setup` in the extension directory if setup is incomplete.");
           }
           if (!res.ok) {
             return text(`\u274C Failed to fetch channels: ${JSON.stringify(res.data)}`);
           }
-          const status2 = res.data;
-          const channels = status2.channels ?? [];
-          const needle = query?.trim().toLowerCase();
-          const filtered = needle ? channels.filter((c) => c.name.toLowerCase().includes(needle) || c.id.includes(needle)) : channels;
-          if (filtered.length === 0) {
-            return text(needle ? `No discovered channels matched "${query}".` : "No channels have been discovered yet.");
+          const channels = res.data["channels"] ?? [];
+          if (channels.length === 0) {
+            return text(query ? `No discovered channels matched "${query}".` : "No channels have been discovered yet.");
           }
-          const lines = filtered.map((c) => `- #${c.name} \u2192 ${c.id}`);
+          const lines = channels.map((c) => `- #${c.name} \u2192 ${c.id}`);
           return text(lines.join("\n"));
+        }
+        case "channel_allowlist_add":
+        case "channel_allowlist_remove": {
+          if (!channel_id?.trim()) {
+            return text(`\u274C Error: channel_id is required for ${action}.`, true);
+          }
+          const res = await daemonRequest({
+            method: "POST",
+            path: "/channel-allowlist",
+            config: config3,
+            body: {
+              action: action === "channel_allowlist_add" ? "add" : "remove",
+              channel_id: channel_id.trim()
+            }
+          });
+          if (!res.ok) {
+            return text(`\u274C Channel allowlist update failed: ${res.data["error"] ?? "unknown error"}`, true);
+          }
+          const verb = action === "channel_allowlist_add" ? "added to" : "removed from";
+          return text(`\u2705 Channel \`${channel_id}\` was ${verb} the allowed channels list. Total allowed: ${res.data["count"] ?? "?"}`);
         }
         case "users": {
           const params = new URLSearchParams();
