@@ -99,7 +99,12 @@ function acquireLockFile(lockPath: string, pid: number): DaemonSingletonLock {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const fd = fs.openSync(lockPath, 'wx');
-      fs.writeFileSync(fd, `${pid}\n`, 'utf8');
+      try {
+        fs.writeFileSync(fd, `${pid}\n`, 'utf8');
+      } catch (err) {
+        try { fs.closeSync(fd); } catch {}
+        throw err;
+      }
       return {
         lockPath,
         release: () => releaseLockFile(lockPath, fd, pid),

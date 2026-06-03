@@ -21758,17 +21758,7 @@ function resolveLocalMcpBossContext(config3) {
   });
 }
 function resolveMcpToolRoleContext(config3) {
-  return resolveLocalMcpBossContext(config3) ?? resolveMcpRoleContextFromEnv(process.env, config3);
-}
-var DISCORD_ROLE_ENV_KEYS = [
-  "GEMINI_DISCORD_ROLE",
-  "GEMINI_DISCORD_SENDER_ID",
-  "GEMINI_DISCORD_SENDER_LABEL"
-];
-function clearInheritedDiscordRoleEnv(env = process.env) {
-  for (const key of DISCORD_ROLE_ENV_KEYS) {
-    delete env[key];
-  }
+  return resolveMcpRoleContextFromEnv(process.env, config3) ?? resolveLocalMcpBossContext(config3);
 }
 function authorizeMcpToolAction(action, config3) {
   const roleContext = resolveMcpToolRoleContext(config3);
@@ -22854,7 +22844,6 @@ function registerCronTools(server2, config3) {
 }
 
 // src/server.ts
-clearInheritedDiscordRoleEnv();
 var tmpDir = process.cwd();
 try {
   tmpDir = __dirname;

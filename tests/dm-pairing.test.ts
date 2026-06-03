@@ -15,7 +15,7 @@ describe('dm pairing', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('stores a stable DM pairing by user id', () => {
+  it('stores a stable DM pairing by user id', async () => {
     const first = touchDmPairing(tmpDir, 'owner-1', 'dm-channel-1');
     const second = touchDmPairing(tmpDir, 'owner-1', 'dm-channel-2');
 
@@ -27,6 +27,25 @@ describe('dm pairing', () => {
         userId: 'owner-1',
         channelId: 'dm-channel-2',
       },
+    ]);
+    // Wait for the async write to complete before exiting test/teardown
+    await new Promise(resolve => setTimeout(resolve, 50));
+  });
+
+  it('writes the pairing asynchronously to disk', async () => {
+    touchDmPairing(tmpDir, 'owner-2', 'dm-channel-3');
+
+    // Wait for the async write to complete
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    const filePath = path.join(tmpDir, '.gemini-discord', 'dm-pairings.json');
+    expect(fs.existsSync(filePath)).toBe(true);
+    const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    expect(content.pairings).toMatchObject([
+      {
+        userId: 'owner-2',
+        channelId: 'dm-channel-3',
+      }
     ]);
   });
 });

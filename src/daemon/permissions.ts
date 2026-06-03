@@ -351,8 +351,8 @@ export function resolveLocalMcpBossContext(config?: Config): RoleContext | null 
  * CLI session must not downgrade local admin tools.
  */
 export function resolveMcpToolRoleContext(config?: Config): RoleContext | null {
-  return resolveLocalMcpBossContext(config)
-    ?? resolveMcpRoleContextFromEnv(process.env, config);
+  return resolveMcpRoleContextFromEnv(process.env, config)
+    ?? resolveLocalMcpBossContext(config);
 }
 
 export const DISCORD_ROLE_ENV_KEYS = [

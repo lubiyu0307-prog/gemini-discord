@@ -26844,11 +26844,11 @@ Emitted 'error' event${ctorInfo} at:
         return this._eventCount > 0 ? Reflect.ownKeys(this._events) : [];
       }
       async waitForAllListenersToComplete() {
-        const promises = [...this._internalPromiseMap.values()];
-        if (promises.length === 0) {
+        const promises2 = [...this._internalPromiseMap.values()];
+        if (promises2.length === 0) {
           return false;
         }
-        await Promise.all(promises);
+        await Promise.all(promises2);
         return true;
       }
       _addListener(eventName, wrappedListener, prepend) {
@@ -65160,22 +65160,22 @@ var require_dist10 = __commonJS({
         const shardsPerWorker = this.options.shardsPerWorker === "all" ? shardIds.length : this.options.shardsPerWorker;
         const strategyOptions = await managerToFetchingStrategyOptions(this.manager);
         const loops = Math.ceil(shardIds.length / shardsPerWorker);
-        const promises = [];
+        const promises2 = [];
         for (let idx = 0; idx < loops; idx++) {
           const slice = shardIds.slice(idx * shardsPerWorker, (idx + 1) * shardsPerWorker);
           const workerData2 = {
             ...strategyOptions,
             shardIds: slice
           };
-          promises.push(this.setupWorker(workerData2));
+          promises2.push(this.setupWorker(workerData2));
         }
-        await Promise.all(promises);
+        await Promise.all(promises2);
       }
       /**
        * {@inheritDoc IShardingStrategy.connect}
        */
       async connect() {
-        const promises = [];
+        const promises2 = [];
         for (const [shardId, worker] of this.#workerByShardId.entries()) {
           const payload = {
             op: 0,
@@ -65183,22 +65183,22 @@ var require_dist10 = __commonJS({
           };
           const promise = new Promise((resolve2) => this.connectPromises.set(shardId, resolve2));
           worker.postMessage(payload);
-          promises.push(promise);
+          promises2.push(promise);
         }
-        await Promise.all(promises);
+        await Promise.all(promises2);
       }
       /**
        * {@inheritDoc IShardingStrategy.destroy}
        */
       async destroy(options = {}) {
-        const promises = [];
+        const promises2 = [];
         for (const [shardId, worker] of this.#workerByShardId.entries()) {
           const payload = {
             op: 1,
             shardId,
             options
           };
-          promises.push(
+          promises2.push(
             // eslint-disable-next-line no-promise-executor-return, promise/prefer-await-to-then
             new Promise((resolve2) => this.destroyPromises.set(shardId, resolve2)).then(async () => worker.terminate())
           );
@@ -65206,7 +65206,7 @@ var require_dist10 = __commonJS({
         }
         this.#workers = [];
         this.#workerByShardId.clear();
-        await Promise.all(promises);
+        await Promise.all(promises2);
       }
       /**
        * {@inheritDoc IShardingStrategy.send}
@@ -66228,21 +66228,21 @@ var require_dist10 = __commonJS({
        * {@inheritDoc IShardingStrategy.connect}
        */
       async connect() {
-        const promises = [];
+        const promises2 = [];
         for (const shard of this.shards.values()) {
-          promises.push(shard.connect());
+          promises2.push(shard.connect());
         }
-        await Promise.all(promises);
+        await Promise.all(promises2);
       }
       /**
        * {@inheritDoc IShardingStrategy.destroy}
        */
       async destroy(options) {
-        const promises = [];
+        const promises2 = [];
         for (const shard of this.shards.values()) {
-          promises.push(shard.destroy(options));
+          promises2.push(shard.destroy(options));
         }
-        await Promise.all(promises);
+        await Promise.all(promises2);
         this.shards.clear();
       }
       /**
@@ -75479,11 +75479,11 @@ var require_ShardingManager = __commonJS({
           );
         }
         for (const shardId of this.shardList) {
-          const promises = [];
+          const promises2 = [];
           const shard = this.createShard(shardId);
-          promises.push(shard.spawn(timeout));
-          if (delay > 0 && this.shards.size !== this.shardList.length) promises.push(sleep2(delay));
-          await Promise.all(promises);
+          promises2.push(shard.spawn(timeout));
+          if (delay > 0 && this.shards.size !== this.shardList.length) promises2.push(sleep2(delay));
+          await Promise.all(promises2);
         }
         return this.shards;
       }
@@ -75493,9 +75493,9 @@ var require_ShardingManager = __commonJS({
        * @returns {Promise<Shard[]>}
        */
       broadcast(message) {
-        const promises = [];
-        for (const shard of this.shards.values()) promises.push(shard.send(message));
-        return Promise.all(promises);
+        const promises2 = [];
+        for (const shard of this.shards.values()) promises2.push(shard.send(message));
+        return Promise.all(promises2);
       }
       /**
        * Options for {@link ShardingManager#broadcastEval} and {@link ShardClientUtil#broadcastEval}.
@@ -75545,9 +75545,9 @@ var require_ShardingManager = __commonJS({
         if (this.shards.size !== this.shardList.length) {
           throw new DiscordjsError2(ErrorCodes2.ShardingInProcess);
         }
-        const promises = [];
-        for (const sh of this.shards.values()) promises.push(sh[method](...args));
-        return Promise.all(promises);
+        const promises2 = [];
+        for (const sh of this.shards.values()) promises2.push(sh[method](...args));
+        return Promise.all(promises2);
       }
       /**
        * Options used to respawn all shards.
@@ -75566,9 +75566,9 @@ var require_ShardingManager = __commonJS({
       async respawnAll({ shardDelay = 5e3, respawnDelay = 500, timeout = 3e4 } = {}) {
         let s = 0;
         for (const shard of this.shards.values()) {
-          const promises = [shard.respawn({ delay: respawnDelay, timeout })];
-          if (++s < this.shards.size && shardDelay > 0) promises.push(sleep2(shardDelay));
-          await Promise.all(promises);
+          const promises2 = [shard.respawn({ delay: respawnDelay, timeout })];
+          if (++s < this.shards.size && shardDelay > 0) promises2.push(sleep2(shardDelay));
+          await Promise.all(promises2);
         }
         return this.shards;
       }
@@ -77452,25 +77452,41 @@ function ensureParentDir(filePath2) {
   fs5.mkdirSync(path4.dirname(filePath2), { recursive: true });
 }
 function loadPairingMap(extensionDir2) {
+  let cache = pairingsCacheMap.get(extensionDir2);
+  if (cache) {
+    return cache;
+  }
   const filePath2 = pairingsPath(extensionDir2);
   try {
+    if (!fs5.existsSync(filePath2)) {
+      cache = /* @__PURE__ */ new Map();
+      pairingsCacheMap.set(extensionDir2, cache);
+      return cache;
+    }
     const parsed = JSON.parse(fs5.readFileSync(filePath2, "utf-8"));
     const pairings = Array.isArray(parsed.pairings) ? parsed.pairings : [];
-    return new Map(
+    cache = new Map(
       pairings.filter((entry) => Boolean(entry && typeof entry.userId === "string" && typeof entry.channelId === "string")).map((entry) => [entry.userId, entry])
     );
+    pairingsCacheMap.set(extensionDir2, cache);
+    return cache;
   } catch {
-    return /* @__PURE__ */ new Map();
+    cache = /* @__PURE__ */ new Map();
+    pairingsCacheMap.set(extensionDir2, cache);
+    return cache;
   }
 }
 function savePairingMap(extensionDir2, pairings) {
+  pairingsCacheMap.set(extensionDir2, pairings);
   const filePath2 = pairingsPath(extensionDir2);
   ensureParentDir(filePath2);
   const payload = {
     version: 1,
     pairings: [...pairings.values()].sort((left, right) => left.userId.localeCompare(right.userId))
   };
-  fs5.writeFileSync(filePath2, JSON.stringify(payload, null, 2), { mode: 384 });
+  fs5.promises.writeFile(filePath2, JSON.stringify(payload, null, 2), { encoding: "utf-8", mode: 384 }).catch((err) => {
+    log.error("Failed to save DM pairing map asynchronously", { error: err });
+  });
 }
 function resolveDmPairingKey(userId) {
   return `dm:${userId}`;
@@ -77525,7 +77541,7 @@ async function ensureOwnerDmPairings(client, config, extensionDir2) {
     }
   }
 }
-var fs5, path4;
+var fs5, path4, pairingsCacheMap;
 var init_dm_pairing = __esm({
   "src/daemon/dm-pairing.ts"() {
     "use strict";
@@ -77533,6 +77549,7 @@ var init_dm_pairing = __esm({
     path4 = __toESM(require("node:path"), 1);
     init_runtime_paths();
     init_log();
+    pairingsCacheMap = /* @__PURE__ */ new Map();
   }
 });
 
@@ -87386,32 +87403,48 @@ async function checkJobs() {
   let updated = false;
   for (const job of [...jobs.values()]) {
     if (now >= job.nextRun) {
-      log.info("Executing cron job", { id: job.id });
-      let nextRun = null;
-      if (!job.runOnce) {
-        try {
-          const interval = import_cron_parser.CronExpressionParser.parse(job.cronExpression);
-          nextRun = interval.next().getTime();
-        } catch (err) {
-          log.error("Failed to parse cron for next run, deleting job", { id: job.id });
-          jobs.delete(job.id);
+      if (runningJobs.has(job.id)) {
+        continue;
+      }
+      runningJobs.add(job.id);
+      try {
+        log.info("Executing cron job", { id: job.id });
+        let nextRun = null;
+        if (!job.runOnce) {
+          try {
+            const interval = import_cron_parser.CronExpressionParser.parse(job.cronExpression);
+            nextRun = interval.next().getTime();
+          } catch (err) {
+            log.error("Failed to parse cron for next run, deleting job", { id: job.id });
+            jobs.delete(job.id);
+            updated = true;
+            continue;
+          }
+        }
+        const delivered = await deliverCronJob(job);
+        if (job.runOnce) {
+          if (delivered) {
+            jobs.delete(job.id);
+          } else {
+            const remaining = job.attempts ?? 5;
+            if (remaining > 1) {
+              job.attempts = remaining - 1;
+              job.nextRun = now + 6e4;
+              log.warn("Rescheduling failed one-time cron job", { id: job.id, remainingAttempts: job.attempts });
+            } else {
+              log.error("Discarding failed one-time cron job after maximum attempts", { id: job.id });
+              jobs.delete(job.id);
+            }
+          }
           updated = true;
           continue;
         }
-      }
-      const delivered = await deliverCronJob(job);
-      if (job.runOnce) {
-        if (delivered) {
-          jobs.delete(job.id);
-        } else {
-          job.nextRun = now + 6e4;
+        if (nextRun !== null) {
+          job.nextRun = nextRun;
+          updated = true;
         }
-        updated = true;
-        continue;
-      }
-      if (nextRun !== null) {
-        job.nextRun = nextRun;
-        updated = true;
+      } finally {
+        runningJobs.delete(job.id);
       }
     }
   }
@@ -87462,6 +87495,7 @@ function coerceCronJob(value) {
   const authorId = typeof value.authorId === "string" ? value.authorId : "";
   const nextRun = typeof value.nextRun === "number" ? value.nextRun : 0;
   const runOnce = value.runOnce === void 0 ? true : value.runOnce === true;
+  const attempts = typeof value.attempts === "number" ? value.attempts : void 0;
   if (!id || !cronExpression || !message || !channelId || !authorId || !nextRun) {
     return null;
   }
@@ -87472,7 +87506,8 @@ function coerceCronJob(value) {
     channelId,
     authorId,
     nextRun,
-    runOnce
+    runOnce,
+    attempts
   };
 }
 function normalizeReminderRunAt(input) {
@@ -87486,7 +87521,7 @@ function normalizeReminderRunAt(input) {
   }
   return roundedUp;
 }
-var fs8, path7, import_cron_parser, MIN_REMINDER_DELAY_MS, jobs, storePath, discordClient, poller;
+var fs8, path7, import_cron_parser, MIN_REMINDER_DELAY_MS, jobs, runningJobs, storePath, discordClient, poller;
 var init_cron = __esm({
   "src/daemon/cron.ts"() {
     "use strict";
@@ -87499,6 +87534,7 @@ var init_cron = __esm({
     init_runtime_paths();
     MIN_REMINDER_DELAY_MS = 6e4;
     jobs = /* @__PURE__ */ new Map();
+    runningJobs = /* @__PURE__ */ new Set();
     storePath = "";
     discordClient = null;
     poller = null;
@@ -93558,7 +93594,9 @@ var CliProcessPool = class {
     });
     proc.on("error", (error) => {
       this.rejectAllPending(entry, new Error(`Failed to spawn gemini: ${error.message}`));
-      this.pool.delete(entry.poolKey);
+      if (this.pool.get(entry.poolKey) === entry) {
+        this.pool.delete(entry.poolKey);
+      }
     });
     proc.on("close", (code) => {
       this.rejectAllPending(entry, new Error(`Gemini ACP exited with code ${code}. ${entry.stderrTail.slice(-300)}`));
@@ -93569,7 +93607,9 @@ var CliProcessPool = class {
         rl.close();
       } catch {
       }
-      this.pool.delete(entry.poolKey);
+      if (this.pool.get(entry.poolKey) === entry) {
+        this.pool.delete(entry.poolKey);
+      }
     });
     try {
       await this.sendRequest(entry, "initialize", {
@@ -94201,8 +94241,16 @@ function acquireLockFile(lockPath, pid) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const fd = fs12.openSync(lockPath, "wx");
-      fs12.writeFileSync(fd, `${pid}
+      try {
+        fs12.writeFileSync(fd, `${pid}
 `, "utf8");
+      } catch (err) {
+        try {
+          fs12.closeSync(fd);
+        } catch {
+        }
+        throw err;
+      }
       return {
         lockPath,
         release: () => releaseLockFile(lockPath, fd, pid)

@@ -306,7 +306,9 @@ export class CliProcessPool {
 
     proc.on('error', (error) => {
       this.rejectAllPending(entry, new Error(`Failed to spawn gemini: ${error.message}`));
-      this.pool.delete(entry.poolKey);
+      if (this.pool.get(entry.poolKey) === entry) {
+        this.pool.delete(entry.poolKey);
+      }
     });
 
     proc.on('close', (code) => {
@@ -317,7 +319,9 @@ export class CliProcessPool {
       try {
         rl.close();
       } catch {}
-      this.pool.delete(entry.poolKey);
+      if (this.pool.get(entry.poolKey) === entry) {
+        this.pool.delete(entry.poolKey);
+      }
     });
 
     try {

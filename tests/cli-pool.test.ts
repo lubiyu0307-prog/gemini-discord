@@ -54,6 +54,33 @@ describe('CliProcessPool', () => {
     expect(ensureSession).toHaveBeenCalledTimes(2);
     expect(promptWithAcp).toHaveBeenCalledTimes(2);
   });
+
+  it('prevents deletion of a new process by an old closing process', () => {
+    const pool = new CliProcessPool(createConfig());
+    const entry1 = createEntry('key-1') as any;
+    const entry2 = createEntry('key-1') as any;
+
+    // Register entry2 (the new process) under key-1
+    pool['pool'].set('key-1', entry2);
+
+    // Simulate entry1 close handler running
+    const closeHandler = (entry: any) => {
+      if (pool['pool'].get(entry.poolKey) === entry) {
+        pool['pool'].delete(entry.poolKey);
+      }
+    };
+
+    closeHandler(entry1);
+
+    // key-1 should still point to entry2
+    expect(pool['pool'].get('key-1')).toBe(entry2);
+
+    // Simulate entry2 close handler running
+    closeHandler(entry2);
+
+    // key-1 should now be deleted
+    expect(pool['pool'].get('key-1')).toBeUndefined();
+  });
 });
 
 function createConfig(): Config {
