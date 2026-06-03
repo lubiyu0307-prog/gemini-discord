@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
-import { AttachmentBuilder, MessageFlags, type Message, type TextChannel, type DMChannel, type NewsChannel } from 'discord.js';
+import { AttachmentBuilder, MessageFlags, type Message, type TextChannel, type DMChannel, type NewsChannel, type MessageMentionOptions } from 'discord.js';
 import { retrySend } from './retry.js';
 
 export type SendableChannel = TextChannel | DMChannel | NewsChannel;
@@ -10,7 +10,7 @@ export async function sendDiscordMessage(
   channel: SendableChannel,
   content: string,
   chunkFn: (text: string) => string[],
-  options: { replyTo?: Message; files?: string[]; silent?: boolean } = {},
+  options: { replyTo?: Message; files?: string[]; silent?: boolean; allowedMentions?: MessageMentionOptions } = {},
 ): Promise<string[]> {
   const messageIds: string[] = [];
   const attachments = await buildAttachments(options.files);
@@ -19,6 +19,7 @@ export async function sendDiscordMessage(
   const silentFlags = options.silent
     ? { flags: [MessageFlags.SuppressNotifications] as const }
     : {};
+  const allowedMentions = options.allowedMentions;
 
   if (attachments.length > 0) {
     const [firstChunk, ...remainingChunks] = chunks;
@@ -28,8 +29,8 @@ export async function sendDiscordMessage(
     for (let index = 0; index < attachments.length; index += 10) {
       const batch = attachments.slice(index, index + 10);
       const payload = firstChunk && index === 0
-        ? { content: firstChunk, files: batch, ...silentFlags }
-        : { files: batch, ...silentFlags };
+        ? { content: firstChunk, files: batch, ...silentFlags, ...(allowedMentions ? { allowedMentions } : {}) }
+        : { files: batch, ...silentFlags, ...(allowedMentions ? { allowedMentions } : {}) };
       let sent;
       if (!replied && options.replyTo && index === 0) {
         sent = await retrySend(() => options.replyTo!.reply(payload));
@@ -41,7 +42,7 @@ export async function sendDiscordMessage(
     }
 
     for (const chunk of remainingChunks) {
-      const sent = await retrySend(() => channel.send({ content: chunk, ...silentFlags }));
+      const sent = await retrySend(() => channel.send({ content: chunk, ...silentFlags, ...(allowedMentions ? { allowedMentions } : {}) }));
       messageIds.push(sent.id);
     }
 
@@ -52,11 +53,11 @@ export async function sendDiscordMessage(
   if (chunks.length > 0) {
     for (const [index, chunk] of chunks.entries()) {
       if (index === 0 && options.replyTo) {
-        const sent = await retrySend(() => options.replyTo!.reply({ content: chunk, ...silentFlags }));
+        const sent = await retrySend(() => options.replyTo!.reply({ content: chunk, ...silentFlags, ...(allowedMentions ? { allowedMentions } : {}) }));
         messageIds.push(sent.id);
         replied = true;
       } else {
-        const sent = await retrySend(() => channel.send({ content: chunk, ...silentFlags }));
+        const sent = await retrySend(() => channel.send({ content: chunk, ...silentFlags, ...(allowedMentions ? { allowedMentions } : {}) }));
         messageIds.push(sent.id);
       }
     }

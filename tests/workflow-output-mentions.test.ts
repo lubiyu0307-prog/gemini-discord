@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { sendPreparedDisplayText } from '../src/daemon/engine-cli.js';
+import { createConfig } from './test-utils/factories.js';
 
 describe('workflow output mention safety', () => {
   it('suppresses mentions on prepared workflow responses so model text cannot ping Discord users', async () => {
@@ -10,6 +11,7 @@ describe('workflow output mention safety', () => {
     const messageIds = await sendPreparedDisplayText(
       channel as any,
       '@everyone review <@123456789012345678>',
+      createConfig(),
       { suppressMentions: true },
     );
 
@@ -25,8 +27,11 @@ describe('workflow output mention safety', () => {
       send: vi.fn().mockResolvedValue({ id: 'message-1' }),
     };
 
-    await sendPreparedDisplayText(channel as any, 'normal response');
+    await sendPreparedDisplayText(channel as any, 'normal response', createConfig());
 
-    expect(channel.send).toHaveBeenCalledWith('normal response');
+    expect(channel.send).toHaveBeenCalledWith({
+      content: 'normal response',
+      allowedMentions: { parse: ['users'], repliedUser: true },
+    });
   });
 });

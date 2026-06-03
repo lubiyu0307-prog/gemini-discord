@@ -105,6 +105,10 @@ export interface Config {
   cliIdleTimeoutMs: number;
   setupValidationPending: boolean;
   workflowParentChannelId: string;
+  chunkerLimit?: number;
+  geminiAvailableModels?: string[];
+  discordAllowedMentions?: string[];
+  discordPingRepliedUser?: boolean;
 }
 
 /** A single conversation message stored in persistent memory */

@@ -138,7 +138,7 @@ export function buildDmOnlyGlobalCommandPayloads(
     });
 }
 
-const AVAILABLE_MODELS = [
+const DEFAULT_AVAILABLE_MODELS = [
   'gemini-3.1-pro-preview',
   'gemini-3-flash-preview',
   'gemini-3.1-flash-lite-preview',
@@ -192,7 +192,7 @@ export function setupInteractionHandler(
 ): void {
   client.on('interactionCreate', async (interaction) => {
     if (interaction.isAutocomplete()) {
-      await handleAutocomplete(interaction);
+      await handleAutocomplete(interaction, config);
       return;
     }
 
@@ -313,8 +313,12 @@ export function setupInteractionHandler(
       const newModel = interaction.options.getString('name', true);
       const oldModel = config.geminiModel;
 
-      if (!AVAILABLE_MODELS.includes(newModel)) {
-        await interaction.reply({ content: `Invalid model. Available: ${AVAILABLE_MODELS.join(', ')}`, ephemeral: true });
+      const models = config.geminiAvailableModels && config.geminiAvailableModels.length > 0
+        ? config.geminiAvailableModels
+        : DEFAULT_AVAILABLE_MODELS;
+
+      if (!models.includes(newModel)) {
+        await interaction.reply({ content: `Invalid model. Available: ${models.join(', ')}`, ephemeral: true });
         return;
       }
 
@@ -408,9 +412,12 @@ async function authorizeInteraction(
 }
 
 
-async function handleAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
+async function handleAutocomplete(interaction: AutocompleteInteraction, config: Config): Promise<void> {
   const focusedValue = interaction.options.getFocused();
-  const filtered = AVAILABLE_MODELS.filter(choice => choice.startsWith(focusedValue));
+  const models = config.geminiAvailableModels && config.geminiAvailableModels.length > 0
+    ? config.geminiAvailableModels
+    : DEFAULT_AVAILABLE_MODELS;
+  const filtered = models.filter(choice => choice.startsWith(focusedValue));
   await interaction.respond(
     filtered.map(choice => ({ name: choice, value: choice })),
   );

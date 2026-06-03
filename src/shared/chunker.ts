@@ -12,16 +12,16 @@ const LARGE_RESPONSE_CUT = 8000;
  * Repairs broken fences across chunk boundaries.
  * Truncates responses exceeding LARGE_RESPONSE_CUT with a warning.
  */
-export function chunkMessage(text: string): string[] {
+export function chunkMessage(text: string, limit = LARGE_RESPONSE_CUT): string[] {
   if (!text || !text.trim()) {
     return [];
   }
 
   let wasTruncated = false;
 
-  if (text.length > LARGE_RESPONSE_CUT) {
+  if (text.length > limit) {
     // Truncate at a fence-safe boundary
-    text = safeTruncate(text, LARGE_RESPONSE_CUT);
+    text = safeTruncate(text, limit);
     wasTruncated = true;
   }
 

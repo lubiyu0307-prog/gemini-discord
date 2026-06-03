@@ -37,6 +37,10 @@ export function createConfig(overrides: Partial<Config> = {}): Config {
     cliIdleTimeoutMs: 300000,
     setupValidationPending: false,
     workflowParentChannelId: '',
+    chunkerLimit: 8000,
+    geminiAvailableModels: [],
+    discordAllowedMentions: ['users'],
+    discordPingRepliedUser: true,
     ...overrides,
   };
 }

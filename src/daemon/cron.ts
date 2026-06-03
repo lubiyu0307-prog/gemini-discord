@@ -7,6 +7,7 @@ import type { Config } from '../shared/types.js';
 import { chunkMessage } from '../shared/chunker.js';
 import { sendDiscordMessage, type SendableChannel } from './sender.js';
 import { resolveRuntimePaths } from '../shared/runtime-paths.js';
+import { resolveAllowedMentions } from './mention-safety.js';
 
 export interface CronJob {
   id: string;
@@ -42,8 +43,10 @@ const runningJobs = new Set<string>();
 let storePath: string = '';
 let discordClient: Client | null = null;
 let poller: NodeJS.Timeout | null = null;
+let systemConfig: Config | null = null;
 
 export function initCron(config: Config, client: Client, extensionDir: string) {
+  systemConfig = config;
   storePath = resolveRuntimePaths(extensionDir).cronFile;
   discordClient = client;
   loadJobs();
@@ -228,7 +231,8 @@ async function deliverCronJob(job: CronJob): Promise<boolean> {
       return false;
     }
 
-    await sendDiscordMessage(channel as SendableChannel, job.message, chunkMessage);
+    const allowedMentions = systemConfig ? resolveAllowedMentions(systemConfig) : undefined;
+    await sendDiscordMessage(channel as SendableChannel, job.message, chunkMessage, { allowedMentions });
     return true;
   } catch (err) {
     log.error('Failed to deliver cron job', {

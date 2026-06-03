@@ -210,7 +210,11 @@ var init_config_vars = __esm({
       GEMINI_SESSION_BINDING_SCOPE: "GEMINI_SESSION_BINDING_SCOPE",
       CLI_IDLE_TIMEOUT_MS: "CLI_IDLE_TIMEOUT_MS",
       SETUP_VALIDATION_PENDING: "SETUP_VALIDATION_PENDING",
-      WORKFLOW_PARENT_CHANNEL_ID: "WORKFLOW_PARENT_CHANNEL_ID"
+      WORKFLOW_PARENT_CHANNEL_ID: "WORKFLOW_PARENT_CHANNEL_ID",
+      CHUNKER_LIMIT: "CHUNKER_LIMIT",
+      GEMINI_AVAILABLE_MODELS: "GEMINI_AVAILABLE_MODELS",
+      DISCORD_ALLOWED_MENTIONS: "DISCORD_ALLOWED_MENTIONS",
+      DISCORD_PING_REPLIED_USER: "DISCORD_PING_REPLIED_USER"
     };
     CONFIG_ENV_KEYS = [
       ENV.DISCORD_BOT_TOKEN,
@@ -246,7 +250,11 @@ var init_config_vars = __esm({
       ENV.GEMINI_SESSION_BINDING_SCOPE,
       ENV.CLI_IDLE_TIMEOUT_MS,
       ENV.SETUP_VALIDATION_PENDING,
-      ENV.WORKFLOW_PARENT_CHANNEL_ID
+      ENV.WORKFLOW_PARENT_CHANNEL_ID,
+      ENV.CHUNKER_LIMIT,
+      ENV.GEMINI_AVAILABLE_MODELS,
+      ENV.DISCORD_ALLOWED_MENTIONS,
+      ENV.DISCORD_PING_REPLIED_USER
     ];
     INSTALL_SETTING_ENV_KEYS = [
       ENV.DISCORD_BOT_TOKEN,
@@ -446,7 +454,11 @@ function loadConfig(extensionDir2) {
       get(ENV.SETUP_VALIDATION_PENDING, hasInstallSettings ? "true" : "false"),
       false
     ),
-    workflowParentChannelId: get(ENV.WORKFLOW_PARENT_CHANNEL_ID, "").trim()
+    workflowParentChannelId: get(ENV.WORKFLOW_PARENT_CHANNEL_ID, "").trim(),
+    chunkerLimit: parseInt(get(ENV.CHUNKER_LIMIT, "8000"), 10),
+    geminiAvailableModels: splitIds(get(ENV.GEMINI_AVAILABLE_MODELS, "")),
+    discordAllowedMentions: splitIds(get(ENV.DISCORD_ALLOWED_MENTIONS, "users")),
+    discordPingRepliedUser: parseBoolean(get(ENV.DISCORD_PING_REPLIED_USER, "true"), true)
   };
   return config;
 }
@@ -87097,13 +87109,13 @@ var require_dist11 = __commonJS({
 });
 
 // src/shared/chunker.ts
-function chunkMessage(text) {
+function chunkMessage(text, limit = LARGE_RESPONSE_CUT) {
   if (!text || !text.trim()) {
     return [];
   }
   let wasTruncated = false;
-  if (text.length > LARGE_RESPONSE_CUT) {
-    text = safeTruncate(text, LARGE_RESPONSE_CUT);
+  if (text.length > limit) {
+    text = safeTruncate(text, limit);
     wasTruncated = true;
   }
   if (text.length <= CHUNK_LIMIT) {
@@ -87257,11 +87269,12 @@ async function sendDiscordMessage(channel, content, chunkFn, options = {}) {
   const chunks = content && content.trim() ? chunkFn(content) : [];
   let replied = false;
   const silentFlags = options.silent ? { flags: [import_discord2.MessageFlags.SuppressNotifications] } : {};
+  const allowedMentions = options.allowedMentions;
   if (attachments.length > 0) {
     const [firstChunk, ...remainingChunks] = chunks;
     for (let index = 0; index < attachments.length; index += 10) {
       const batch = attachments.slice(index, index + 10);
-      const payload = firstChunk && index === 0 ? { content: firstChunk, files: batch, ...silentFlags } : { files: batch, ...silentFlags };
+      const payload = firstChunk && index === 0 ? { content: firstChunk, files: batch, ...silentFlags, ...allowedMentions ? { allowedMentions } : {} } : { files: batch, ...silentFlags, ...allowedMentions ? { allowedMentions } : {} };
       let sent;
       if (!replied && options.replyTo && index === 0) {
         sent = await retrySend(() => options.replyTo.reply(payload));
@@ -87272,7 +87285,7 @@ async function sendDiscordMessage(channel, content, chunkFn, options = {}) {
       messageIds.push(sent.id);
     }
     for (const chunk of remainingChunks) {
-      const sent = await retrySend(() => channel.send({ content: chunk, ...silentFlags }));
+      const sent = await retrySend(() => channel.send({ content: chunk, ...silentFlags, ...allowedMentions ? { allowedMentions } : {} }));
       messageIds.push(sent.id);
     }
     return messageIds;
@@ -87280,11 +87293,11 @@ async function sendDiscordMessage(channel, content, chunkFn, options = {}) {
   if (chunks.length > 0) {
     for (const [index, chunk] of chunks.entries()) {
       if (index === 0 && options.replyTo) {
-        const sent = await retrySend(() => options.replyTo.reply({ content: chunk, ...silentFlags }));
+        const sent = await retrySend(() => options.replyTo.reply({ content: chunk, ...silentFlags, ...allowedMentions ? { allowedMentions } : {} }));
         messageIds.push(sent.id);
         replied = true;
       } else {
-        const sent = await retrySend(() => channel.send({ content: chunk, ...silentFlags }));
+        const sent = await retrySend(() => channel.send({ content: chunk, ...silentFlags, ...allowedMentions ? { allowedMentions } : {} }));
         messageIds.push(sent.id);
       }
     }
@@ -87321,8 +87334,37 @@ var init_sender = __esm({
   }
 });
 
+// src/daemon/mention-safety.ts
+function resolveAllowedMentions(config) {
+  const parse = [];
+  if (config.discordAllowedMentions && config.discordAllowedMentions.length > 0) {
+    for (const val of config.discordAllowedMentions) {
+      if (val === "users" || val === "roles" || val === "everyone") {
+        parse.push(val);
+      }
+    }
+  } else if (!config.discordAllowedMentions) {
+    parse.push("users");
+  }
+  return {
+    parse,
+    repliedUser: config.discordPingRepliedUser ?? true
+  };
+}
+var SUPPRESS_DISCORD_MENTIONS;
+var init_mention_safety = __esm({
+  "src/daemon/mention-safety.ts"() {
+    "use strict";
+    SUPPRESS_DISCORD_MENTIONS = {
+      parse: [],
+      repliedUser: false
+    };
+  }
+});
+
 // src/daemon/cron.ts
 function initCron(config, client, extensionDir2) {
+  systemConfig = config;
   storePath = resolveRuntimePaths(extensionDir2).cronFile;
   discordClient = client;
   loadJobs();
@@ -87476,7 +87518,8 @@ async function deliverCronJob(job) {
       log.warn("Cron delivery target is not sendable", { id: job.id, channelId: job.channelId });
       return false;
     }
-    await sendDiscordMessage(channel, job.message, chunkMessage);
+    const allowedMentions = systemConfig ? resolveAllowedMentions(systemConfig) : void 0;
+    await sendDiscordMessage(channel, job.message, chunkMessage, { allowedMentions });
     return true;
   } catch (err) {
     log.error("Failed to deliver cron job", {
@@ -87521,7 +87564,7 @@ function normalizeReminderRunAt(input) {
   }
   return roundedUp;
 }
-var fs8, path7, import_cron_parser, MIN_REMINDER_DELAY_MS, jobs, runningJobs, storePath, discordClient, poller;
+var fs8, path7, import_cron_parser, MIN_REMINDER_DELAY_MS, jobs, runningJobs, storePath, discordClient, poller, systemConfig;
 var init_cron = __esm({
   "src/daemon/cron.ts"() {
     "use strict";
@@ -87532,12 +87575,14 @@ var init_cron = __esm({
     init_chunker();
     init_sender();
     init_runtime_paths();
+    init_mention_safety();
     MIN_REMINDER_DELAY_MS = 6e4;
     jobs = /* @__PURE__ */ new Map();
     runningJobs = /* @__PURE__ */ new Set();
     storePath = "";
     discordClient = null;
     poller = null;
+    systemConfig = null;
   }
 });
 
@@ -87547,7 +87592,23 @@ async function buildGuildUserMap(client, config, options = {}) {
   discoveredUsers.clear();
   for (const guild of await resolveGuilds2(client, config)) {
     try {
-      const members = options.query?.trim() ? await guild.members.fetch({ query: options.query.trim(), limit: options.limit ?? 25 }) : await guild.members.fetch();
+      let members;
+      if (options.query?.trim()) {
+        members = await guild.members.fetch({ query: options.query.trim(), limit: options.limit ?? 25 });
+      } else {
+        const idsToFetch = [
+          ...config?.ownerIds ?? [],
+          ...config?.discordBossUserId ? [config.discordBossUserId] : [],
+          client.user?.id
+        ].filter((id) => Boolean(id));
+        try {
+          if (idsToFetch.length > 0) {
+            await guild.members.fetch({ user: idsToFetch });
+          }
+        } catch (e) {
+        }
+        members = guild.members.cache || await guild.members.fetch();
+      }
       for (const [, member] of members) {
         registerDiscoveredUser(memberToTarget(member, guild));
       }
@@ -87764,18 +87825,6 @@ var init_thread_manifest = __esm({
     "use strict";
     fs9 = __toESM(require("node:fs"), 1);
     path8 = __toESM(require("node:path"), 1);
-  }
-});
-
-// src/daemon/mention-safety.ts
-var SUPPRESS_DISCORD_MENTIONS;
-var init_mention_safety = __esm({
-  "src/daemon/mention-safety.ts"() {
-    "use strict";
-    SUPPRESS_DISCORD_MENTIONS = {
-      parse: [],
-      repliedUser: false
-    };
   }
 });
 
@@ -88529,7 +88578,7 @@ async function registerGuildCommands(client, config) {
 function setupInteractionHandler(client, config, state2, memory, extensionDir2, onWorkflowThreadCreated) {
   client.on("interactionCreate", async (interaction) => {
     if (interaction.isAutocomplete()) {
-      await handleAutocomplete(interaction);
+      await handleAutocomplete(interaction, config);
       return;
     }
     if (!interaction.isChatInputCommand()) return;
@@ -88626,8 +88675,9 @@ function setupInteractionHandler(client, config, state2, memory, extensionDir2, 
       if (!await authorizeInteraction(interaction, roleContext, "model_config")) return;
       const newModel = interaction.options.getString("name", true);
       const oldModel = config.geminiModel;
-      if (!AVAILABLE_MODELS.includes(newModel)) {
-        await interaction.reply({ content: `Invalid model. Available: ${AVAILABLE_MODELS.join(", ")}`, ephemeral: true });
+      const models = config.geminiAvailableModels && config.geminiAvailableModels.length > 0 ? config.geminiAvailableModels : DEFAULT_AVAILABLE_MODELS;
+      if (!models.includes(newModel)) {
+        await interaction.reply({ content: `Invalid model. Available: ${models.join(", ")}`, ephemeral: true });
         return;
       }
       await interaction.deferReply();
@@ -88702,9 +88752,10 @@ async function authorizeInteraction(interaction, roleContext, action) {
   await interaction.reply({ content: formatPermissionDenial(decision), ephemeral: true });
   return false;
 }
-async function handleAutocomplete(interaction) {
+async function handleAutocomplete(interaction, config) {
   const focusedValue = interaction.options.getFocused();
-  const filtered = AVAILABLE_MODELS.filter((choice) => choice.startsWith(focusedValue));
+  const models = config.geminiAvailableModels && config.geminiAvailableModels.length > 0 ? config.geminiAvailableModels : DEFAULT_AVAILABLE_MODELS;
+  const filtered = models.filter((choice) => choice.startsWith(focusedValue));
   await interaction.respond(
     filtered.map((choice) => ({ name: choice, value: choice }))
   );
@@ -88723,7 +88774,7 @@ async function validateModel(geminiPath, model) {
     });
   });
 }
-var import_discord5, import_node_child_process4, COMMANDS, DM_COMMAND_NAMES, AVAILABLE_MODELS;
+var import_discord5, import_node_child_process4, COMMANDS, DM_COMMAND_NAMES, DEFAULT_AVAILABLE_MODELS;
 var init_commands = __esm({
   "src/daemon/commands.ts"() {
     "use strict";
@@ -88763,7 +88814,7 @@ var init_commands = __esm({
       "kill",
       "workflow"
     ]);
-    AVAILABLE_MODELS = [
+    DEFAULT_AVAILABLE_MODELS = [
       "gemini-3.1-pro-preview",
       "gemini-3-flash-preview",
       "gemini-3.1-flash-lite-preview",
@@ -89142,7 +89193,7 @@ async function processViaCli(message, accepted, config, memory, processingContex
   if ((targetMessage.attachments.size > 0 || attachmentMetadata.length > 0) && !isBoss(accepted.roleContext)) {
     const decision = authorizeAction("attachment_processing", accepted.roleContext);
     const responseText = formatPermissionDenial(decision);
-    const messageIds = await sendPreparedDisplayText(channel, responseText);
+    const messageIds = await sendPreparedDisplayText(channel, responseText, config);
     return { response: responseText, messageIds, attachments: [], sessionId: void 0 };
   }
   const isWorkflow = isWorkflowThread(extensionDir2, message.channelId);
@@ -89277,7 +89328,8 @@ async function processViaCli(message, accepted, config, memory, processingContex
         allowPrivilegedActions: isBoss(accepted.roleContext)
       });
       response = prepared.responseText;
-      responseMessageIds = await editor.finalize(prepared.displayText, chunkMessage, {
+      const customChunkFn = (t) => chunkMessage(t, config.chunkerLimit);
+      responseMessageIds = await editor.finalize(prepared.displayText, customChunkFn, {
         allowEmpty: prepared.allowEmpty,
         rawText: response
       });
@@ -89324,7 +89376,9 @@ async function processViaCli(message, accepted, config, memory, processingContex
           allowPrivilegedActions: isBoss(accepted.roleContext)
         });
         response = prepared.responseText;
-        responseMessageIds = await sendPreparedDisplayText(channel, prepared.displayText);
+        responseMessageIds = await sendPreparedDisplayText(channel, prepared.displayText, config, {
+          chunkerLimit: config.chunkerLimit
+        });
         responseMessageIds.push(...prepared.actionMessageIds);
         if (allowPersistentSession) {
           recordGeminiBindingSession(processingContext.bindingDir, currentSessionId ?? bindingState.lastSessionId);
@@ -89381,14 +89435,15 @@ async function finalizeAssistantResponse(rawResponse, message, options) {
     actionMessageIds: actionResult.messageIds
   };
 }
-async function sendPreparedDisplayText(channel, displayText, options = {}) {
+async function sendPreparedDisplayText(channel, displayText, config, options = {}) {
   if (!displayText.trim()) {
     return [];
   }
   const messageIds = [];
-  const chunks = chunkMessage(displayText);
+  const chunks = chunkMessage(displayText, options.chunkerLimit);
+  const allowedMentions = options.suppressMentions ? SUPPRESS_DISCORD_MENTIONS : resolveAllowedMentions(config);
   for (const chunk of chunks) {
-    const payload = options.suppressMentions ? { content: chunk, allowedMentions: SUPPRESS_DISCORD_MENTIONS } : chunk;
+    const payload = { content: chunk, allowedMentions };
     const sent = await retrySend(() => channel.send(payload));
     messageIds.push(sent.id);
   }
@@ -91807,6 +91862,7 @@ async function handleDiscoveryRoutes(req, res, url, deps) {
 // src/daemon/api/messages.ts
 init_chunker();
 init_sender();
+init_mention_safety();
 init_channels();
 init_log();
 init_runtime();
@@ -91890,7 +91946,8 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
           return true;
         }
       }
-      const messageIds = await sendDiscordMessage(channel, content, chunkMessage, { files, silent });
+      const allowedMentions = resolveAllowedMentions(config);
+      const messageIds = await sendDiscordMessage(channel, content, chunkMessage, { files, silent, allowedMentions });
       const sessionKey = resolveConversationSessionKey(
         config,
         extensionDir2,
@@ -91965,7 +92022,8 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
           return true;
         }
       }
-      const messageIds = await sendDiscordMessage(channel, content, chunkMessage, { replyTo: msg, files, silent });
+      const allowedMentions = resolveAllowedMentions(config);
+      const messageIds = await sendDiscordMessage(channel, content, chunkMessage, { replyTo: msg, files, silent, allowedMentions });
       const sessionKey = resolveConversationSessionKey(
         config,
         extensionDir2,

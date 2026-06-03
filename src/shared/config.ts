@@ -249,6 +249,10 @@ export function loadConfig(extensionDir: string): Config {
       false,
     ),
     workflowParentChannelId: get(ENV.WORKFLOW_PARENT_CHANNEL_ID, '').trim(),
+    chunkerLimit: parseInt(get(ENV.CHUNKER_LIMIT, '8000'), 10),
+    geminiAvailableModels: splitIds(get(ENV.GEMINI_AVAILABLE_MODELS, '')),
+    discordAllowedMentions: splitIds(get(ENV.DISCORD_ALLOWED_MENTIONS, 'users')),
+    discordPingRepliedUser: parseBoolean(get(ENV.DISCORD_PING_REPLIED_USER, 'true'), true),
   };
 
   return config;

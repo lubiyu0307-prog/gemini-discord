@@ -53,6 +53,7 @@ function createClientWithMembers(members: Map<string, any>): Client {
     id: 'guild-1',
     name: 'Test Guild',
     members: {
+      cache: members,
       fetch: async (options?: any) => {
         if (!options || Object.keys(options).length === 0) return members;
         if (typeof options === 'string') return members.get(options);

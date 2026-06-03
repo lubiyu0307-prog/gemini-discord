@@ -1,6 +1,7 @@
 import * as http from 'node:http';
 import { chunkMessage } from '../../shared/chunker.js';
 import { sendDiscordMessage } from '../sender.js';
+import { resolveAllowedMentions } from '../mention-safety.js';
 import { resolveDiscoveredChannel } from '../channels.js';
 import { log } from '../log.js';
 import { runtimeStore } from '../runtime.js';
@@ -97,7 +98,8 @@ export async function handleMessageRoutes(
         }
       }
 
-      const messageIds = await sendDiscordMessage(channel, content, chunkMessage, { files, silent });
+      const allowedMentions = resolveAllowedMentions(config);
+      const messageIds = await sendDiscordMessage(channel, content, chunkMessage, { files, silent, allowedMentions });
 
 
       const sessionKey = resolveConversationSessionKey(
@@ -179,7 +181,8 @@ export async function handleMessageRoutes(
         }
       }
 
-      const messageIds = await sendDiscordMessage(channel, content, chunkMessage, { replyTo: msg, files, silent });
+      const allowedMentions = resolveAllowedMentions(config);
+      const messageIds = await sendDiscordMessage(channel, content, chunkMessage, { replyTo: msg, files, silent, allowedMentions });
 
 
       const sessionKey = resolveConversationSessionKey(

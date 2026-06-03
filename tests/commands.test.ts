@@ -77,4 +77,42 @@ describe('Slash Command Registration', () => {
       allowedMentions: { parse: [], repliedUser: false },
     }));
   });
+
+  it('supports autocomplete filtering using config.geminiAvailableModels', async () => {
+    let interactionHandler: ((interaction: any) => Promise<void>) | undefined;
+    const client = {
+      on: vi.fn((event: string, handler: (interaction: any) => Promise<void>) => {
+        if (event === 'interactionCreate') {
+          interactionHandler = handler;
+        }
+      }),
+    };
+    const config = createConfig({
+      geminiAvailableModels: ['custom-model-a', 'custom-model-b'],
+    });
+    const respond = vi.fn().mockResolvedValue(undefined);
+    const interaction = {
+      isAutocomplete: () => true,
+      isChatInputCommand: () => false,
+      options: {
+        getFocused: () => 'custom-model',
+      },
+      respond,
+    };
+
+    setupInteractionHandler(
+      client as any,
+      config,
+      {} as any,
+      {} as any,
+      'unused-extension-dir',
+    );
+
+    await interactionHandler!(interaction);
+
+    expect(respond).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ name: 'custom-model-a', value: 'custom-model-a' }),
+      expect.objectContaining({ name: 'custom-model-b', value: 'custom-model-b' }),
+    ]));
+  });
 });

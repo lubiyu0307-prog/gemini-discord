@@ -28,7 +28,7 @@ import { sanitizeFullResponse } from './sanitizer.js';
 import { getBackgroundOperationsContext } from './background-context.js';
 import { runtimeStore } from './runtime.js';
 import { log } from './log.js';
-import { SUPPRESS_DISCORD_MENTIONS } from './mention-safety.js';
+import { SUPPRESS_DISCORD_MENTIONS, resolveAllowedMentions } from './mention-safety.js';
 import {
   authorizeAction,
   formatPermissionDenial,
@@ -90,7 +90,7 @@ export async function processViaCli(
   if ((targetMessage.attachments.size > 0 || attachmentMetadata.length > 0) && !isBoss(accepted.roleContext)) {
     const decision = authorizeAction('attachment_processing', accepted.roleContext);
     const responseText = formatPermissionDenial(decision);
-    const messageIds = await sendPreparedDisplayText(channel, responseText);
+    const messageIds = await sendPreparedDisplayText(channel, responseText, config);
     return { response: responseText, messageIds, attachments: [], sessionId: undefined };
   }
 
@@ -254,7 +254,8 @@ export async function processViaCli(
         allowPrivilegedActions: isBoss(accepted.roleContext),
       });
       response = prepared.responseText;
-      responseMessageIds = await editor.finalize(prepared.displayText, chunkMessage, {
+      const customChunkFn = (t: string) => chunkMessage(t, config.chunkerLimit);
+      responseMessageIds = await editor.finalize(prepared.displayText, customChunkFn, {
         allowEmpty: prepared.allowEmpty,
         rawText: response,
       });
@@ -302,7 +303,9 @@ export async function processViaCli(
           allowPrivilegedActions: isBoss(accepted.roleContext),
         });
         response = prepared.responseText;
-        responseMessageIds = await sendPreparedDisplayText(channel, prepared.displayText);
+        responseMessageIds = await sendPreparedDisplayText(channel, prepared.displayText, config, {
+          chunkerLimit: config.chunkerLimit,
+        });
         responseMessageIds.push(...prepared.actionMessageIds);
 
         if (allowPersistentSession) {
@@ -383,18 +386,18 @@ export async function finalizeAssistantResponse(
 export async function sendPreparedDisplayText(
   channel: TextChannel | DMChannel | NewsChannel,
   displayText: string,
-  options: { suppressMentions?: boolean } = {},
+  config: ReturnType<typeof loadConfig>,
+  options: { suppressMentions?: boolean; chunkerLimit?: number } = {},
 ): Promise<string[]> {
   if (!displayText.trim()) {
     return [];
   }
 
   const messageIds: string[] = [];
-  const chunks = chunkMessage(displayText);
+  const chunks = chunkMessage(displayText, options.chunkerLimit);
+  const allowedMentions = options.suppressMentions ? SUPPRESS_DISCORD_MENTIONS : resolveAllowedMentions(config);
   for (const chunk of chunks) {
-    const payload = options.suppressMentions
-      ? { content: chunk, allowedMentions: SUPPRESS_DISCORD_MENTIONS }
-      : chunk;
+    const payload = { content: chunk, allowedMentions };
     const sent = await retrySend(() => channel.send(payload));
     messageIds.push(sent.id);
   }
