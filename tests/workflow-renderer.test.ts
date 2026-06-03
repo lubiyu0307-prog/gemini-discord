@@ -158,7 +158,7 @@ describe('trace renderers', () => {
       canonicalToolName: 'grep_search',
       displayName: 'SearchText',
       toolFamily: 'search',
-      args: { pattern: 'messageCreate', dir_path: '/Users/yamato/project/src/daemon' },
+      args: { pattern: 'messageCreate', dir_path: '/Users/example/project/src/daemon' },
       status: 'completed',
       durationMs: 80,
       resultSummary: 'Found 2 matches',
@@ -294,7 +294,7 @@ describe('trace renderers', () => {
       displayName: 'Shell',
       toolFamily: 'shell',
       args: {
-        commandLine: 'mkdir -p /Users/yamato/Desktop && cat << \'EOF\' > /Users/yamato/Desktop/triangle.py\nline1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9\nline10\nline11\nline12\nEOF && /Users/yamato/venv/bin/python3 /Users/yamato/Desktop/triangle.py'
+        commandLine: 'mkdir -p /Users/example/Desktop && cat << \'EOF\' > /Users/example/Desktop/triangle.py\nline1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9\nline10\nline11\nline12\nEOF && /Users/example/venv/bin/python3 /Users/example/Desktop/triangle.py'
       },
       status: 'completed',
       durationMs: 50,

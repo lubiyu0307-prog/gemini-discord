@@ -4,6 +4,7 @@
 
 - **Config Safety**: Invalid `MEMORY_SCOPE` values now fall back to channel-scoped Discord memory. `global` remains available only as an explicit opt-in.
 - **Project Checks**: Added `npm run check` as the Node-native gate for typecheck, tests, and build.
+- **Trace Privacy**: Workflow trace path shortening now derives the current home directory at runtime, and test fixtures use neutral example paths instead of local machine paths.
 
 ## [2026-05-30] Workflow Trace Presentation Refinement
 

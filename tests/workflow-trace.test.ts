@@ -63,7 +63,7 @@ describe('workflow trace events & renderer integration', () => {
       toolCall: {
         id: 'call-3',
         name: 'read_file',
-        arguments: { file_path: '/Users/yamato/project/src/index.ts', start_line: 1, end_line: 10 },
+        arguments: { file_path: '/Users/example/project/src/index.ts', start_line: 1, end_line: 10 },
         result: 'file contents',
       },
     };
@@ -94,7 +94,7 @@ describe('workflow trace events & renderer integration', () => {
       kind: 'read',
       rawInput: {
         name: 'read_file',
-        args: { file_path: '/Users/yamato/project/src/index.ts' },
+        args: { file_path: '/Users/example/project/src/index.ts' },
       },
       content: [],
     }, timers);

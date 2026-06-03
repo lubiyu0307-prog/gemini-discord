@@ -89866,12 +89866,22 @@ function intArg(args, ...keys) {
   }
   return null;
 }
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function shortenHomePaths(value) {
+  const homeDir = os2.homedir().replace(/\\/g, "/");
+  if (!homeDir) return value;
+  const escapedHome = escapeRegExp(homeDir);
+  return value.replace(new RegExp(`${escapedHome}/`, "g"), "~/").replace(new RegExp(`${escapedHome}(?=$|\\s)`, "g"), "~");
+}
 function shortPath(path15) {
   if (!path15) return "";
   const normalized = path15.replace(/\\/g, "/");
-  if (normalized.startsWith("/Users/yamato/")) {
-    return normalized.replace(/^\/Users\/yamato\//, "~/");
-  } else if (normalized === "/Users/yamato") {
+  const homeDir = os2.homedir().replace(/\\/g, "/");
+  if (homeDir && normalized.startsWith(`${homeDir}/`)) {
+    return normalized.replace(`${homeDir}/`, "~/");
+  } else if (homeDir && normalized === homeDir) {
     return "~";
   }
   const parts = normalized.split("/").filter(Boolean);
@@ -89903,7 +89913,7 @@ function parseHeredocTarget(cmd) {
   };
 }
 function summarizeCommand(cmd) {
-  const collapsed = cmd.replace(/\/Users\/yamato\//g, "~/").trim();
+  const collapsed = shortenHomePaths(cmd).trim();
   if (collapsed.startsWith("mkdir -p ")) {
     return `mkdir -p ${shortPath(collapsed.substring(9))}`;
   }
@@ -90100,13 +90110,14 @@ function writeFileAction(event) {
   return "Updated";
 }
 function compactToolResult(text, maxLength = 180) {
-  return oneLine(text, maxLength).replace(/\/Users\/yamato\//g, "~/").replace(/:\s*Showing up to \d+ items.*$/i, ".");
+  return shortenHomePaths(oneLine(text, maxLength)).replace(/:\s*Showing up to \d+ items.*$/i, ".");
 }
-var import_discord7, TRACE_LIMIT, ATTACHMENT_THRESHOLD, ShellRenderer, FilesystemRenderer, SearchRenderer, WebRenderer, PlanningRenderer, McpRenderer, InteractionRenderer, GenericFallbackRenderer, TraceRendererRegistry;
+var import_discord7, os2, TRACE_LIMIT, ATTACHMENT_THRESHOLD, ShellRenderer, FilesystemRenderer, SearchRenderer, WebRenderer, PlanningRenderer, McpRenderer, InteractionRenderer, GenericFallbackRenderer, TraceRendererRegistry;
 var init_trace_renderer = __esm({
   "src/daemon/workflow/trace-renderer.ts"() {
     "use strict";
     import_discord7 = __toESM(require_src(), 1);
+    os2 = __toESM(require("node:os"), 1);
     TRACE_LIMIT = 1900;
     ATTACHMENT_THRESHOLD = 1200;
     ShellRenderer = class {

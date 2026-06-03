@@ -24,16 +24,16 @@ describe('daemon singleton guard', () => {
 
   it('detects same-user gemini-discord daemon processes from ps output', () => {
     const output = [
-      ' 101 501 /opt/homebrew/bin/node /Users/yamato/.gemini/extensions/gemini-discord/dist/daemon.cjs',
-      ' 102 501 /opt/homebrew/bin/node /Users/yamato/yamato-samurai-sanctum/samurai-armory/tools/gemini-discord/dist/server.cjs',
-      ' 103 502 /opt/homebrew/bin/node /Users/suyog/.gemini/extensions/gemini-discord/dist/daemon.cjs',
-      ' 104 501 /opt/homebrew/bin/node /Users/yamato/yamato-samurai-sanctum/samurai-armory/tools/gemini-discord/dist/daemon.cjs',
+      ' 101 501 /opt/homebrew/bin/node /Users/example/.gemini/extensions/gemini-discord/dist/daemon.cjs',
+      ' 102 501 /opt/homebrew/bin/node /Users/example/workspace/tools/gemini-discord/dist/server.cjs',
+      ' 103 502 /opt/homebrew/bin/node /Users/other/.gemini/extensions/gemini-discord/dist/daemon.cjs',
+      ' 104 501 /opt/homebrew/bin/node /Users/example/workspace/tools/gemini-discord/dist/daemon.cjs',
     ].join('\n');
 
     expect(parseDaemonProcesses(output, 501, 104)).toEqual([
       {
         pid: 101,
-        command: '/opt/homebrew/bin/node /Users/yamato/.gemini/extensions/gemini-discord/dist/daemon.cjs',
+        command: '/opt/homebrew/bin/node /Users/example/.gemini/extensions/gemini-discord/dist/daemon.cjs',
       },
     ]);
   });
@@ -41,7 +41,7 @@ describe('daemon singleton guard', () => {
   it('fails fast when another legacy same-user daemon is already running', () => {
     expect(() => acquireDaemonSingletonLock({
       pid: 200,
-      listPeerProcesses: () => [{ pid: 101, command: 'node /Users/yamato/.gemini/extensions/gemini-discord/dist/daemon.cjs' }],
+      listPeerProcesses: () => [{ pid: 101, command: 'node /Users/example/.gemini/extensions/gemini-discord/dist/daemon.cjs' }],
       lockPath: path.join(os.tmpdir(), `gemini-discord-singleton-${process.pid}-blocked.lock`),
     })).toThrow('Another gemini-discord daemon may already be connected');
   });

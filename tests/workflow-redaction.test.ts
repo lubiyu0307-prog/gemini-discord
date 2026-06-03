@@ -9,7 +9,7 @@ import {
 
 describe('redaction pipeline', () => {
   it('redacts absolute paths containing /Users/', () => {
-    expect(redactFilePath('/Users/yamato/project/src/index.ts')).toBe('~/project/src/index.ts');
+    expect(redactFilePath('/Users/example/project/src/index.ts')).toBe('~/project/src/index.ts');
     expect(redactFilePath('/Users/anotheruser/docs/file.txt')).toBe('~/docs/file.txt');
     expect(redactFilePath('/var/log/syslog')).toBe('/var/log/syslog');
   });
