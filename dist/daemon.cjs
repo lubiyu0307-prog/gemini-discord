@@ -20567,26 +20567,26 @@ var require_channel = __commonJS({
       ForumLayoutType2[ForumLayoutType2["ListView"] = 1] = "ListView";
       ForumLayoutType2[ForumLayoutType2["GalleryView"] = 2] = "GalleryView";
     })(ForumLayoutType || (exports2.ForumLayoutType = ForumLayoutType = {}));
-    var ChannelType3;
-    (function(ChannelType4) {
-      ChannelType4[ChannelType4["GuildText"] = 0] = "GuildText";
-      ChannelType4[ChannelType4["DM"] = 1] = "DM";
-      ChannelType4[ChannelType4["GuildVoice"] = 2] = "GuildVoice";
-      ChannelType4[ChannelType4["GroupDM"] = 3] = "GroupDM";
-      ChannelType4[ChannelType4["GuildCategory"] = 4] = "GuildCategory";
-      ChannelType4[ChannelType4["GuildAnnouncement"] = 5] = "GuildAnnouncement";
-      ChannelType4[ChannelType4["AnnouncementThread"] = 10] = "AnnouncementThread";
-      ChannelType4[ChannelType4["PublicThread"] = 11] = "PublicThread";
-      ChannelType4[ChannelType4["PrivateThread"] = 12] = "PrivateThread";
-      ChannelType4[ChannelType4["GuildStageVoice"] = 13] = "GuildStageVoice";
-      ChannelType4[ChannelType4["GuildDirectory"] = 14] = "GuildDirectory";
-      ChannelType4[ChannelType4["GuildForum"] = 15] = "GuildForum";
-      ChannelType4[ChannelType4["GuildMedia"] = 16] = "GuildMedia";
-      ChannelType4[ChannelType4["GuildNews"] = 5] = "GuildNews";
-      ChannelType4[ChannelType4["GuildNewsThread"] = 10] = "GuildNewsThread";
-      ChannelType4[ChannelType4["GuildPublicThread"] = 11] = "GuildPublicThread";
-      ChannelType4[ChannelType4["GuildPrivateThread"] = 12] = "GuildPrivateThread";
-    })(ChannelType3 || (exports2.ChannelType = ChannelType3 = {}));
+    var ChannelType4;
+    (function(ChannelType5) {
+      ChannelType5[ChannelType5["GuildText"] = 0] = "GuildText";
+      ChannelType5[ChannelType5["DM"] = 1] = "DM";
+      ChannelType5[ChannelType5["GuildVoice"] = 2] = "GuildVoice";
+      ChannelType5[ChannelType5["GroupDM"] = 3] = "GroupDM";
+      ChannelType5[ChannelType5["GuildCategory"] = 4] = "GuildCategory";
+      ChannelType5[ChannelType5["GuildAnnouncement"] = 5] = "GuildAnnouncement";
+      ChannelType5[ChannelType5["AnnouncementThread"] = 10] = "AnnouncementThread";
+      ChannelType5[ChannelType5["PublicThread"] = 11] = "PublicThread";
+      ChannelType5[ChannelType5["PrivateThread"] = 12] = "PrivateThread";
+      ChannelType5[ChannelType5["GuildStageVoice"] = 13] = "GuildStageVoice";
+      ChannelType5[ChannelType5["GuildDirectory"] = 14] = "GuildDirectory";
+      ChannelType5[ChannelType5["GuildForum"] = 15] = "GuildForum";
+      ChannelType5[ChannelType5["GuildMedia"] = 16] = "GuildMedia";
+      ChannelType5[ChannelType5["GuildNews"] = 5] = "GuildNews";
+      ChannelType5[ChannelType5["GuildNewsThread"] = 10] = "GuildNewsThread";
+      ChannelType5[ChannelType5["GuildPublicThread"] = 11] = "GuildPublicThread";
+      ChannelType5[ChannelType5["GuildPrivateThread"] = 12] = "GuildPrivateThread";
+    })(ChannelType4 || (exports2.ChannelType = ChannelType4 = {}));
     var VideoQualityMode;
     (function(VideoQualityMode2) {
       VideoQualityMode2[VideoQualityMode2["Auto"] = 1] = "Auto";
@@ -32211,7 +32211,7 @@ var require_ChannelFlagsBitField = __commonJS({
 var require_Constants = __commonJS({
   "node_modules/discord.js/src/util/Constants.js"(exports2) {
     "use strict";
-    var { ChannelType: ChannelType3, MessageType, ComponentType, ImageFormat, StickerFormatType } = require_v106();
+    var { ChannelType: ChannelType4, MessageType, ComponentType, ImageFormat, StickerFormatType } = require_v106();
     exports2.MaxBulkDeletableMessageAge = 12096e5;
     exports2.SweeperKeys = [
       "autoModerationRules",
@@ -32238,18 +32238,18 @@ var require_Constants = __commonJS({
       MessageType.ContextMenuCommand
     ];
     exports2.GuildTextBasedChannelTypes = [
-      ChannelType3.GuildText,
-      ChannelType3.GuildAnnouncement,
-      ChannelType3.AnnouncementThread,
-      ChannelType3.PublicThread,
-      ChannelType3.PrivateThread,
-      ChannelType3.GuildVoice,
-      ChannelType3.GuildStageVoice
+      ChannelType4.GuildText,
+      ChannelType4.GuildAnnouncement,
+      ChannelType4.AnnouncementThread,
+      ChannelType4.PublicThread,
+      ChannelType4.PrivateThread,
+      ChannelType4.GuildVoice,
+      ChannelType4.GuildStageVoice
     ];
-    exports2.TextBasedChannelTypes = [...exports2.GuildTextBasedChannelTypes, ChannelType3.DM, ChannelType3.GroupDM];
-    exports2.SendableChannels = [...exports2.GuildTextBasedChannelTypes, ChannelType3.DM];
-    exports2.ThreadChannelTypes = [ChannelType3.AnnouncementThread, ChannelType3.PublicThread, ChannelType3.PrivateThread];
-    exports2.VoiceBasedChannelTypes = [ChannelType3.GuildVoice, ChannelType3.GuildStageVoice];
+    exports2.TextBasedChannelTypes = [...exports2.GuildTextBasedChannelTypes, ChannelType4.DM, ChannelType4.GroupDM];
+    exports2.SendableChannels = [...exports2.GuildTextBasedChannelTypes, ChannelType4.DM];
+    exports2.ThreadChannelTypes = [ChannelType4.AnnouncementThread, ChannelType4.PublicThread, ChannelType4.PrivateThread];
+    exports2.VoiceBasedChannelTypes = [ChannelType4.GuildVoice, ChannelType4.GuildStageVoice];
     exports2.SelectMenuTypes = [
       ComponentType.StringSelect,
       ComponentType.UserSelect,
@@ -32308,7 +32308,7 @@ var require_BaseChannel = __commonJS({
     "use strict";
     var { channelLink, channelMention } = require_dist7();
     var { DiscordSnowflake } = require_cjs3();
-    var { ChannelType: ChannelType3, Routes: Routes3 } = require_v106();
+    var { ChannelType: ChannelType4, Routes: Routes3 } = require_v106();
     var Base = require_Base();
     var ChannelFlagsBitField = require_ChannelFlagsBitField();
     var { ThreadChannelTypes } = require_Constants();
@@ -32409,7 +32409,7 @@ var require_BaseChannel = __commonJS({
        * @returns {boolean}
        */
       isDMBased() {
-        return [ChannelType3.DM, ChannelType3.GroupDM].includes(this.type);
+        return [ChannelType4.DM, ChannelType4.GroupDM].includes(this.type);
       }
       /**
        * Indicates whether this channel is {@link BaseGuildVoiceChannel voice-based}.
@@ -33355,7 +33355,7 @@ var require_GuildChannel = __commonJS({
   "node_modules/discord.js/src/structures/GuildChannel.js"(exports2, module2) {
     "use strict";
     var { Snowflake } = require_cjs3();
-    var { PermissionFlagsBits: PermissionFlagsBits2, ChannelType: ChannelType3 } = require_v106();
+    var { PermissionFlagsBits: PermissionFlagsBits2, ChannelType: ChannelType4 } = require_v106();
     var { BaseChannel } = require_BaseChannel();
     var { DiscordjsError: DiscordjsError2, ErrorCodes: ErrorCodes2 } = require_errors2();
     var PermissionOverwriteManager = require_PermissionOverwriteManager();
@@ -33432,7 +33432,7 @@ var require_GuildChannel = __commonJS({
        * @readonly
        */
       get position() {
-        const selfIsCategory = this.type === ChannelType3.GuildCategory;
+        const selfIsCategory = this.type === ChannelType4.GuildCategory;
         const types = getSortableGroupTypes(this.type);
         let count = 0;
         for (const channel of this.guild.channels.cache.values()) {
@@ -33751,7 +33751,7 @@ var require_Util = __commonJS({
     var { parse } = require("node:path");
     var process2 = require("node:process");
     var { Collection: Collection2 } = require_dist6();
-    var { ChannelType: ChannelType3, RouteBases, Routes: Routes3 } = require_v106();
+    var { ChannelType: ChannelType4, RouteBases, Routes: Routes3 } = require_v106();
     var { fetch: fetch2 } = require_undici();
     var Colors = require_Colors();
     var { DiscordjsError: DiscordjsError2, DiscordjsRangeError: DiscordjsRangeError2, DiscordjsTypeError: DiscordjsTypeError2, ErrorCodes: ErrorCodes2 } = require_errors2();
@@ -33820,24 +33820,24 @@ var require_Util = __commonJS({
       };
     }
     var TextSortableGroupTypes = [
-      ChannelType3.GuildText,
-      ChannelType3.GuildAnnouncement,
-      ChannelType3.GuildForum,
-      ChannelType3.GuildMedia
+      ChannelType4.GuildText,
+      ChannelType4.GuildAnnouncement,
+      ChannelType4.GuildForum,
+      ChannelType4.GuildMedia
     ];
-    var VoiceSortableGroupTypes = [ChannelType3.GuildVoice, ChannelType3.GuildStageVoice];
-    var CategorySortableGroupTypes = [ChannelType3.GuildCategory];
+    var VoiceSortableGroupTypes = [ChannelType4.GuildVoice, ChannelType4.GuildStageVoice];
+    var CategorySortableGroupTypes = [ChannelType4.GuildCategory];
     function getSortableGroupTypes(type) {
       switch (type) {
-        case ChannelType3.GuildText:
-        case ChannelType3.GuildAnnouncement:
-        case ChannelType3.GuildForum:
-        case ChannelType3.GuildMedia:
+        case ChannelType4.GuildText:
+        case ChannelType4.GuildAnnouncement:
+        case ChannelType4.GuildForum:
+        case ChannelType4.GuildMedia:
           return TextSortableGroupTypes;
-        case ChannelType3.GuildVoice:
-        case ChannelType3.GuildStageVoice:
+        case ChannelType4.GuildVoice:
+        case ChannelType4.GuildStageVoice:
           return VoiceSortableGroupTypes;
-        case ChannelType3.GuildCategory:
+        case ChannelType4.GuildCategory:
           return CategorySortableGroupTypes;
         default:
           return [type];
@@ -33912,7 +33912,7 @@ var require_Util = __commonJS({
               return user ? `@${user.displayName}` : match;
             }
             case "@&": {
-              if (channel.type === ChannelType3.DM) return match;
+              if (channel.type === ChannelType4.DM) return match;
               const role = channel.guild.roles.cache.get(id);
               return role ? `@${role.name}` : match;
             }
@@ -50183,7 +50183,7 @@ var require_Message = __commonJS({
     var { DiscordSnowflake } = require_cjs3();
     var {
       InteractionType,
-      ChannelType: ChannelType3,
+      ChannelType: ChannelType4,
       MessageType,
       MessageFlags: MessageFlags2,
       PermissionFlagsBits: PermissionFlagsBits2,
@@ -50700,7 +50700,7 @@ var require_Message = __commonJS({
         const bitfield = PermissionFlagsBits2.SendMessages | (this.author.id === this.client.user.id ? PermissionsBitField2.DefaultBit : PermissionFlagsBits2.ManageMessages);
         const { channel } = this;
         return Boolean(
-          channel?.type === ChannelType3.GuildAnnouncement && !this.flags.has(MessageFlags2.Crossposted) && this.reference?.type !== MessageReferenceType.Forward && this.type === MessageType.Default && !this.poll && channel.viewable && channel.permissionsFor(this.client.user)?.has(bitfield, false)
+          channel?.type === ChannelType4.GuildAnnouncement && !this.flags.has(MessageFlags2.Crossposted) && this.reference?.type !== MessageReferenceType.Forward && this.type === MessageType.Default && !this.poll && channel.viewable && channel.permissionsFor(this.client.user)?.has(bitfield, false)
         );
       }
       /**
@@ -50869,7 +50869,7 @@ var require_Message = __commonJS({
        */
       async startThread(options = {}) {
         if (!this.channel) throw new DiscordjsError2(ErrorCodes2.ChannelNotCached);
-        if (![ChannelType3.GuildText, ChannelType3.GuildAnnouncement].includes(this.channel.type)) {
+        if (![ChannelType4.GuildText, ChannelType4.GuildAnnouncement].includes(this.channel.type)) {
           throw new DiscordjsError2(ErrorCodes2.MessageThreadParent);
         }
         if (this.hasThread) throw new DiscordjsError2(ErrorCodes2.MessageExistingThread);
@@ -51457,7 +51457,7 @@ var require_WebhookClient = __commonJS({
 var require_VoiceState = __commonJS({
   "node_modules/discord.js/src/structures/VoiceState.js"(exports2, module2) {
     "use strict";
-    var { ChannelType: ChannelType3, Routes: Routes3 } = require_v106();
+    var { ChannelType: ChannelType4, Routes: Routes3 } = require_v106();
     var Base = require_Base();
     var { DiscordjsError: DiscordjsError2, DiscordjsTypeError: DiscordjsTypeError2, ErrorCodes: ErrorCodes2 } = require_errors2();
     var VoiceState = class extends Base {
@@ -51601,7 +51601,7 @@ var require_VoiceState = __commonJS({
        * @returns {Promise<VoiceState>}
        */
       async edit(options) {
-        if (this.channel?.type !== ChannelType3.GuildStageVoice) throw new DiscordjsError2(ErrorCodes2.VoiceNotStageChannel);
+        if (this.channel?.type !== ChannelType4.GuildStageVoice) throw new DiscordjsError2(ErrorCodes2.VoiceNotStageChannel);
         const target = this.client.user.id === this.id ? "@me" : this.id;
         if (target !== "@me" && options.requestToSpeak !== void 0) {
           throw new DiscordjsError2(ErrorCodes2.VoiceStateNotOwn);
@@ -53939,7 +53939,7 @@ var require_Partials = __commonJS({
 var require_Action = __commonJS({
   "node_modules/discord.js/src/client/actions/Action.js"(exports2, module2) {
     "use strict";
-    var { ChannelType: ChannelType3 } = require_v106();
+    var { ChannelType: ChannelType4 } = require_v106();
     var { Poll } = require_Poll();
     var { PollAnswer } = require_PollAnswer();
     var Partials2 = require_Partials();
@@ -53961,7 +53961,7 @@ var require_Action = __commonJS({
           if (!data.recipients.some((existingRecipient) => recipient.id === existingRecipient.id)) {
             payloadData.recipients = [...data.recipients, recipient];
           }
-        } else if (data.type === ChannelType3.DM || data.type === ChannelType3.GroupDM) {
+        } else if (data.type === ChannelType4.DM || data.type === ChannelType4.GroupDM) {
           const recipient = data.author ?? data.user ?? { id: data.user_id };
           payloadData.recipients = [recipient];
         }
@@ -54387,7 +54387,7 @@ var require_DMChannel = __commonJS({
   "node_modules/discord.js/src/structures/DMChannel.js"(exports2, module2) {
     "use strict";
     var { userMention } = require_dist7();
-    var { ChannelType: ChannelType3 } = require_v106();
+    var { ChannelType: ChannelType4 } = require_v106();
     var { BaseChannel } = require_BaseChannel();
     var TextBasedChannel = require_TextBasedChannel();
     var DMMessageManager = require_DMMessageManager();
@@ -54395,7 +54395,7 @@ var require_DMChannel = __commonJS({
     var DMChannel = class extends BaseChannel {
       constructor(client, data) {
         super(client, data);
-        this.type = ChannelType3.DM;
+        this.type = ChannelType4.DM;
         this.messages = new DMMessageManager(this);
       }
       _patch(data) {
@@ -55016,7 +55016,7 @@ var require_ThreadChannel = __commonJS({
     "use strict";
     var { DiscordAPIError } = require_dist5();
     var { lazy } = require_dist();
-    var { RESTJSONErrorCodes, ChannelFlags, ChannelType: ChannelType3, PermissionFlagsBits: PermissionFlagsBits2, Routes: Routes3 } = require_v106();
+    var { RESTJSONErrorCodes, ChannelFlags, ChannelType: ChannelType4, PermissionFlagsBits: PermissionFlagsBits2, Routes: Routes3 } = require_v106();
     var { BaseChannel } = require_BaseChannel();
     var getThreadOnlyChannel = lazy(() => require_ThreadOnlyChannel());
     var TextBasedChannel = require_TextBasedChannel();
@@ -55050,7 +55050,7 @@ var require_ThreadChannel = __commonJS({
         }
         if ("thread_metadata" in data) {
           this.locked = data.thread_metadata.locked ?? false;
-          this.invitable = this.type === ChannelType3.PrivateThread ? data.thread_metadata.invitable ?? false : null;
+          this.invitable = this.type === ChannelType4.PrivateThread ? data.thread_metadata.invitable ?? false : null;
           this.archived = data.thread_metadata.archived;
           this.autoArchiveDuration = data.thread_metadata.auto_archive_duration;
           this.archiveTimestamp = Date.parse(data.thread_metadata.archive_timestamp);
@@ -55064,7 +55064,7 @@ var require_ThreadChannel = __commonJS({
           this.archiveTimestamp ??= null;
           this.invitable ??= null;
         }
-        this._createdTimestamp ??= this.type === ChannelType3.PrivateThread ? super.createdTimestamp : null;
+        this._createdTimestamp ??= this.type === ChannelType4.PrivateThread ? super.createdTimestamp : null;
         if ("last_message_id" in data) {
           this.lastMessageId = data.last_message_id;
         } else {
@@ -55237,7 +55237,7 @@ var require_ThreadChannel = __commonJS({
             auto_archive_duration: options.autoArchiveDuration,
             rate_limit_per_user: options.rateLimitPerUser,
             locked: options.locked,
-            invitable: this.type === ChannelType3.PrivateThread ? options.invitable : void 0,
+            invitable: this.type === ChannelType4.PrivateThread ? options.invitable : void 0,
             applied_tags: options.appliedTags,
             flags: "flags" in options ? ChannelFlagsBitField.resolve(options.flags) : void 0
           },
@@ -55284,7 +55284,7 @@ var require_ThreadChannel = __commonJS({
        * @returns {Promise<ThreadChannel>}
        */
       async setInvitable(invitable = true, reason) {
-        if (this.type !== ChannelType3.PrivateThread) {
+        if (this.type !== ChannelType4.PrivateThread) {
           throw new DiscordjsRangeError2(ErrorCodes2.ThreadInvitableType, this.type);
         }
         return this.edit({ invitable, reason });
@@ -55367,7 +55367,7 @@ var require_ThreadChannel = __commonJS({
        * @readonly
        */
       get editable() {
-        return this.ownerId === this.client.user.id && (this.type !== ChannelType3.PrivateThread || this.joined) || this.manageable;
+        return this.ownerId === this.client.user.id && (this.type !== ChannelType4.PrivateThread || this.joined) || this.manageable;
       }
       /**
        * Whether the thread is joinable by the client user
@@ -55376,7 +55376,7 @@ var require_ThreadChannel = __commonJS({
        */
       get joinable() {
         return !this.archived && !this.joined && this.permissionsFor(this.client.user)?.has(
-          this.type === ChannelType3.PrivateThread ? PermissionFlagsBits2.ManageThreads : PermissionFlagsBits2.ViewChannel,
+          this.type === ChannelType4.PrivateThread ? PermissionFlagsBits2.ManageThreads : PermissionFlagsBits2.ViewChannel,
           false
         );
       }
@@ -55411,7 +55411,7 @@ var require_ThreadChannel = __commonJS({
         const permissions = this.permissionsFor(this.client.user);
         if (!permissions) return false;
         if (permissions.has(PermissionFlagsBits2.Administrator, false)) return true;
-        return !(this.archived && this.locked && !this.manageable) && (this.type !== ChannelType3.PrivateThread || this.joined || this.manageable) && permissions.has(PermissionFlagsBits2.SendMessagesInThreads, false) && this.guild.members.me.communicationDisabledUntilTimestamp < Date.now();
+        return !(this.archived && this.locked && !this.manageable) && (this.type !== ChannelType4.PrivateThread || this.joined || this.manageable) && permissions.has(PermissionFlagsBits2.SendMessagesInThreads, false) && this.guild.members.me.communicationDisabledUntilTimestamp < Date.now();
       }
       /**
        * Whether the thread is unarchivable by the client user
@@ -55634,7 +55634,7 @@ var require_ThreadManager = __commonJS({
 var require_GuildTextThreadManager = __commonJS({
   "node_modules/discord.js/src/managers/GuildTextThreadManager.js"(exports2, module2) {
     "use strict";
-    var { ChannelType: ChannelType3, Routes: Routes3 } = require_v106();
+    var { ChannelType: ChannelType4, Routes: Routes3 } = require_v106();
     var ThreadManager = require_ThreadManager();
     var { DiscordjsTypeError: DiscordjsTypeError2, ErrorCodes: ErrorCodes2 } = require_errors2();
     var GuildTextThreadManager = class extends ThreadManager {
@@ -55690,12 +55690,12 @@ var require_GuildTextThreadManager = __commonJS({
         reason,
         rateLimitPerUser
       } = {}) {
-        let resolvedType = this.channel.type === ChannelType3.GuildAnnouncement ? ChannelType3.AnnouncementThread : ChannelType3.PublicThread;
+        let resolvedType = this.channel.type === ChannelType4.GuildAnnouncement ? ChannelType4.AnnouncementThread : ChannelType4.PublicThread;
         let startMessageId;
         if (startMessage) {
           startMessageId = this.channel.messages.resolveId(startMessage);
           if (!startMessageId) throw new DiscordjsTypeError2(ErrorCodes2.InvalidType, "startMessage", "MessageResolvable");
-        } else if (this.channel.type !== ChannelType3.GuildAnnouncement) {
+        } else if (this.channel.type !== ChannelType4.GuildAnnouncement) {
           resolvedType = type ?? resolvedType;
         }
         const data = await this.client.rest.post(Routes3.threads(this.channel.id, startMessageId), {
@@ -55703,7 +55703,7 @@ var require_GuildTextThreadManager = __commonJS({
             name,
             auto_archive_duration: autoArchiveDuration,
             type: resolvedType,
-            invitable: resolvedType === ChannelType3.PrivateThread ? invitable : void 0,
+            invitable: resolvedType === ChannelType4.PrivateThread ? invitable : void 0,
             rate_limit_per_user: rateLimitPerUser
           },
           reason
@@ -56367,7 +56367,7 @@ var require_Channels = __commonJS({
   "node_modules/discord.js/src/util/Channels.js"(exports2, module2) {
     "use strict";
     var { lazy } = require_dist();
-    var { ChannelType: ChannelType3 } = require_v106();
+    var { ChannelType: ChannelType4 } = require_v106();
     var getCategoryChannel = lazy(() => require_CategoryChannel());
     var getDMChannel = lazy(() => require_DMChannel());
     var getNewsChannel = lazy(() => require_NewsChannel());
@@ -56382,49 +56382,49 @@ var require_Channels = __commonJS({
     function createChannel(client, data, guild, { allowUnknownGuild } = {}) {
       let channel;
       if (!data.guild_id && !guild) {
-        if (data.recipients && data.type !== ChannelType3.GroupDM || data.type === ChannelType3.DM) {
+        if (data.recipients && data.type !== ChannelType4.GroupDM || data.type === ChannelType4.DM) {
           channel = new (getDMChannel())(client, data);
-        } else if (data.type === ChannelType3.GroupDM) {
+        } else if (data.type === ChannelType4.GroupDM) {
           channel = new (getPartialGroupDMChannel())(client, data);
         }
       } else {
         guild ??= client.guilds.cache.get(data.guild_id);
         if (guild || allowUnknownGuild) {
           switch (data.type) {
-            case ChannelType3.GuildText: {
+            case ChannelType4.GuildText: {
               channel = new (getTextChannel())(guild, data, client);
               break;
             }
-            case ChannelType3.GuildVoice: {
+            case ChannelType4.GuildVoice: {
               channel = new (getVoiceChannel())(guild, data, client);
               break;
             }
-            case ChannelType3.GuildCategory: {
+            case ChannelType4.GuildCategory: {
               channel = new (getCategoryChannel())(guild, data, client);
               break;
             }
-            case ChannelType3.GuildAnnouncement: {
+            case ChannelType4.GuildAnnouncement: {
               channel = new (getNewsChannel())(guild, data, client);
               break;
             }
-            case ChannelType3.GuildStageVoice: {
+            case ChannelType4.GuildStageVoice: {
               channel = new (getStageChannel())(guild, data, client);
               break;
             }
-            case ChannelType3.AnnouncementThread:
-            case ChannelType3.PublicThread:
-            case ChannelType3.PrivateThread: {
+            case ChannelType4.AnnouncementThread:
+            case ChannelType4.PublicThread:
+            case ChannelType4.PrivateThread: {
               channel = new (getThreadChannel())(guild, data, client);
               if (!allowUnknownGuild) channel.parent?.threads.cache.set(channel.id, channel);
               break;
             }
-            case ChannelType3.GuildDirectory:
+            case ChannelType4.GuildDirectory:
               channel = new (getDirectoryChannel())(guild, data, client);
               break;
-            case ChannelType3.GuildForum:
+            case ChannelType4.GuildForum:
               channel = new (getForumChannel())(guild, data, client);
               break;
-            case ChannelType3.GuildMedia:
+            case ChannelType4.GuildMedia:
               channel = new (getMediaChannel())(guild, data, client);
               break;
           }
@@ -69288,7 +69288,7 @@ var require_GuildChannelManager = __commonJS({
     "use strict";
     var process2 = require("node:process");
     var { Collection: Collection2 } = require_dist6();
-    var { ChannelType: ChannelType3, Routes: Routes3 } = require_v106();
+    var { ChannelType: ChannelType4, Routes: Routes3 } = require_v106();
     var CachedManager = require_CachedManager();
     var GuildTextThreadManager = require_GuildTextThreadManager();
     var { DiscordjsError: DiscordjsError2, DiscordjsTypeError: DiscordjsTypeError2, ErrorCodes: ErrorCodes2 } = require_errors2();
@@ -69551,7 +69551,7 @@ var require_GuildChannelManager = __commonJS({
         if (options.lockPermissions) {
           if (parentId) {
             const newParent = this.cache.get(parentId);
-            if (newParent?.type === ChannelType3.GuildCategory) {
+            if (newParent?.type === ChannelType4.GuildCategory) {
               permission_overwrites = newParent.permissionOverwrites.cache.map(
                 (overwrite) => PermissionOverwrites.resolve(overwrite, this.guild)
               );
@@ -72230,7 +72230,7 @@ var require_Guild = __commonJS({
     var { Collection: Collection2 } = require_dist6();
     var { makeURLSearchParams: makeURLSearchParams2 } = require_dist5();
     var { DiscordSnowflake } = require_cjs3();
-    var { ChannelType: ChannelType3, GuildPremiumTier, Routes: Routes3, GuildFeature } = require_v106();
+    var { ChannelType: ChannelType4, GuildPremiumTier, Routes: Routes3, GuildFeature } = require_v106();
     var AnonymousGuild = require_AnonymousGuild();
     var GuildAuditLogs = require_GuildAuditLogs();
     var { GuildOnboarding } = require_GuildOnboarding();
@@ -73356,7 +73356,7 @@ var require_Guild = __commonJS({
        * @private
        */
       _sortedChannels(channel) {
-        const channelIsCategory = channel.type === ChannelType3.GuildCategory;
+        const channelIsCategory = channel.type === ChannelType4.GuildCategory;
         const types = getSortableGroupTypes(channel.type);
         return discordSort(
           this.channels.cache.filter(
@@ -73738,7 +73738,7 @@ var require_GuildManager = __commonJS({
 var require_UserManager = __commonJS({
   "node_modules/discord.js/src/managers/UserManager.js"(exports2, module2) {
     "use strict";
-    var { ChannelType: ChannelType3, Routes: Routes3 } = require_v106();
+    var { ChannelType: ChannelType4, Routes: Routes3 } = require_v106();
     var CachedManager = require_CachedManager();
     var { DiscordjsError: DiscordjsError2, ErrorCodes: ErrorCodes2 } = require_errors2();
     var { GuildMember } = require_GuildMember();
@@ -73773,7 +73773,7 @@ var require_UserManager = __commonJS({
       dmChannel(userId) {
         const expectedRecipientIds = [userId, this.client.user.id];
         return this.client.channels.cache.find(
-          (channel) => channel.type === ChannelType3.DM && channel.recipientId === userId && channel.recipientIds.every((id) => expectedRecipientIds.includes(id))
+          (channel) => channel.type === ChannelType4.DM && channel.recipientId === userId && channel.recipientIds.every((id) => expectedRecipientIds.includes(id))
         ) ?? null;
       }
       /**
@@ -88275,22 +88275,22 @@ var init_routing = __esm({
 function createClient(config) {
   log.info("Client creating", { enableDMs: config.enableDMs, bossConfigured: Boolean(config.discordBossUserId) });
   const intents = [
-    import_discord4.GatewayIntentBits.Guilds,
-    import_discord4.GatewayIntentBits.GuildMessages,
-    import_discord4.GatewayIntentBits.GuildIntegrations,
-    import_discord4.GatewayIntentBits.MessageContent
+    import_discord5.GatewayIntentBits.Guilds,
+    import_discord5.GatewayIntentBits.GuildMessages,
+    import_discord5.GatewayIntentBits.GuildIntegrations,
+    import_discord5.GatewayIntentBits.MessageContent
   ];
   if (config.enableServerMembersIntent !== false) {
-    intents.push(import_discord4.GatewayIntentBits.GuildMembers);
+    intents.push(import_discord5.GatewayIntentBits.GuildMembers);
   }
   if (config.enableDMs) {
-    intents.push(import_discord4.GatewayIntentBits.DirectMessages);
-    intents.push(import_discord4.GatewayIntentBits.DirectMessageTyping);
+    intents.push(import_discord5.GatewayIntentBits.DirectMessages);
+    intents.push(import_discord5.GatewayIntentBits.DirectMessageTyping);
   }
-  return new import_discord4.Client({
+  return new import_discord5.Client({
     intents,
-    partials: config.enableDMs ? [import_discord4.Partials.Channel, import_discord4.Partials.Message, import_discord4.Partials.User, import_discord4.Partials.GuildMember, import_discord4.Partials.Reaction, import_discord4.Partials.ThreadMember] : [],
-    makeCache: import_discord4.Options.cacheWithLimits({
+    partials: config.enableDMs ? [import_discord5.Partials.Channel, import_discord5.Partials.Message, import_discord5.Partials.User, import_discord5.Partials.GuildMember, import_discord5.Partials.Reaction, import_discord5.Partials.ThreadMember] : [],
+    makeCache: import_discord5.Options.cacheWithLimits({
       MessageManager: { maxSize: 50 },
       GuildMemberManager: { maxSize: 10 },
       PresenceManager: { maxSize: 0 },
@@ -88515,11 +88515,11 @@ function isAllowedGuildChannel2(message, config) {
   }
   return config.allowedChannelIds.length === 0 && Boolean(config.discordServerId) && message.guildId === config.discordServerId;
 }
-var import_discord4;
+var import_discord5;
 var init_bot = __esm({
   "src/daemon/bot.ts"() {
     "use strict";
-    import_discord4 = __toESM(require_src(), 1);
+    import_discord5 = __toESM(require_src(), 1);
     init_log();
     init_attachments();
     init_routing();
@@ -88544,17 +88544,17 @@ function buildDmOnlyGlobalCommandPayloads(commands = COMMANDS) {
     } = command;
     return {
       ...baseCommand,
-      contexts: [import_discord5.InteractionContextType.BotDM],
-      integration_types: [import_discord5.ApplicationIntegrationType.GuildInstall]
+      contexts: [import_discord6.InteractionContextType.BotDM],
+      integration_types: [import_discord6.ApplicationIntegrationType.GuildInstall]
     };
   });
 }
 async function registerGuildCommands(client, config) {
-  const rest = new import_discord5.REST({ version: "10" }).setToken(config.discordBotToken);
+  const rest = new import_discord6.REST({ version: "10" }).setToken(config.discordBotToken);
   try {
     const globalPayloads = buildDmOnlyGlobalCommandPayloads();
     await rest.put(
-      import_discord5.Routes.applicationCommands(client.user.id),
+      import_discord6.Routes.applicationCommands(client.user.id),
       { body: globalPayloads }
     );
     log.info("Registered global slash commands (for DMs)");
@@ -88566,7 +88566,7 @@ async function registerGuildCommands(client, config) {
     try {
       const guildPayloads = buildGuildCommandPayloads();
       await rest.put(
-        import_discord5.Routes.applicationGuildCommands(client.user.id, guildId),
+        import_discord6.Routes.applicationGuildCommands(client.user.id, guildId),
         { body: guildPayloads }
       );
       log.info(`Registered slash commands for guild: ${guildId}`);
@@ -88774,11 +88774,11 @@ async function validateModel(geminiPath, model) {
     });
   });
 }
-var import_discord5, import_node_child_process4, COMMANDS, DM_COMMAND_NAMES, DEFAULT_AVAILABLE_MODELS;
+var import_discord6, import_node_child_process4, COMMANDS, DM_COMMAND_NAMES, DEFAULT_AVAILABLE_MODELS;
 var init_commands = __esm({
   "src/daemon/commands.ts"() {
     "use strict";
-    import_discord5 = __toESM(require_src(), 1);
+    import_discord6 = __toESM(require_src(), 1);
     init_log();
     import_node_child_process4 = require("node:child_process");
     init_config();
@@ -88789,17 +88789,17 @@ var init_commands = __esm({
     init_task_validation();
     init_mention_safety();
     COMMANDS = [
-      new import_discord5.SlashCommandBuilder().setName("new").setDescription("Start a fresh Gemini conversation for this channel.").setDefaultMemberPermissions(import_discord5.PermissionFlagsBits.ManageMessages),
-      new import_discord5.SlashCommandBuilder().setName("model").setDescription("Switch the active Gemini model.").addStringOption(
+      new import_discord6.SlashCommandBuilder().setName("new").setDescription("Start a fresh Gemini conversation for this channel.").setDefaultMemberPermissions(import_discord6.PermissionFlagsBits.ManageMessages),
+      new import_discord6.SlashCommandBuilder().setName("model").setDescription("Switch the active Gemini model.").addStringOption(
         (option) => option.setName("name").setDescription("The name of the model to use.").setRequired(true).setAutocomplete(true)
-      ).setDefaultMemberPermissions(import_discord5.PermissionFlagsBits.Administrator),
-      new import_discord5.SlashCommandBuilder().setName("status").setDescription("Show the current daemon health and status."),
-      new import_discord5.SlashCommandBuilder().setName("ping").setDescription("Check the bot latency."),
-      new import_discord5.SlashCommandBuilder().setName("pool").setDescription("Show CLI process pool status.").setDefaultMemberPermissions(import_discord5.PermissionFlagsBits.Administrator),
-      new import_discord5.SlashCommandBuilder().setName("kill").setDescription("Kill a specific CLI pool process.").setDefaultMemberPermissions(import_discord5.PermissionFlagsBits.Administrator).addStringOption(
+      ).setDefaultMemberPermissions(import_discord6.PermissionFlagsBits.Administrator),
+      new import_discord6.SlashCommandBuilder().setName("status").setDescription("Show the current daemon health and status."),
+      new import_discord6.SlashCommandBuilder().setName("ping").setDescription("Check the bot latency."),
+      new import_discord6.SlashCommandBuilder().setName("pool").setDescription("Show CLI process pool status.").setDefaultMemberPermissions(import_discord6.PermissionFlagsBits.Administrator),
+      new import_discord6.SlashCommandBuilder().setName("kill").setDescription("Kill a specific CLI pool process.").setDefaultMemberPermissions(import_discord6.PermissionFlagsBits.Administrator).addStringOption(
         (option) => option.setName("session").setDescription("Pool key to kill").setRequired(true)
       ),
-      new import_discord5.SlashCommandBuilder().setName("workflow").setDescription("Create a monitored workflow thread for a task.").setDefaultMemberPermissions(import_discord5.PermissionFlagsBits.ManageMessages).addStringOption(
+      new import_discord6.SlashCommandBuilder().setName("workflow").setDescription("Create a monitored workflow thread for a task.").setDefaultMemberPermissions(import_discord6.PermissionFlagsBits.ManageMessages).addStringOption(
         (option) => option.setName("task").setDescription("Description of the task to execute").setRequired(true)
       ).addStringOption(
         (option) => option.setName("message_id").setDescription("Optional ID of a message to promote to a thread").setRequired(false)
@@ -89774,7 +89774,7 @@ async function discoverGuildDefaults(client, config) {
   if (config.discordChannelId) {
     try {
       const channel = await client.channels.fetch(config.discordChannelId);
-      if (channel && channel.type !== import_discord6.ChannelType.DM && "guild" in channel && channel.guild) {
+      if (channel && channel.type !== import_discord7.ChannelType.DM && "guild" in channel && channel.guild) {
         result.primaryGuildId = channel.guild.id;
         result.primaryGuildName = channel.guild.name;
         result.primaryChannelName = "name" in channel && typeof channel.name === "string" ? channel.name : "";
@@ -89790,7 +89790,7 @@ async function discoverGuildDefaults(client, config) {
   const guild = await client.guilds.fetch(guildId);
   const channels = await guild.channels.fetch();
   const eligible = channels.filter(
-    (channel) => channel && (channel.type === import_discord6.ChannelType.GuildText || channel.type === import_discord6.ChannelType.GuildAnnouncement)
+    (channel) => channel && (channel.type === import_discord7.ChannelType.GuildText || channel.type === import_discord7.ChannelType.GuildAnnouncement)
   ).map((channel) => ({ id: channel.id, name: channel.name })).sort((left, right) => left.name.localeCompare(right.name));
   if (!result.primaryGuildId) {
     result.primaryGuildId = guild.id;
@@ -89811,11 +89811,11 @@ function getChannelName2(message) {
   }
   return `channel-${message.channelId}`;
 }
-var import_discord6;
+var import_discord7;
 var init_onboarding = __esm({
   "src/daemon/onboarding.ts"() {
     "use strict";
-    import_discord6 = __toESM(require_src(), 1);
+    import_discord7 = __toESM(require_src(), 1);
     init_config();
     init_config_vars();
     init_log();
@@ -89969,7 +89969,7 @@ function filenameFor(event) {
 }
 function attachmentFor(event, detail) {
   if (detail.length < ATTACHMENT_THRESHOLD) return null;
-  return new import_discord7.AttachmentBuilder(Buffer.from(detail, "utf8"), { name: filenameFor(event) });
+  return new import_discord8.AttachmentBuilder(Buffer.from(detail, "utf8"), { name: filenameFor(event) });
 }
 function compactArgs(args, preferred) {
   const parts = [];
@@ -90112,11 +90112,11 @@ function writeFileAction(event) {
 function compactToolResult(text, maxLength = 180) {
   return shortenHomePaths(oneLine(text, maxLength)).replace(/:\s*Showing up to \d+ items.*$/i, ".");
 }
-var import_discord7, os2, TRACE_LIMIT, ATTACHMENT_THRESHOLD, ShellRenderer, FilesystemRenderer, SearchRenderer, WebRenderer, PlanningRenderer, McpRenderer, InteractionRenderer, GenericFallbackRenderer, TraceRendererRegistry;
+var import_discord8, os2, TRACE_LIMIT, ATTACHMENT_THRESHOLD, ShellRenderer, FilesystemRenderer, SearchRenderer, WebRenderer, PlanningRenderer, McpRenderer, InteractionRenderer, GenericFallbackRenderer, TraceRendererRegistry;
 var init_trace_renderer = __esm({
   "src/daemon/workflow/trace-renderer.ts"() {
     "use strict";
-    import_discord7 = __toESM(require_src(), 1);
+    import_discord8 = __toESM(require_src(), 1);
     os2 = __toESM(require("node:os"), 1);
     TRACE_LIMIT = 1900;
     ATTACHMENT_THRESHOLD = 1200;
@@ -91773,7 +91773,9 @@ function handleStatusRoutes(req, res, url, deps) {
 }
 
 // src/daemon/api/discovery.ts
+var import_discord3 = __toESM(require_src(), 1);
 init_users();
+init_channels();
 init_api_utils();
 async function handleDiscoveryRoutes(req, res, url, deps) {
   const pathname = url.pathname;
@@ -91798,6 +91800,44 @@ async function handleDiscoveryRoutes(req, res, url, deps) {
       resolved,
       bot_id: deps.client.user?.id ?? null
     });
+    return true;
+  }
+  if (req.method === "GET" && pathname === "/channels") {
+    if (!authorizeApiAction(req, res, config, "status")) return true;
+    if (!deps.client) {
+      respond(res, 503, { error: "Client not ready" });
+      return true;
+    }
+    const query = url.searchParams.get("query") ?? "";
+    const all = url.searchParams.get("all") === "true";
+    let channelsList = [];
+    if (all && config.discordServerId) {
+      try {
+        const guild = await deps.client.guilds.fetch(config.discordServerId);
+        const fetchedChannels = await guild.channels.fetch();
+        for (const [id, channel] of fetchedChannels) {
+          if (!channel) continue;
+          if (channel.type === import_discord3.ChannelType.GuildText || channel.type === import_discord3.ChannelType.GuildAnnouncement || channel.type === import_discord3.ChannelType.GuildForum) {
+            let typeStr = "text";
+            if (channel.type === import_discord3.ChannelType.GuildAnnouncement) typeStr = "announcement";
+            if (channel.type === import_discord3.ChannelType.GuildForum) typeStr = "forum";
+            channelsList.push({ id, name: channel.name, type: typeStr });
+          }
+        }
+      } catch (err) {
+        respond(res, 502, {
+          error: `Channel discovery failed: ${err instanceof Error ? err.message : String(err)}`
+        });
+        return true;
+      }
+    } else {
+      channelsList = getChannelMapEntries().map(([name, { id }]) => ({ id, name, type: "text" }));
+    }
+    if (query.trim()) {
+      const needle = query.trim().toLowerCase();
+      channelsList = channelsList.filter((c) => c.name.toLowerCase().includes(needle) || c.id.includes(needle));
+    }
+    respond(res, 200, { ok: true, channels: channelsList });
     return true;
   }
   if (req.method === "GET" && pathname === "/reactions") {
@@ -92425,10 +92465,11 @@ async function handleCronRoutes(req, res, pathname, parsed, deps) {
 }
 
 // src/daemon/api/moderation.ts
-var import_discord3 = __toESM(require_src(), 1);
+var import_discord4 = __toESM(require_src(), 1);
 init_api_utils();
 init_config();
 init_config_vars();
+init_channels();
 var DISCORD_SNOWFLAKE_RE3 = /^\d{15,25}$/;
 async function handleModerationRoutes(req, res, pathname, parsed, deps) {
   const { config, extensionDir: extensionDir2 } = deps;
@@ -92487,6 +92528,55 @@ async function handleModerationRoutes(req, res, pathname, parsed, deps) {
         [ENV.DISCORD_ALLOWED_USER_IDS]: next.join(",")
       });
       respond(res, 200, { ok: true, action, user_id: userId, count: next.length });
+    } catch (err) {
+      respond(res, 500, { error: `Failed to persist config: ${err instanceof Error ? err.message : String(err)}` });
+    }
+    return true;
+  }
+  if (pathname === "/channel-allowlist") {
+    if (!authorizeApiAction(req, res, config, "moderation")) return true;
+    const action = String(parsed["action"] ?? "");
+    const channelId = String(parsed["channel_id"] ?? "").trim();
+    if (!["add", "remove"].includes(action)) {
+      respond(res, 400, { error: "action must be add or remove" });
+      return true;
+    }
+    if (!channelId || !DISCORD_SNOWFLAKE_RE3.test(channelId)) {
+      respond(res, 400, {
+        error: "channel_id must be a stable numeric Discord channel ID."
+      });
+      return true;
+    }
+    if (action === "add" && deps.client && config.discordServerId) {
+      try {
+        const channel = await deps.client.channels.fetch(channelId);
+        if (!channel || !("guildId" in channel) || channel.guildId !== config.discordServerId) {
+          respond(res, 400, { error: "Refusing to allowlist a channel that is not in the configured Discord server." });
+          return true;
+        }
+      } catch (err) {
+        respond(res, 400, {
+          error: `Cannot verify channel belongs to the configured server: ${err instanceof Error ? err.message : String(err)}`
+        });
+        return true;
+      }
+    }
+    const current = new Set(config.allowedChannelIds);
+    if (action === "add") {
+      current.add(channelId);
+    } else {
+      current.delete(channelId);
+    }
+    const next = [...current];
+    config.allowedChannelIds = next;
+    try {
+      persistConfigEnvUpdates(extensionDir2, {
+        [ENV.DISCORD_ALLOWED_CHANNEL_IDS]: next.join(",")
+      });
+      if (deps.client) {
+        await buildGuildChannelMap(deps.client, config);
+      }
+      respond(res, 200, { ok: true, action, channel_id: channelId, count: next.length });
     } catch (err) {
       respond(res, 500, { error: `Failed to persist config: ${err instanceof Error ? err.message : String(err)}` });
     }
@@ -92566,12 +92656,12 @@ async function handleModerationRoutes(req, res, pathname, parsed, deps) {
       const validStatuses = ["online", "idle", "dnd", "invisible"];
       const resolvedStatus = validStatuses.includes(status) ? status : "online";
       const activityTypeMap = {
-        playing: import_discord3.ActivityType.Playing,
-        watching: import_discord3.ActivityType.Watching,
-        listening: import_discord3.ActivityType.Listening,
-        competing: import_discord3.ActivityType.Competing
+        playing: import_discord4.ActivityType.Playing,
+        watching: import_discord4.ActivityType.Watching,
+        listening: import_discord4.ActivityType.Listening,
+        competing: import_discord4.ActivityType.Competing
       };
-      const activities = activityName ? [{ name: activityName, type: activityTypeMap[activityType] ?? import_discord3.ActivityType.Playing }] : [];
+      const activities = activityName ? [{ name: activityName, type: activityTypeMap[activityType] ?? import_discord4.ActivityType.Playing }] : [];
       deps.client.user.setPresence({ status: resolvedStatus, activities });
       respond(res, 200, { ok: true, status: resolvedStatus, activities });
     } catch (err) {

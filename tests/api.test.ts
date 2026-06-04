@@ -811,6 +811,321 @@ describe('control API moderation', () => {
   });
 });
 
+describe('control API channel management and discovery', () => {
+  it('denies channel listing / allowlist updates for guests', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-api-channels-'));
+    const config = createConfig({
+      daemonPort: 0,
+      discordBossUserId: '111111111111111111',
+      allowedChannelIds: [],
+    });
+    const server = startControlApi({
+      config,
+      state: createState(),
+      memory: {} as any,
+      queue: { depth: () => 0 } as any,
+      extensionDir: tmpDir,
+      client: null,
+      isShuttingDown: () => false,
+      shutdown: async () => {},
+    });
+
+    try {
+      await once(server, 'listening');
+      const port = (server.address() as AddressInfo).port;
+
+      const getRes = await fetch(`http://127.0.0.1:${port}/channels`, {
+        headers: guestHeaders(config.daemonApiToken),
+      });
+      expect(getRes.status).toBe(403);
+
+      const postRes = await fetch(`http://127.0.0.1:${port}/channel-allowlist`, {
+        method: 'POST',
+        headers: guestHeaders(config.daemonApiToken),
+        body: JSON.stringify({ action: 'add', channel_id: '444444444444444444' }),
+      });
+      expect(postRes.status).toBe(403);
+      expect(config.allowedChannelIds).toEqual([]);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('allows the boss to add and remove channels from allowed list, and persists the updates', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-api-channels-'));
+    const config = createConfig({
+      daemonPort: 0,
+      discordServerId: 'guild-1',
+      discordBossUserId: '111111111111111111',
+      allowedChannelIds: [],
+    });
+
+    const mockChannel = { guildId: config.discordServerId };
+    const mockClient = {
+      user: { id: 'bot-user', tag: 'Bot#0001' },
+      ws: { ping: 0 },
+      channels: {
+        fetch: vi.fn().mockResolvedValue(mockChannel),
+      },
+      guilds: {
+        fetch: vi.fn().mockResolvedValue({
+          channels: {
+            fetch: vi.fn().mockResolvedValue(new Map()),
+          },
+        }),
+      },
+    };
+
+    const server = startControlApi({
+      config,
+      state: createState(),
+      memory: {} as any,
+      queue: { depth: () => 0 } as any,
+      extensionDir: tmpDir,
+      client: mockClient as any,
+      isShuttingDown: () => false,
+      shutdown: async () => {},
+    });
+
+    try {
+      await once(server, 'listening');
+      const port = (server.address() as AddressInfo).port;
+
+      const postAddRes = await fetch(`http://127.0.0.1:${port}/channel-allowlist`, {
+        method: 'POST',
+        headers: bossHeaders(config.daemonApiToken),
+        body: JSON.stringify({ action: 'add', channel_id: '444444444444444444' }),
+      });
+      expect(postAddRes.status).toBe(200);
+      expect(await postAddRes.json()).toMatchObject({ ok: true, action: 'add', channel_id: '444444444444444444', count: 1 });
+      expect(config.allowedChannelIds).toEqual(['444444444444444444']);
+      expect(readManagedConfigFile(resolveRuntimePaths(tmpDir).managedConfigFile).env.DISCORD_ALLOWED_CHANNEL_IDS)
+        .toBe('444444444444444444');
+
+      const postRemoveRes = await fetch(`http://127.0.0.1:${port}/channel-allowlist`, {
+        method: 'POST',
+        headers: bossHeaders(config.daemonApiToken),
+        body: JSON.stringify({ action: 'remove', channel_id: '444444444444444444' }),
+      });
+      expect(postRemoveRes.status).toBe(200);
+      expect(await postRemoveRes.json()).toMatchObject({ ok: true, action: 'remove', channel_id: '444444444444444444', count: 0 });
+      expect(config.allowedChannelIds).toEqual([]);
+      expect(readManagedConfigFile(resolveRuntimePaths(tmpDir).managedConfigFile).env.DISCORD_ALLOWED_CHANNEL_IDS)
+        .toBeUndefined();
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('/channel-allowlist add does not persist when channel fetch fails', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-api-channels-'));
+    const config = createConfig({
+      daemonPort: 0,
+      discordServerId: 'guild-1',
+      discordBossUserId: '111111111111111111',
+      allowedChannelIds: [],
+    });
+
+    const mockClient = {
+      user: { id: 'bot-user', tag: 'Bot#0001' },
+      ws: { ping: 0 },
+      channels: {
+        fetch: vi.fn().mockRejectedValue(new Error('lookup failed')),
+      },
+    };
+
+    const server = startControlApi({
+      config,
+      state: createState(),
+      memory: {} as any,
+      queue: { depth: () => 0 } as any,
+      extensionDir: tmpDir,
+      client: mockClient as any,
+      isShuttingDown: () => false,
+      shutdown: async () => {},
+    });
+
+    try {
+      await once(server, 'listening');
+      const port = (server.address() as AddressInfo).port;
+
+      const response = await fetch(`http://127.0.0.1:${port}/channel-allowlist`, {
+        method: 'POST',
+        headers: bossHeaders(config.daemonApiToken),
+        body: JSON.stringify({ action: 'add', channel_id: '444444444444444444' }),
+      });
+
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({
+        error: expect.stringContaining('Cannot verify channel belongs to the configured server'),
+      });
+      expect(config.allowedChannelIds).toEqual([]);
+      expect(readManagedConfigFile(resolveRuntimePaths(tmpDir).managedConfigFile).env.DISCORD_ALLOWED_CHANNEL_IDS)
+        .toBeUndefined();
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('/channel-allowlist add rejects a channel outside the configured server', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-api-channels-'));
+    const config = createConfig({
+      daemonPort: 0,
+      discordServerId: 'guild-1',
+      discordBossUserId: '111111111111111111',
+      allowedChannelIds: [],
+    });
+
+    const mockClient = {
+      user: { id: 'bot-user', tag: 'Bot#0001' },
+      ws: { ping: 0 },
+      channels: {
+        fetch: vi.fn().mockResolvedValue({ guildId: 'other-guild' }),
+      },
+    };
+
+    const server = startControlApi({
+      config,
+      state: createState(),
+      memory: {} as any,
+      queue: { depth: () => 0 } as any,
+      extensionDir: tmpDir,
+      client: mockClient as any,
+      isShuttingDown: () => false,
+      shutdown: async () => {},
+    });
+
+    try {
+      await once(server, 'listening');
+      const port = (server.address() as AddressInfo).port;
+
+      const response = await fetch(`http://127.0.0.1:${port}/channel-allowlist`, {
+        method: 'POST',
+        headers: bossHeaders(config.daemonApiToken),
+        body: JSON.stringify({ action: 'add', channel_id: '444444444444444444' }),
+      });
+
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({
+        error: expect.stringContaining('not in the configured Discord server'),
+      });
+      expect(config.allowedChannelIds).toEqual([]);
+      expect(readManagedConfigFile(resolveRuntimePaths(tmpDir).managedConfigFile).env.DISCORD_ALLOWED_CHANNEL_IDS)
+        .toBeUndefined();
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('allows fetching all channels in the guild when all=true', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-api-channels-'));
+    const config = createConfig({
+      daemonPort: 0,
+      discordServerId: 'guild-1',
+      discordBossUserId: '111111111111111111',
+    });
+
+    const mockChannels = new Map([
+      ['111', { type: 0, name: 'general' }],
+      ['222', { type: 5, name: 'news' }],
+      ['333', { type: 15, name: 'forum' }],
+      ['444', { type: 2, name: 'voice' }],
+    ]);
+
+    const mockClient = {
+      user: { id: 'bot-user', tag: 'Bot#0001' },
+      ws: { ping: 0 },
+      guilds: {
+        fetch: vi.fn().mockResolvedValue({
+          channels: {
+            fetch: vi.fn().mockResolvedValue(mockChannels),
+          },
+        }),
+      },
+    };
+
+    const server = startControlApi({
+      config,
+      state: createState(),
+      memory: {} as any,
+      queue: { depth: () => 0 } as any,
+      extensionDir: tmpDir,
+      client: mockClient as any,
+      isShuttingDown: () => false,
+      shutdown: async () => {},
+    });
+
+    try {
+      await once(server, 'listening');
+      const port = (server.address() as AddressInfo).port;
+
+      const response = await fetch(`http://127.0.0.1:${port}/channels?all=true`, {
+        headers: bossHeaders(config.daemonApiToken),
+      });
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.channels).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: '111', name: 'general', type: 'text' }),
+        expect.objectContaining({ id: '222', name: 'news', type: 'announcement' }),
+        expect.objectContaining({ id: '333', name: 'forum', type: 'forum' }),
+      ]));
+      expect(body.channels.find((c: any) => c.id === '444')).toBeUndefined();
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('/channels?all=true reports discovery failure instead of returning empty success', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-api-channels-'));
+    const config = createConfig({
+      daemonPort: 0,
+      discordServerId: 'guild-1',
+      discordBossUserId: '111111111111111111',
+    });
+
+    const mockClient = {
+      user: { id: 'bot-user', tag: 'Bot#0001' },
+      ws: { ping: 0 },
+      guilds: {
+        fetch: vi.fn().mockRejectedValue(new Error('missing permissions')),
+      },
+    };
+
+    const server = startControlApi({
+      config,
+      state: createState(),
+      memory: {} as any,
+      queue: { depth: () => 0 } as any,
+      extensionDir: tmpDir,
+      client: mockClient as any,
+      isShuttingDown: () => false,
+      shutdown: async () => {},
+    });
+
+    try {
+      await once(server, 'listening');
+      const port = (server.address() as AddressInfo).port;
+
+      const response = await fetch(`http://127.0.0.1:${port}/channels?all=true`, {
+        headers: bossHeaders(config.daemonApiToken),
+      });
+
+      expect(response.status).toBe(502);
+      expect(await response.json()).toMatchObject({
+        error: expect.stringContaining('Channel discovery failed: missing permissions'),
+      });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
 function createState(bridgeAdminUserId: string | null = 'bot-user'): DaemonState {
   return {
     status: 'ready',

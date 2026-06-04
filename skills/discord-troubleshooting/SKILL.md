@@ -70,3 +70,13 @@ Execute this loop:
 2. Set a 5-second timer or reminder, then read the trailing 50 lines of `.gemini-discord/daemon.log`.
 3. Check if the log shows `Discord bot connected` or `Daemon ready`.
 4. If it still fails with a fatal gateway code or port error, identify the new failure and repeat the diagnostic/resolution flow. Do not stop until the connection successfully establishes or is blocked awaiting user portal updates.
+
+### 6. Resolve Missing Channels (Channel Discovery and Allowance)
+
+If the user wants you to post, monitor, or perform actions in a channel, but that channel is not visible to you (e.g. not listed in `discord_admin` status or `channels` discovery output):
+- **Root Cause**: The channel may have been created after the onboarding setup was completed, meaning it is not present in the static allowlist `DISCORD_ALLOWED_CHANNEL_IDS`.
+- **Resolution Flow**:
+  1. Discover all channels in the Discord server (bypassing the allowlist filter) by running `discord_admin` with action `channels` and `all: true`.
+  2. Find the target channel in the returned list, and copy its numeric Discord ID.
+  3. Run `discord_admin` with action `channel_allowlist_add` and `channel_id: "<id>"` using the copied channel ID.
+  4. The channel map will be rebuilt immediately, allowing you to access and route messages to/from that channel.
