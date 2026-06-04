@@ -89937,6 +89937,10 @@ async function handleDiscoveryRoutes(req, res, url, deps) {
           }
         }
       } catch (err) {
+        respond(res, 502, {
+          error: `Channel discovery failed: ${err instanceof Error ? err.message : String(err)}`
+        });
+        return true;
       }
     } else {
       channelsList = getChannelMapEntries().map(([name, { id }]) => ({ id, name, type: "text" }));
@@ -90505,11 +90509,15 @@ async function handleModerationRoutes(req, res, pathname, parsed, deps) {
     if (action === "add" && deps.client && config.discordServerId) {
       try {
         const channel = await deps.client.channels.fetch(channelId);
-        if (!channel || "guildId" in channel && channel.guildId !== config.discordServerId) {
+        if (!channel || !("guildId" in channel) || channel.guildId !== config.discordServerId) {
           respond(res, 400, { error: "Refusing to allowlist a channel that is not in the configured Discord server." });
           return true;
         }
-      } catch {
+      } catch (err) {
+        respond(res, 400, {
+          error: `Cannot verify channel belongs to the configured server: ${err instanceof Error ? err.message : String(err)}`
+        });
+        return true;
       }
     }
     const current = new Set(config.allowedChannelIds);

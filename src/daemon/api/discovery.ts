@@ -78,7 +78,10 @@ export async function handleDiscoveryRoutes(
           }
         }
       } catch (err) {
-        // Fail gracefully
+        respond(res, 502, {
+          error: `Channel discovery failed: ${err instanceof Error ? err.message : String(err)}`,
+        });
+        return true;
       }
     } else {
       channelsList = getChannelMapEntries().map(([name, { id }]) => ({ id, name, type: 'text' }));

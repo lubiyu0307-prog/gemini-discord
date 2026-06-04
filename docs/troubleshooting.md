@@ -6,6 +6,20 @@ Use this page when `gemini-discord` does not come online after setup.
 
 Check `.gemini-discord/daemon.log` in the extension installation directory.
 
+## Channel Discovery and Allowlist
+
+The daemon can discover text, announcement, and forum channels in the configured Discord server. The channel allowlist controls where the bot is allowed to read and respond, so adding a channel now requires the daemon to verify that the channel belongs to the configured server.
+
+Use this flow when the bot is online but does not respond in the expected channel:
+
+1. Confirm `DISCORD_SERVER_ID` is set for the server where the bot is installed.
+2. Call the control API `GET /channels?all=true` with boss credentials to list available channels.
+3. Find the intended channel ID in the response.
+4. Call `POST /channel-allowlist` with `{"action":"add","channel_id":"<channel id>"}` to allow the bot to operate there.
+5. To remove a channel, call `POST /channel-allowlist` with `{"action":"remove","channel_id":"<channel id>"}`.
+
+If `GET /channels?all=true` returns a channel discovery error, check that the bot is still in the server and has permission to view channels. If adding to `/channel-allowlist` fails, verify that the channel ID came from the same configured Discord server; IDs from other servers or channels the bot cannot verify are rejected.
+
 ## Port Conflicts
 
 The daemon treats `DAEMON_PORT` as a preferred port, not a hard requirement. If the configured port is already occupied, it tries subsequent ports and records the active port in `.gemini-discord/daemon.port` so MCP tools can reconnect automatically.

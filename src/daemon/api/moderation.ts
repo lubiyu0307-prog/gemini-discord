@@ -115,12 +115,15 @@ export async function handleModerationRoutes(
     if (action === 'add' && deps.client && config.discordServerId) {
       try {
         const channel = await deps.client.channels.fetch(channelId);
-        if (!channel || ('guildId' in channel && channel.guildId !== config.discordServerId)) {
+        if (!channel || !('guildId' in channel) || channel.guildId !== config.discordServerId) {
           respond(res, 400, { error: 'Refusing to allowlist a channel that is not in the configured Discord server.' });
           return true;
         }
-      } catch {
-        // If discovery cannot confirm membership, still allow adding the ID.
+      } catch (err) {
+        respond(res, 400, {
+          error: `Cannot verify channel belongs to the configured server: ${err instanceof Error ? err.message : String(err)}`,
+        });
+        return true;
       }
     }
 
