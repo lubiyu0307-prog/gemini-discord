@@ -27,5 +27,8 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify generated dist is current
+        run: git diff --exit-code -- dist/server.cjs dist/daemon.cjs dist/setup.cjs dist/install-service.cjs
+
       - name: Test
         run: npm test

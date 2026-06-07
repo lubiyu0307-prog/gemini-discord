@@ -21442,7 +21442,7 @@ function loadConfig(extensionDir2) {
     enableGuests: parseBoolean(get(ENV.DISCORD_ENABLE_GUESTS), false),
     enableServerMembersIntent: parseBoolean(get(ENV.DISCORD_ENABLE_SERVER_MEMBERS_INTENT, "true"), true),
     requireMention: parseBoolean(get(ENV.REQUIRE_MENTION, "true"), true),
-    respondToReplies: parseBoolean(get(ENV.RESPOND_TO_REPLIES, "true"), true),
+    respondToReplies: parseBoolean(get(ENV.RESPOND_TO_REPLIES, "false"), false),
     memoryScope: parseMemoryScope(get(ENV.MEMORY_SCOPE, "channel")),
     autoStartDaemon: parseBoolean(get(ENV.AUTO_START_DAEMON, "true"), true),
     useGeminiCliSessions: parseBoolean(get(ENV.USE_GEMINI_CLI_SESSIONS, "true"), true),
@@ -22378,6 +22378,9 @@ ${retryMessage}` : ""}` }]
           if (!task) {
             return text("\u274C Error: task is required for workflow.", true);
           }
+          if (!channel_id?.trim()) {
+            return text("\u274C Error: channel_id is required for workflow.", true);
+          }
           let normalizedTask;
           try {
             normalizedTask = validateWorkflowTaskSummary(task);
@@ -22388,7 +22391,7 @@ ${retryMessage}` : ""}` }]
           const body = {
             task: normalizedTask,
             creator_user_id: config3.discordBossUserId,
-            source_channel_id: channel_id || config3.discordChannelId
+            source_channel_id: channel_id.trim()
           };
           const res = await daemonRequest({ method: "POST", path: "/workflow", config: config3, body });
           if (!res.ok) {

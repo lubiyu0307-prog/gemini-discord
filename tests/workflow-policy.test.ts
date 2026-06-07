@@ -22,11 +22,17 @@ describe('Workflow Thread Policy & Interception', () => {
       expect(isExplicitSendToCurrentThread('reply back with chapter 1183')).toBe(false);
     });
 
-    it('allows explicit requests containing send, post, or publish', () => {
+    it('does not treat generic writing or delivery words as Discord send intent', () => {
+      expect(isExplicitSendToCurrentThread('write a blog post about the release')).toBe(false);
+      expect(isExplicitSendToCurrentThread('draft a postmortem and send me the summary')).toBe(false);
+      expect(isExplicitSendToCurrentThread('publish the package after tests pass')).toBe(false);
+    });
+
+    it('allows explicit Discord publishing requests', () => {
       expect(isExplicitSendToCurrentThread('send a message to #updates')).toBe(true);
       expect(isExplicitSendToCurrentThread('post that here')).toBe(true);
       expect(isExplicitSendToCurrentThread('publish to Discord')).toBe(true);
-      expect(isExplicitSendToCurrentThread('send hello')).toBe(true);
+      expect(isExplicitSendToCurrentThread('send hello here')).toBe(true);
     });
   });
 

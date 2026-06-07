@@ -50,7 +50,7 @@ These are auto-derived from the core settings above unless explicitly overridden
 | `QUEUE_MAX_DEPTH` | `20` | Maximum number of tasks that can be queued per conversation. |
 | `ENABLE_DMS` | `true` | Whether the bot should respond to Direct Messages. |
 | `REQUIRE_MENTION` | `true` | If true, the bot only responds in servers when explicitly mentioned. |
-| `RESPOND_TO_REPLIES` | `true` | Whether the bot should respond to direct replies to its messages. |
+| `RESPOND_TO_REPLIES` | `false` | Whether the bot should respond to direct replies to its messages in servers. |
 | `MEMORY_SCOPE` | `channel` | Isolation level for Discord memory. Use `channel` for separate channel/DM transcripts or `global` for one shared transcript. Invalid values fall back to `channel`. |
 | `AUTO_START_DAEMON` | `true` | Automatically start the Discord daemon when the MCP server is initialized. |
 | `USE_GEMINI_CLI_SESSIONS` | `true` | Use native Gemini CLI session management. |

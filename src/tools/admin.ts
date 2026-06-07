@@ -374,6 +374,9 @@ export function registerAdminTool(server: McpServer, config: Config): void {
           if (!task) {
             return text('❌ Error: task is required for workflow.', true);
           }
+          if (!channel_id?.trim()) {
+            return text('❌ Error: channel_id is required for workflow.', true);
+          }
           let normalizedTask: string;
           try {
             normalizedTask = validateWorkflowTaskSummary(task);
@@ -384,7 +387,7 @@ export function registerAdminTool(server: McpServer, config: Config): void {
           const body: Record<string, unknown> = {
             task: normalizedTask,
             creator_user_id: config.discordBossUserId,
-            source_channel_id: channel_id || config.discordChannelId,
+            source_channel_id: channel_id.trim(),
           };
           const res = await daemonRequest({ method: 'POST', path: '/workflow', config, body });
 

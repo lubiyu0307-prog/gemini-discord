@@ -297,6 +297,17 @@ describe('loadConfig', () => {
     }
   });
 
+  it('does not treat replies as server triggers by default', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-replies-'));
+    try {
+      fs.writeFileSync(path.join(tmpDir, '.env'), 'DISCORD_BOT_TOKEN=token\n');
+      const config = loadConfig(tmpDir);
+      expect(config.respondToReplies).toBe(false);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('loads Gemini CLI auth env for child processes without blank values', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-auth-'));
     try {

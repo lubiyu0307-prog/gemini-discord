@@ -214,6 +214,67 @@ describe('control API Discord role gates', () => {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it.each([
+    ['/react', { channel_id: 'blocked-channel', message_id: 'message-1', emoji: '👍' }],
+    ['/unreact', { channel_id: 'blocked-channel', message_id: 'message-1', emoji: '👍' }],
+    ['/edit', { channel_id: 'blocked-channel', message_id: 'message-1', content: 'edited' }],
+    ['/delete', { channel_id: 'blocked-channel', message_id: 'message-1' }],
+    ['/pin', { channel_id: 'blocked-channel', message_id: 'message-1' }],
+    ['/unpin', { channel_id: 'blocked-channel', message_id: 'message-1' }],
+  ])('rejects %s outside writable targets before touching messages', async (route, body) => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-api-targets-'));
+    const messageFetch = vi.fn();
+    const config = createConfig({
+      daemonPort: 0,
+      discordServerId: 'guild-1',
+      discordBossUserId: '111111111111111111',
+      allowedChannelIds: ['allowed-channel'],
+    });
+    const blockedChannel = {
+      id: 'blocked-channel',
+      guildId: 'guild-1',
+      isTextBased: () => true,
+      isDMBased: () => false,
+      send: vi.fn(),
+      messages: { fetch: messageFetch },
+    };
+    const client = {
+      user: { id: 'bot-user', tag: 'Bot#0001' },
+      channels: {
+        fetch: vi.fn().mockResolvedValue(blockedChannel),
+      },
+    };
+    const server = startControlApi({
+      config,
+      state: createState(),
+      memory: { add: vi.fn() } as any,
+      queue: { depth: () => 0 } as any,
+      extensionDir: tmpDir,
+      client: client as any,
+      isShuttingDown: () => false,
+      shutdown: async () => {},
+    });
+
+    try {
+      await once(server, 'listening');
+      const port = (server.address() as AddressInfo).port;
+      const response = await fetch(`http://127.0.0.1:${port}${route}`, {
+        method: 'POST',
+        headers: bossHeaders(config.daemonApiToken),
+        body: JSON.stringify(body),
+      });
+
+      expect(response.status).toBe(403);
+      expect(await response.json()).toMatchObject({
+        error: expect.stringContaining('not allowed'),
+      });
+      expect(messageFetch).not.toHaveBeenCalled();
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('control API user discovery', () => {
@@ -804,6 +865,55 @@ describe('control API moderation', () => {
         error: expect.stringContaining('stable numeric Discord user ID'),
       });
       expect(kick).not.toHaveBeenCalled();
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects moderation outside the configured guild before touching Discord', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-api-moderation-guild-'));
+    const client = {
+      user: { id: 'bot-user', tag: 'Bot#0001' },
+      ws: { ping: 0 },
+      guilds: {
+        fetch: vi.fn(),
+      },
+    };
+    const config = createConfig({
+      daemonPort: 0,
+      discordServerId: 'guild-1',
+      discordBossUserId: '111111111111111111',
+    });
+    const server = startControlApi({
+      config,
+      state: createState(),
+      memory: {} as any,
+      queue: { depth: () => 0 } as any,
+      extensionDir: tmpDir,
+      client: client as any,
+      isShuttingDown: () => false,
+      shutdown: async () => {},
+    });
+
+    try {
+      await once(server, 'listening');
+      const port = (server.address() as AddressInfo).port;
+      const response = await fetch(`http://127.0.0.1:${port}/moderation`, {
+        method: 'POST',
+        headers: bossHeaders(config.daemonApiToken),
+        body: JSON.stringify({
+          action: 'kick',
+          user_id: '222222222222222222',
+          guild_id: 'other-guild',
+        }),
+      });
+
+      expect(response.status).toBe(403);
+      expect(await response.json()).toMatchObject({
+        error: expect.stringContaining('not allowed for moderation'),
+      });
+      expect(client.guilds.fetch).not.toHaveBeenCalled();
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
       fs.rmSync(tmpDir, { recursive: true, force: true });

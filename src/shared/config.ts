@@ -256,7 +256,7 @@ export function loadConfig(extensionDir: string): Config {
     enableGuests: parseBoolean(get(ENV.DISCORD_ENABLE_GUESTS), false),
     enableServerMembersIntent: parseBoolean(get(ENV.DISCORD_ENABLE_SERVER_MEMBERS_INTENT, 'true'), true),
     requireMention: parseBoolean(get(ENV.REQUIRE_MENTION, 'true'), true),
-    respondToReplies: parseBoolean(get(ENV.RESPOND_TO_REPLIES, 'true'), true),
+    respondToReplies: parseBoolean(get(ENV.RESPOND_TO_REPLIES, 'false'), false),
     memoryScope: parseMemoryScope(get(ENV.MEMORY_SCOPE, 'channel')),
     autoStartDaemon: parseBoolean(get(ENV.AUTO_START_DAEMON, 'true'), true),
     useGeminiCliSessions: parseBoolean(get(ENV.USE_GEMINI_CLI_SESSIONS, 'true'), true),

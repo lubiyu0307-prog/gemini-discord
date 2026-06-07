@@ -30,7 +30,7 @@ export function createConfig(overrides: Partial<Config> = {}): Config {
     enableGuests: false,
     enableServerMembersIntent: true,
     requireMention: false,
-    respondToReplies: true,
+    respondToReplies: false,
     memoryScope: 'channel',
     autoStartDaemon: true,
     useGeminiCliSessions: true,

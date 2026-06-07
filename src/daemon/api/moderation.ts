@@ -175,6 +175,10 @@ export async function handleModerationRoutes(
       respond(res, 400, { error: 'guild_id is required because no Discord server is configured' });
       return true;
     }
+    if (config.discordServerId && guildId !== config.discordServerId) {
+      respond(res, 403, { error: `Guild ${guildId} is not allowed for moderation` });
+      return true;
+    }
     if (userId === deps.client?.user?.id) {
       respond(res, 400, { error: 'Refusing to moderate the bot user' });
       return true;

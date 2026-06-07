@@ -22,12 +22,13 @@ export function isExplicitSendToCurrentThread(userContent: string): boolean {
     return false;
   }
 
-  // Check for explicit Discord publishing commands/actions:
-  // "send a message", "post a message", "publish to", "post that", etc.
-  // But also look for keywords "send", "post", "publish" in general.
-  return (
-    normalized.includes('send') ||
-    normalized.includes('post') ||
-    normalized.includes('publish')
-  );
+  const explicitDiscordSendPatterns = [
+    /\b(?:send|post|publish)\s+(?:a\s+)?(?:discord\s+)?(?:message|reply|update)\b/,
+    /\b(?:send|post|publish)\b.*\b(?:to|in|on)\s+(?:discord|this\s+thread|this\s+channel|here|#\w[\w-]*)\b/,
+    /\b(?:send|post)\s+(?:it|that|this)\s+(?:here|to\s+discord|in\s+this\s+thread|in\s+this\s+channel)\b/,
+    /\b(?:send|post)\s+(?!me\b).+\bhere\b/,
+    /\breply\s+(?:in|to)\s+(?:this\s+thread|this\s+channel|discord)\b/,
+  ];
+
+  return explicitDiscordSendPatterns.some((pattern) => pattern.test(normalized));
 }

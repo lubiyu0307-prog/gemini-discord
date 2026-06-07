@@ -192,6 +192,32 @@ describe('shouldAcceptMessage', () => {
     });
   });
 
+  it('does not accept server replies as mention triggers unless opted in', () => {
+    const config: Config = {
+      ...baseConfig,
+      requireMention: true,
+      respondToReplies: false,
+    };
+
+    expect(route({
+      authorId: 'owner-1',
+      repliedToBot: true,
+      replyToMessageId: 'bot-message-1',
+    }, config)).toMatchObject({
+      accept: false,
+      trackOnly: true,
+    });
+
+    expect(route({
+      authorId: 'owner-1',
+      repliedToBot: true,
+      replyToMessageId: 'bot-message-1',
+    }, { ...config, respondToReplies: true })).toMatchObject({
+      accept: true,
+      trigger: 'reply',
+    });
+  });
+
   it('accepts a bare bot mention so the agent can answer from immediate context', () => {
     expect(route({ authorId: 'owner-1', mentionedBot: true, content: '<@bot1>' })).toMatchObject({
       accept: true,

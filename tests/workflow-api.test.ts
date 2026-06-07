@@ -108,7 +108,125 @@ describe('Workflow API', () => {
         creatorUserId: '111111111111111111',
         sourceChannelId: 'channel-1',
         sourceMessageId: undefined,
+        roleContext: expect.objectContaining({
+          role: 'BOSS',
+          senderDiscordId: '111111111111111111',
+        }),
       });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects forged workflow creator ids before creating a thread', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-workflow-api-forged-'));
+    const config = createConfig({
+      daemonPort: 0,
+      discordBossUserId: '111111111111111111',
+      discordChannelId: 'channel-1',
+      discordServerId: 'guild-1',
+    });
+
+    const client = {
+      channels: {
+        fetch: vi.fn(),
+      },
+    };
+    const enqueueWorkflowRun = vi.fn().mockReturnValue(true);
+    runtimeStore.enqueueWorkflowRun = enqueueWorkflowRun;
+
+    const server = startControlApi({
+      config,
+      state: { status: 'ready' } as any,
+      memory: {} as any,
+      queue: { depth: () => 0 } as any,
+      extensionDir: tmpDir,
+      client: client as any,
+      isShuttingDown: () => false,
+      shutdown: async () => {},
+    });
+
+    try {
+      await once(server, 'listening');
+      const port = (server.address() as AddressInfo).port;
+
+      const response = await fetch(`http://127.0.0.1:${port}/workflow`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.daemonApiToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          task: 'Fix the job',
+          creator_user_id: '222222222222222222',
+          source_channel_id: 'channel-1',
+        }),
+      });
+
+      expect(response.status).toBe(403);
+      expect(await response.json()).toMatchObject({
+        error: expect.stringContaining('creator_user_id'),
+      });
+      expect(client.channels.fetch).not.toHaveBeenCalled();
+      expect(enqueueWorkflowRun).not.toHaveBeenCalled();
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('denies guest workflow creation even with a forged boss creator id', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-workflow-api-guest-'));
+    const config = createConfig({
+      daemonPort: 0,
+      discordBossUserId: '111111111111111111',
+      discordChannelId: 'channel-1',
+      discordServerId: 'guild-1',
+    });
+
+    const client = {
+      channels: {
+        fetch: vi.fn(),
+      },
+    };
+    const enqueueWorkflowRun = vi.fn().mockReturnValue(true);
+    runtimeStore.enqueueWorkflowRun = enqueueWorkflowRun;
+
+    const server = startControlApi({
+      config,
+      state: { status: 'ready' } as any,
+      memory: {} as any,
+      queue: { depth: () => 0 } as any,
+      extensionDir: tmpDir,
+      client: client as any,
+      isShuttingDown: () => false,
+      shutdown: async () => {},
+    });
+
+    try {
+      await once(server, 'listening');
+      const port = (server.address() as AddressInfo).port;
+
+      const response = await fetch(`http://127.0.0.1:${port}/workflow`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.daemonApiToken}`,
+          'Content-Type': 'application/json',
+          'X-Gemini-Discord-Role': 'GUEST',
+          'X-Gemini-Discord-Sender-Id': '222222222222222222',
+          'X-Gemini-Discord-Sender-Label': 'Guest#0001',
+        },
+        body: JSON.stringify({
+          task: 'Fix the job',
+          creator_user_id: '111111111111111111',
+          source_channel_id: 'channel-1',
+        }),
+      });
+
+      expect(response.status).toBe(403);
+      expect(client.channels.fetch).not.toHaveBeenCalled();
+      expect(enqueueWorkflowRun).not.toHaveBeenCalled();
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
       fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -234,6 +352,7 @@ describe('Admin Tool Workflow Action', () => {
     const result = await handler({
       action: 'workflow',
       task: 'Tool task',
+      channel_id: 'channel-1',
     });
 
     expect(daemonRequest).toHaveBeenCalledWith({
@@ -268,10 +387,35 @@ describe('Admin Tool Workflow Action', () => {
     const result = await handler({
       action: 'workflow',
       task: 'job',
+      channel_id: 'channel-1',
     });
 
     expect(daemonRequest).not.toHaveBeenCalled();
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain('too vague');
+  });
+
+  it('requires an explicit channel for admin workflow creation', async () => {
+    const config = createConfig({
+      discordBossUserId: '111111111111111111',
+      discordChannelId: 'channel-1',
+    });
+
+    let handler: any;
+    const server = new McpServer({ name: 'test', version: '1.0.0' });
+    (vi.spyOn(server, 'tool') as any).mockImplementation((name: string, desc: string, schema: unknown, h: unknown) => {
+      if (name === 'discord_admin') handler = h;
+    });
+
+    registerAdminTool(server, config);
+
+    const result = await handler({
+      action: 'workflow',
+      task: 'Tool task',
+    });
+
+    expect(daemonRequest).not.toHaveBeenCalled();
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('channel_id is required');
   });
 });

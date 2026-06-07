@@ -472,7 +472,7 @@ function loadConfig(extensionDir2) {
     enableGuests: parseBoolean(get(ENV.DISCORD_ENABLE_GUESTS), false),
     enableServerMembersIntent: parseBoolean(get(ENV.DISCORD_ENABLE_SERVER_MEMBERS_INTENT, "true"), true),
     requireMention: parseBoolean(get(ENV.REQUIRE_MENTION, "true"), true),
-    respondToReplies: parseBoolean(get(ENV.RESPOND_TO_REPLIES, "true"), true),
+    respondToReplies: parseBoolean(get(ENV.RESPOND_TO_REPLIES, "false"), false),
     memoryScope: parseMemoryScope(get(ENV.MEMORY_SCOPE, "channel")),
     autoStartDaemon: parseBoolean(get(ENV.AUTO_START_DAEMON, "true"), true),
     useGeminiCliSessions: parseBoolean(get(ENV.USE_GEMINI_CLI_SESSIONS, "true"), true),
@@ -87862,7 +87862,14 @@ function isExplicitSendToCurrentThread(userContent) {
   if (normalized.includes("reply with") || normalized.includes("reply only") || normalized.includes("reply with only") || normalized.includes("reply to this with") || normalized.includes("reply back")) {
     return false;
   }
-  return normalized.includes("send") || normalized.includes("post") || normalized.includes("publish");
+  const explicitDiscordSendPatterns = [
+    /\b(?:send|post|publish)\s+(?:a\s+)?(?:discord\s+)?(?:message|reply|update)\b/,
+    /\b(?:send|post|publish)\b.*\b(?:to|in|on)\s+(?:discord|this\s+thread|this\s+channel|here|#\w[\w-]*)\b/,
+    /\b(?:send|post)\s+(?:it|that|this)\s+(?:here|to\s+discord|in\s+this\s+thread|in\s+this\s+channel)\b/,
+    /\b(?:send|post)\s+(?!me\b).+\bhere\b/,
+    /\breply\s+(?:in|to)\s+(?:this\s+thread|this\s+channel|discord)\b/
+  ];
+  return explicitDiscordSendPatterns.some((pattern) => pattern.test(normalized));
 }
 var init_policy = __esm({
   "src/daemon/workflow/policy.ts"() {
@@ -93373,10 +93380,22 @@ init_mention_safety();
 init_channels();
 init_log();
 init_runtime();
+init_permissions();
 init_task_validation();
 init_thread_manifest();
 init_policy();
 init_api_utils();
+function ensureWritableTarget(res, channelId, channel, config, action) {
+  if (!channel) {
+    respond(res, 400, { error: "Channel is not text-based" });
+    return false;
+  }
+  if (!isWritableTarget(channelId, channel, config)) {
+    respond(res, 403, { error: `Channel ${channelId} is not allowed for ${action}`, channel_id: channelId });
+    return false;
+  }
+  return true;
+}
 async function handleMessageRoutes(req, res, pathname, parsed, deps) {
   const { config, memory, extensionDir: extensionDir2 } = deps;
   if (pathname === "/send") {
@@ -93568,10 +93587,7 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
         return true;
       }
       const channel = await fetchTextChannel(deps.client, channelId);
-      if (!channel) {
-        respond(res, 400, { error: "Channel is not text-based" });
-        return true;
-      }
+      if (!ensureWritableTarget(res, channelId, channel, config, "reactions")) return true;
       const msg = await channel.messages.fetch(messageId);
       await msg.react(emoji);
       respond(res, 200, { ok: true });
@@ -93595,10 +93611,7 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
         return true;
       }
       const channel = await fetchTextChannel(deps.client, channelId);
-      if (!channel) {
-        respond(res, 400, { error: "Channel is not text-based" });
-        return true;
-      }
+      if (!ensureWritableTarget(res, channelId, channel, config, "reaction removal")) return true;
       const msg = await channel.messages.fetch(messageId);
       if (emoji) {
         const reaction = msg.reactions.cache.find(
@@ -93633,10 +93646,7 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
         return true;
       }
       const channel = await fetchTextChannel(deps.client, channelId);
-      if (!channel) {
-        respond(res, 400, { error: "Channel is not text-based" });
-        return true;
-      }
+      if (!ensureWritableTarget(res, channelId, channel, config, "message edits")) return true;
       const msg = await channel.messages.fetch(messageId);
       if (msg.author.id !== deps.client.user?.id) {
         respond(res, 403, { error: "Can only edit own messages" });
@@ -93663,10 +93673,7 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
         return true;
       }
       const channel = await fetchTextChannel(deps.client, channelId);
-      if (!channel) {
-        respond(res, 400, { error: "Channel is not text-based" });
-        return true;
-      }
+      if (!ensureWritableTarget(res, channelId, channel, config, "message deletion")) return true;
       const msg = await channel.messages.fetch(messageId);
       if (msg.author.id !== deps.client.user?.id) {
         respond(res, 403, { error: "Can only delete own messages" });
@@ -93693,10 +93700,7 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
         return true;
       }
       const channel = await fetchTextChannel(deps.client, channelId);
-      if (!channel) {
-        respond(res, 400, { error: "Channel is not text-based" });
-        return true;
-      }
+      if (!ensureWritableTarget(res, channelId, channel, config, "pinning")) return true;
       const msg = await channel.messages.fetch(messageId);
       await msg.pin();
       respond(res, 200, { ok: true });
@@ -93719,10 +93723,7 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
         return true;
       }
       const channel = await fetchTextChannel(deps.client, channelId);
-      if (!channel) {
-        respond(res, 400, { error: "Channel is not text-based" });
-        return true;
-      }
+      if (!ensureWritableTarget(res, channelId, channel, config, "unpinning")) return true;
       const msg = await channel.messages.fetch(messageId);
       await msg.unpin();
       respond(res, 200, { ok: true });
@@ -93785,8 +93786,16 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
       respond(res, 400, { error: "task, creator_user_id, and source_channel_id are required" });
       return true;
     }
+    if (creatorUserId !== config.discordBossUserId) {
+      respond(res, 403, { error: "creator_user_id must match the configured DISCORD_BOSS_USER_ID" });
+      return true;
+    }
     try {
       task = validateWorkflowTaskSummary(task);
+      const roleContext = resolveDiscordRole(config, {
+        discordUserId: config.discordBossUserId,
+        displayLabel: "local-control-api"
+      });
       if (!runtimeStore.enqueueWorkflowRun) {
         respond(res, 503, { error: "Workflow runner is not ready. Try again after the Discord gateway is ready." });
         return true;
@@ -93813,7 +93822,8 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
         task,
         creatorUserId,
         sourceChannelId,
-        sourceMessageId
+        sourceMessageId,
+        roleContext
       });
       if (!started) {
         respond(res, 429, { error: "Workflow thread was created but the processing queue is full. Retry inside the thread.", threadId, task });
@@ -94049,6 +94059,10 @@ async function handleModerationRoutes(req, res, pathname, parsed, deps) {
     }
     if (!guildId) {
       respond(res, 400, { error: "guild_id is required because no Discord server is configured" });
+      return true;
+    }
+    if (config.discordServerId && guildId !== config.discordServerId) {
+      respond(res, 403, { error: `Guild ${guildId} is not allowed for moderation` });
       return true;
     }
     if (userId === deps.client?.user?.id) {
