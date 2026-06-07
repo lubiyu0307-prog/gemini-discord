@@ -1,7 +1,7 @@
 {
   "name": "gemini-discord",
-  "version": "0.1.0",
-  "description": "Bring your local Gemini CLI agent into Discord as a persistent operational control surface.",
+  "version": "0.1.1",
+  "description": "Discord bridge for Gemini CLI / ACP agent workflows",
   "settings": [
     {
       "name": "Discord Bot Token",

@@ -28,6 +28,7 @@ import {
 } from './permissions.js';
 import { createWorkflowThread } from './workflow/thread-creator.js';
 import { validateWorkflowTaskSummary, WorkflowTaskValidationError } from './workflow/task-validation.js';
+import { buildGeminiProcessEnv } from './cli-pool.js';
 import { SUPPRESS_DISCORD_MENTIONS } from './mention-safety.js';
 
 export interface WorkflowThreadCreatedEvent {
@@ -326,7 +327,7 @@ export function setupInteractionHandler(
 
       try {
         // Validate with a ping
-        const isValid = await validateModel(config.geminiPath, newModel);
+        const isValid = await validateModel(config, newModel);
         if (!isValid) {
           throw new Error(`Model \`${newModel}\` failed validation check.`);
         }
@@ -341,7 +342,7 @@ export function setupInteractionHandler(
 Confirmation: Gemini CLI verified connectivity.`);
       } catch (error) {
         log.error('Model switch failed', { error: error instanceof Error ? error.message : String(error) });
-        await interaction.editReply(`**Model switch failed.** 
+        await interaction.editReply(`**Model switch failed.**
 Error: \`${error instanceof Error ? error.message : String(error)}\`
 Action: Reverted to \`${oldModel}\`.`);
       }
@@ -423,11 +424,11 @@ async function handleAutocomplete(interaction: AutocompleteInteraction, config: 
   );
 }
 
-async function validateModel(geminiPath: string, model: string): Promise<boolean> {
+async function validateModel(config: Config, model: string): Promise<boolean> {
   return new Promise((resolve) => {
-    const proc = spawn(geminiPath, ['--model', model, '-p', 'ping', '--output-format', 'json'], {
+    const proc = spawn(config.geminiPath, ['--model', model, '-p', 'ping', '--output-format', 'json'], {
       timeout: 15000,
-      env: { ...process.env }
+      env: buildGeminiProcessEnv(config, resolveLocalValidationRoleContext(config)),
     });
 
     proc.on('close', (code) => {
@@ -438,4 +439,15 @@ async function validateModel(geminiPath: string, model: string): Promise<boolean
       resolve(false);
     });
   });
+}
+
+function resolveLocalValidationRoleContext(config: Config): RoleContext {
+  return {
+    role: 'BOSS',
+    senderDiscordId: config.discordBossUserId,
+    senderDisplayLabel: 'local model validation',
+    bossLabel: 'the boss',
+    bossConfigValid: Boolean(config.discordBossUserId),
+    bossConfigReason: config.discordBossUserId ? undefined : 'missing',
+  };
 }

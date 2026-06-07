@@ -1,6 +1,6 @@
 # gemini-discord
 
-Your local Gemini CLI agent, reachable from Discord.
+Discord bridge for Gemini CLI / ACP agent workflows.
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Gemini CLI](https://img.shields.io/badge/Gemini%20CLI-extension-4285F4.svg)](https://github.com/google-gemini/gemini-cli)
@@ -31,7 +31,15 @@ You need a bot application before installing:
 
 ## Install
 
-Requires [Gemini CLI](https://github.com/google-gemini/gemini-cli) installed and authenticated, Node.js 22+, and a Discord bot token.
+Requires [Gemini CLI](https://github.com/google-gemini/gemini-cli), Node.js 22+, and a Discord bot token.
+
+For this bridge workflow, authenticate Gemini CLI with non-interactive credentials that the daemon can pass to child processes:
+
+```bash
+export GEMINI_API_KEY="YOUR_API_KEY"
+```
+
+Vertex AI is also supported through Gemini CLI's `GOOGLE_GENAI_USE_VERTEXAI`, `GOOGLE_API_KEY`, `GOOGLE_CLOUD_PROJECT`, and `GOOGLE_CLOUD_LOCATION` environment variables. Browser OAuth is not recommended for unattended bridge sessions.
 
 ```bash
 gemini extensions install https://github.com/Yamato-main/gemini-discord
@@ -138,7 +146,7 @@ gemini extensions config gemini-discord
 ```bash
 git clone https://github.com/Yamato-main/gemini-discord
 cd gemini-discord
-npm install && npm run setup && npm run build
+npm ci && npm run setup && npm run build
 ```
 
 Install a local path:
@@ -156,7 +164,7 @@ npm run start:server    # Start MCP server
 npm run install-service # Install as system service
 ```
 
-Before releasing: run typecheck + tests + build, commit `dist/`, keep `.env` and `.gemini-discord/` untracked, use placeholder IDs in examples, add the `gemini-cli-extension` GitHub topic.
+Before releasing: run `npm ci`, `npm run typecheck`, `npm run build`, and `npm test`; commit `dist/`; keep `.env` and `.gemini-discord/` untracked; use placeholder IDs in examples; add the `gemini-cli-extension` GitHub topic.
 
 ## Contributing
 

@@ -21165,6 +21165,11 @@ var ENV = {
   GEMINI_MODEL: "GEMINI_MODEL",
   GEMINI_TIMEOUT_MS: "GEMINI_TIMEOUT_MS",
   GEMINI_MAX_CONCURRENT: "GEMINI_MAX_CONCURRENT",
+  GEMINI_API_KEY: "GEMINI_API_KEY",
+  GOOGLE_API_KEY: "GOOGLE_API_KEY",
+  GOOGLE_GENAI_USE_VERTEXAI: "GOOGLE_GENAI_USE_VERTEXAI",
+  GOOGLE_CLOUD_PROJECT: "GOOGLE_CLOUD_PROJECT",
+  GOOGLE_CLOUD_LOCATION: "GOOGLE_CLOUD_LOCATION",
   CONVERSATION_HISTORY_LENGTH: "CONVERSATION_HISTORY_LENGTH",
   PROMPT_HISTORY_MAX_MESSAGES: "PROMPT_HISTORY_MAX_MESSAGES",
   PROMPT_HISTORY_MAX_CHARS: "PROMPT_HISTORY_MAX_CHARS",
@@ -21205,6 +21210,11 @@ var CONFIG_ENV_KEYS = [
   ENV.GEMINI_MODEL,
   ENV.GEMINI_TIMEOUT_MS,
   ENV.GEMINI_MAX_CONCURRENT,
+  ENV.GEMINI_API_KEY,
+  ENV.GOOGLE_API_KEY,
+  ENV.GOOGLE_GENAI_USE_VERTEXAI,
+  ENV.GOOGLE_CLOUD_PROJECT,
+  ENV.GOOGLE_CLOUD_LOCATION,
   ENV.CONVERSATION_HISTORY_LENGTH,
   ENV.PROMPT_HISTORY_MAX_MESSAGES,
   ENV.PROMPT_HISTORY_MAX_CHARS,
@@ -21240,13 +21250,20 @@ var SETUP_ENV_KEYS_TO_CLEAR = [
 ];
 var SETUP_RUNTIME_DEFAULTS = {
   [ENV.ENABLE_DMS]: "true",
-  [ENV.REQUIRE_MENTION]: "false",
+  [ENV.REQUIRE_MENTION]: "true",
   [ENV.AUTO_START_DAEMON]: "true",
   [ENV.DISCORD_ENABLE_GUESTS]: "false",
   [ENV.MEMORY_SCOPE]: "channel",
   [ENV.GEMINI_SESSION_BINDING_SCOPE]: "channel",
   [ENV.SETUP_VALIDATION_PENDING]: "true"
 };
+var GEMINI_CLI_AUTH_ENV_KEYS = [
+  ENV.GEMINI_API_KEY,
+  ENV.GOOGLE_API_KEY,
+  ENV.GOOGLE_GENAI_USE_VERTEXAI,
+  ENV.GOOGLE_CLOUD_PROJECT,
+  ENV.GOOGLE_CLOUD_LOCATION
+];
 
 // src/shared/config.ts
 var LEGACY_ENV_ALIASES = {
@@ -21293,6 +21310,16 @@ function parseGeminiSessionBindingScope(value) {
     default:
       return "channel";
   }
+}
+function resolveGeminiCliEnv(envVars) {
+  const result = {};
+  for (const key of GEMINI_CLI_AUTH_ENV_KEYS) {
+    const value = envVars[key]?.trim();
+    if (value) {
+      result[key] = value;
+    }
+  }
+  return Object.keys(result).length > 0 ? result : void 0;
 }
 function resolveAdminId(explicitAdminId, ownerIds) {
   const explicit = explicitAdminId?.trim();
@@ -21405,6 +21432,7 @@ function loadConfig(extensionDir2) {
     geminiModel: get(ENV.GEMINI_MODEL, "gemini-3.1-flash-lite-preview"),
     geminiTimeoutMs: parseInt(get(ENV.GEMINI_TIMEOUT_MS, "900000"), 10),
     geminiMaxConcurrent: parseInt(get(ENV.GEMINI_MAX_CONCURRENT, "3"), 10),
+    geminiCliEnv: resolveGeminiCliEnv(envVars),
     conversationHistoryLength: parseInt(get(ENV.CONVERSATION_HISTORY_LENGTH, "30"), 10),
     promptHistoryMessageLimit: parseInt(get(ENV.PROMPT_HISTORY_MAX_MESSAGES, "12"), 10),
     promptHistoryCharBudget: parseInt(get(ENV.PROMPT_HISTORY_MAX_CHARS, "6000"), 10),
@@ -22892,7 +22920,7 @@ var extensionDir = resolveExtensionDir(tmpDir);
 var config2 = loadConfig(extensionDir);
 var server = new McpServer({
   name: "discord-bridge",
-  version: "0.1.0"
+  version: "0.1.1"
 });
 registerAdminTool(server, config2);
 registerMessageTool(server, config2);

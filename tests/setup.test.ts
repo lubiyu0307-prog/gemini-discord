@@ -47,6 +47,7 @@ describe('setup script helpers', () => {
       [ENV.DISCORD_ADMIN_ID]: '123456789012345',
       [ENV.DISCORD_SERVER_ID]: '234567890123456',
       [ENV.SETUP_VALIDATION_PENDING]: 'true',
+      [ENV.REQUIRE_MENTION]: 'true',
     });
     expect(env).not.toHaveProperty(ENV.DISCORD_ALLOWED_USER_IDS);
     expect(env).not.toHaveProperty(ENV.DISCORD_CHANNEL_ID);
@@ -81,6 +82,7 @@ describe('setup script helpers', () => {
       expect(config.env[ENV.DISCORD_BOSS_USER_ID]).toBe('123456789012345');
       expect(config.env[ENV.DISCORD_SERVER_ID]).toBe('234567890123456');
       expect(config.env[ENV.DISCORD_CHANNEL_ID]).toBeUndefined();
+      expect(config.env[ENV.REQUIRE_MENTION]).toBe('true');
       expect(config.discord.primaryGuildId).toBe('234567890123456');
       expect(fs.existsSync(path.join(tmpDir, '.env'))).toBe(false);
     } finally {

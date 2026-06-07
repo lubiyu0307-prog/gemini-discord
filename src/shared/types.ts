@@ -88,6 +88,7 @@ export interface Config {
   geminiModel: string;
   geminiTimeoutMs: number;
   geminiMaxConcurrent: number;
+  geminiCliEnv?: Record<string, string>;
   conversationHistoryLength: number;
   promptHistoryMessageLimit: number;
   promptHistoryCharBudget: number;

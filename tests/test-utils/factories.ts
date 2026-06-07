@@ -20,6 +20,7 @@ export function createConfig(overrides: Partial<Config> = {}): Config {
     geminiModel: 'gemini-3.1-flash-lite-preview',
     geminiTimeoutMs: 300000,
     geminiMaxConcurrent: 3,
+    geminiCliEnv: undefined,
     conversationHistoryLength: 30,
     promptHistoryMessageLimit: 12,
     promptHistoryCharBudget: 6000,

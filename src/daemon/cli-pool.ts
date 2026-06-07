@@ -105,6 +105,14 @@ function buildPoolKey(bindingKey: string, allowedTools: string): string {
   return `${bindingKey}:${tier}`;
 }
 
+export function buildGeminiProcessEnv(
+  config: Config,
+  roleContext: RoleContext,
+  baseEnv: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  return { ...baseEnv, ...(config.geminiCliEnv ?? {}), ...roleEnv(roleContext) };
+}
+
 function appendHeadlessIsolationArgs(args: string[]): void {
   args.push('--extensions', 'gemini-discord');
   args.push('--allowed-mcp-server-names', 'discord-bridge');
@@ -268,7 +276,7 @@ export class CliProcessPool {
 
     const proc = spawn(this.config.geminiPath, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, ...roleEnv(roleContext) },
+      env: buildGeminiProcessEnv(this.config, roleContext),
     });
 
     if (!proc.stdout || !proc.stdin) {
@@ -334,7 +342,7 @@ export class CliProcessPool {
         },
         clientInfo: {
           name: 'gemini-discord',
-          version: '0.1.0',
+          version: '0.1.1',
         },
       }, STARTUP_REQUEST_TIMEOUT_MS);
       entry.initialized = true;

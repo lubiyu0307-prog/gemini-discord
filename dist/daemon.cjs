@@ -172,7 +172,7 @@ var init_managed_config = __esm({
 });
 
 // src/shared/config-vars.ts
-var ENV, CONFIG_ENV_KEYS, INSTALL_SETTING_ENV_KEYS, REQUIRED_DAEMON_ENV_KEYS, SETUP_ENV_KEYS_TO_CLEAR, SETUP_RUNTIME_DEFAULTS;
+var ENV, CONFIG_ENV_KEYS, INSTALL_SETTING_ENV_KEYS, REQUIRED_DAEMON_ENV_KEYS, SETUP_ENV_KEYS_TO_CLEAR, SETUP_RUNTIME_DEFAULTS, GEMINI_CLI_AUTH_ENV_KEYS;
 var init_config_vars = __esm({
   "src/shared/config-vars.ts"() {
     "use strict";
@@ -196,6 +196,11 @@ var init_config_vars = __esm({
       GEMINI_MODEL: "GEMINI_MODEL",
       GEMINI_TIMEOUT_MS: "GEMINI_TIMEOUT_MS",
       GEMINI_MAX_CONCURRENT: "GEMINI_MAX_CONCURRENT",
+      GEMINI_API_KEY: "GEMINI_API_KEY",
+      GOOGLE_API_KEY: "GOOGLE_API_KEY",
+      GOOGLE_GENAI_USE_VERTEXAI: "GOOGLE_GENAI_USE_VERTEXAI",
+      GOOGLE_CLOUD_PROJECT: "GOOGLE_CLOUD_PROJECT",
+      GOOGLE_CLOUD_LOCATION: "GOOGLE_CLOUD_LOCATION",
       CONVERSATION_HISTORY_LENGTH: "CONVERSATION_HISTORY_LENGTH",
       PROMPT_HISTORY_MAX_MESSAGES: "PROMPT_HISTORY_MAX_MESSAGES",
       PROMPT_HISTORY_MAX_CHARS: "PROMPT_HISTORY_MAX_CHARS",
@@ -236,6 +241,11 @@ var init_config_vars = __esm({
       ENV.GEMINI_MODEL,
       ENV.GEMINI_TIMEOUT_MS,
       ENV.GEMINI_MAX_CONCURRENT,
+      ENV.GEMINI_API_KEY,
+      ENV.GOOGLE_API_KEY,
+      ENV.GOOGLE_GENAI_USE_VERTEXAI,
+      ENV.GOOGLE_CLOUD_PROJECT,
+      ENV.GOOGLE_CLOUD_LOCATION,
       ENV.CONVERSATION_HISTORY_LENGTH,
       ENV.PROMPT_HISTORY_MAX_MESSAGES,
       ENV.PROMPT_HISTORY_MAX_CHARS,
@@ -271,13 +281,20 @@ var init_config_vars = __esm({
     ];
     SETUP_RUNTIME_DEFAULTS = {
       [ENV.ENABLE_DMS]: "true",
-      [ENV.REQUIRE_MENTION]: "false",
+      [ENV.REQUIRE_MENTION]: "true",
       [ENV.AUTO_START_DAEMON]: "true",
       [ENV.DISCORD_ENABLE_GUESTS]: "false",
       [ENV.MEMORY_SCOPE]: "channel",
       [ENV.GEMINI_SESSION_BINDING_SCOPE]: "channel",
       [ENV.SETUP_VALIDATION_PENDING]: "true"
     };
+    GEMINI_CLI_AUTH_ENV_KEYS = [
+      ENV.GEMINI_API_KEY,
+      ENV.GOOGLE_API_KEY,
+      ENV.GOOGLE_GENAI_USE_VERTEXAI,
+      ENV.GOOGLE_CLOUD_PROJECT,
+      ENV.GOOGLE_CLOUD_LOCATION
+    ];
   }
 });
 
@@ -323,6 +340,16 @@ function parseGeminiSessionBindingScope(value) {
     default:
       return "channel";
   }
+}
+function resolveGeminiCliEnv(envVars) {
+  const result = {};
+  for (const key of GEMINI_CLI_AUTH_ENV_KEYS) {
+    const value = envVars[key]?.trim();
+    if (value) {
+      result[key] = value;
+    }
+  }
+  return Object.keys(result).length > 0 ? result : void 0;
 }
 function resolveAdminId(explicitAdminId, ownerIds) {
   const explicit = explicitAdminId?.trim();
@@ -435,6 +462,7 @@ function loadConfig(extensionDir2) {
     geminiModel: get(ENV.GEMINI_MODEL, "gemini-3.1-flash-lite-preview"),
     geminiTimeoutMs: parseInt(get(ENV.GEMINI_TIMEOUT_MS, "900000"), 10),
     geminiMaxConcurrent: parseInt(get(ENV.GEMINI_MAX_CONCURRENT, "3"), 10),
+    geminiCliEnv: resolveGeminiCliEnv(envVars),
     conversationHistoryLength: parseInt(get(ENV.CONVERSATION_HISTORY_LENGTH, "30"), 10),
     promptHistoryMessageLimit: parseInt(get(ENV.PROMPT_HISTORY_MAX_MESSAGES, "12"), 10),
     promptHistoryCharBudget: parseInt(get(ENV.PROMPT_HISTORY_MAX_CHARS, "6000"), 10),
@@ -87828,6 +87856,20 @@ var init_thread_manifest = __esm({
   }
 });
 
+// src/daemon/workflow/policy.ts
+function isExplicitSendToCurrentThread(userContent) {
+  const normalized = userContent.toLowerCase();
+  if (normalized.includes("reply with") || normalized.includes("reply only") || normalized.includes("reply with only") || normalized.includes("reply to this with") || normalized.includes("reply back")) {
+    return false;
+  }
+  return normalized.includes("send") || normalized.includes("post") || normalized.includes("publish");
+}
+var init_policy = __esm({
+  "src/daemon/workflow/policy.ts"() {
+    "use strict";
+  }
+});
+
 // src/daemon/workflow/thread-creator.ts
 var thread_creator_exports = {};
 __export(thread_creator_exports, {
@@ -87916,6 +87958,1409 @@ var init_thread_creator = __esm({
     init_log();
     init_task_validation();
     init_mention_safety();
+  }
+});
+
+// src/daemon/acp-content.ts
+function buildAcpPromptBlocks(prompt, attachments = []) {
+  if (attachments.length === 0) {
+    return [{ type: "text", text: prompt }];
+  }
+  return [
+    ...attachments.map(toAcpAttachmentBlock),
+    {
+      type: "text",
+      text: [
+        "",
+        "Use the attached file content as the primary evidence for this turn. If the user asks to identify a person, character, object, place, or media source, ground the answer in visible/audible/textual details from the attachment and say when you are uncertain. Do not infer from prior conversation, memory, or unrelated context when it conflicts with the attachment.",
+        "",
+        prompt
+      ].join("\n")
+    }
+  ];
+}
+function toAcpAttachmentBlock(attachment) {
+  const uri = toFileUri(attachment.relativePath);
+  const mimeType = attachment.inlineData?.mimeType;
+  if (attachment.inlineData && mimeType?.startsWith("image/")) {
+    return {
+      type: "image",
+      data: attachment.inlineData.data,
+      mimeType,
+      uri
+    };
+  }
+  if (attachment.inlineData && mimeType?.startsWith("audio/")) {
+    return {
+      type: "audio",
+      data: attachment.inlineData.data,
+      mimeType
+    };
+  }
+  if (attachment.inlineData && mimeType) {
+    return {
+      type: "resource",
+      resource: {
+        uri,
+        blob: attachment.inlineData.data,
+        mimeType
+      }
+    };
+  }
+  return {
+    type: "resource_link",
+    uri,
+    name: attachment.metadata.name || path9.basename(attachment.relativePath),
+    mimeType: attachment.metadata.contentType,
+    size: attachment.metadata.sizeBytes
+  };
+}
+function toFileUri(relativePath) {
+  return `file://${relativePath.split(path9.sep).join("/")}`;
+}
+var path9;
+var init_acp_content = __esm({
+  "src/daemon/acp-content.ts"() {
+    "use strict";
+    path9 = __toESM(require("node:path"), 1);
+  }
+});
+
+// src/daemon/gemini-output.ts
+function asRecord(value) {
+  return value && typeof value === "object" ? value : null;
+}
+function extractGeminiResultText(value) {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    const joined = value.map((entry) => extractGeminiResultText(entry)).filter((entry) => typeof entry === "string" && entry.length > 0).join("");
+    return joined || null;
+  }
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+  const directFields = ["response", "text", "content"];
+  for (const field of directFields) {
+    const candidate = record[field];
+    if (typeof candidate === "string" && candidate.length > 0) {
+      return candidate;
+    }
+  }
+  const parts = record["parts"];
+  if (Array.isArray(parts)) {
+    const joined = parts.map((part) => {
+      const partRecord = asRecord(part);
+      if (!partRecord || partRecord["thought"] === true) {
+        return "";
+      }
+      return typeof partRecord["text"] === "string" ? partRecord["text"] : "";
+    }).join("");
+    if (joined.length > 0) {
+      return joined;
+    }
+  }
+  const nestedFields = ["result", "output", "message"];
+  for (const field of nestedFields) {
+    const nested = extractGeminiResultText(record[field]);
+    if (nested) {
+      return nested;
+    }
+  }
+  return null;
+}
+function getGeminiTextDelta(existing, incoming) {
+  if (!incoming || incoming === existing) {
+    return "";
+  }
+  if (!existing) {
+    return incoming;
+  }
+  if (incoming.startsWith(existing)) {
+    return incoming.slice(existing.length);
+  }
+  const maxOverlap = Math.min(existing.length, incoming.length);
+  for (let overlap = maxOverlap; overlap > 0; overlap--) {
+    if (existing.slice(-overlap) === incoming.slice(0, overlap)) {
+      return incoming.slice(overlap);
+    }
+  }
+  return incoming;
+}
+var init_gemini_output = __esm({
+  "src/daemon/gemini-output.ts"() {
+    "use strict";
+  }
+});
+
+// src/daemon/workflow/tool-registry.ts
+function isBuiltinTool(name) {
+  return name in BUILTIN_TOOL_REGISTRY;
+}
+function isMcpTool(name) {
+  return name.includes("/") || name.startsWith("mcp_") || name.includes("__");
+}
+function resolveToolEntry(rawToolName) {
+  if (isBuiltinTool(rawToolName)) {
+    return BUILTIN_TOOL_REGISTRY[rawToolName];
+  }
+  const family = isMcpTool(rawToolName) ? "mcp" : "unknown";
+  let displayName = rawToolName;
+  if (rawToolName.includes("/") || rawToolName.includes("__")) {
+    const parts = rawToolName.split(/[\/]+|__/);
+    const toolPart = parts[parts.length - 1];
+    displayName = toolPart.split(/[-_]/).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join("");
+  }
+  return {
+    canonical: rawToolName,
+    displayName,
+    family
+  };
+}
+var BUILTIN_TOOL_REGISTRY;
+var init_tool_registry = __esm({
+  "src/daemon/workflow/tool-registry.ts"() {
+    "use strict";
+    BUILTIN_TOOL_REGISTRY = {
+      "run_shell_command": { canonical: "run_shell_command", displayName: "Shell", family: "shell" },
+      "glob": { canonical: "glob", displayName: "Glob", family: "search" },
+      "grep_search": { canonical: "grep_search", displayName: "SearchText", family: "search" },
+      "list_directory": { canonical: "list_directory", displayName: "ListDirectory", family: "filesystem" },
+      "read_file": { canonical: "read_file", displayName: "ReadFile", family: "filesystem" },
+      "read_many_files": { canonical: "read_many_files", displayName: "ReadManyFiles", family: "filesystem" },
+      "replace": { canonical: "replace", displayName: "Edit", family: "filesystem" },
+      "write_file": { canonical: "write_file", displayName: "WriteFile", family: "filesystem" },
+      "google_web_search": { canonical: "google_web_search", displayName: "GoogleSearch", family: "web" },
+      "web_fetch": { canonical: "web_fetch", displayName: "WebFetch", family: "web" },
+      "ask_user": { canonical: "ask_user", displayName: "AskUser", family: "interaction" },
+      "write_todos": { canonical: "write_todos", displayName: "TodoWrite", family: "planning" },
+      "save_memory": { canonical: "save_memory", displayName: "SaveMemory", family: "planning" },
+      "tracker_create_task": { canonical: "tracker_create_task", displayName: "CreateTask", family: "planning" },
+      "tracker_update_task": { canonical: "tracker_update_task", displayName: "UpdateTask", family: "planning" },
+      "tracker_get_task": { canonical: "tracker_get_task", displayName: "GetTask", family: "planning" },
+      "tracker_list_tasks": { canonical: "tracker_list_tasks", displayName: "ListTasks", family: "planning" },
+      "tracker_add_dependency": { canonical: "tracker_add_dependency", displayName: "AddDependency", family: "planning" },
+      "tracker_visualize": { canonical: "tracker_visualize", displayName: "Visualize", family: "planning" },
+      "update_topic": { canonical: "update_topic", displayName: "UpdateTopic", family: "planning" },
+      "list_mcp_resources": { canonical: "list_mcp_resources", displayName: "ListMCPResources", family: "mcp" },
+      "read_mcp_resource": { canonical: "read_mcp_resource", displayName: "ReadMCPResource", family: "mcp" },
+      "activate_skill": { canonical: "activate_skill", displayName: "ActivateSkill", family: "mcp" },
+      "get_internal_docs": { canonical: "get_internal_docs", displayName: "InternalDocs", family: "mcp" },
+      "enter_plan_mode": { canonical: "enter_plan_mode", displayName: "PlanMode", family: "planning" },
+      "exit_plan_mode": { canonical: "exit_plan_mode", displayName: "ExitPlanMode", family: "planning" },
+      "complete_task": { canonical: "complete_task", displayName: "CompleteTask", family: "planning" }
+    };
+  }
+});
+
+// src/daemon/workflow/redaction.ts
+function redactFilePath(path15) {
+  if (typeof path15 !== "string") return path15;
+  return path15.replace(/\/Users\/[^/]+\//g, "~/");
+}
+function redactDiscordId(id) {
+  if (typeof id !== "string") return id;
+  return id.replace(/\b\d{17,20}\b/g, (match) => {
+    return match.slice(0, 6) + "...";
+  });
+}
+function redactIpAddresses(text) {
+  if (typeof text !== "string") return text;
+  let redacted = text.replace(/\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b/g, "[IP_REDACTED]");
+  redacted = redacted.replace(/\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b/g, "[IP_REDACTED]");
+  redacted = redacted.replace(/\b((?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{0,4})\b/g, "[IP_REDACTED]");
+  return redacted;
+}
+function redactCommandFlags(cmd, fieldsRedacted) {
+  if (typeof cmd !== "string") return cmd;
+  let redacted = cmd;
+  const flagRegex = /(--(?:token|secret|password|key|env)|-(?:token|secret|password|key|env|e))(=|\s+)([^\s]+)/gi;
+  redacted = redacted.replace(flagRegex, (match, flag, separator, value) => {
+    fieldsRedacted.push(flag.replace(/^-+/, ""));
+    return `${flag}${separator}[REDACTED]`;
+  });
+  return redacted;
+}
+function redactTraceArgs(args) {
+  const fieldsRedacted = [];
+  function redactValue(val, keyName) {
+    if (val === null || val === void 0) return val;
+    if (typeof val === "string") {
+      let s = val;
+      if (keyName) {
+        const lowerKey = keyName.toLowerCase();
+        if (lowerKey.includes("secret") || lowerKey.includes("token") || lowerKey.includes("key") || lowerKey.includes("password") || lowerKey.includes("credential") || lowerKey.includes("auth")) {
+          fieldsRedacted.push(keyName);
+          return "[REDACTED]";
+        }
+      }
+      if (/\bey[Jj][a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+\b/.test(s)) {
+        fieldsRedacted.push(keyName || "jwt");
+        s = "[REDACTED]";
+      }
+      if (/bearer\s+[a-zA-Z0-9-_.]+/i.test(s)) {
+        fieldsRedacted.push(keyName || "bearer_token");
+        s = s.replace(/bearer\s+[a-zA-Z0-9-_.]+/gi, "Bearer [REDACTED]");
+      }
+      if (keyName === "commandLine" || keyName === "command" || keyName === "args" || keyName === "CommandLine") {
+        s = redactCommandFlags(s, fieldsRedacted);
+      }
+      s = redactFilePath(s);
+      s = redactDiscordId(s);
+      s = redactIpAddresses(s);
+      return s;
+    }
+    if (Array.isArray(val)) {
+      return val.map((item) => redactValue(item, keyName));
+    }
+    if (typeof val === "object") {
+      const obj = val;
+      const newObj = {};
+      for (const k of Object.keys(obj)) {
+        newObj[k] = redactValue(obj[k], k);
+      }
+      return newObj;
+    }
+    return val;
+  }
+  const redacted = redactValue(args);
+  return {
+    redacted,
+    fieldsRedacted: Array.from(new Set(fieldsRedacted))
+  };
+}
+function redactTraceResult(result, maxLength = 200) {
+  if (typeof result !== "string") {
+    return { summary: "", truncated: false };
+  }
+  let s = redactFilePath(result);
+  s = redactDiscordId(s);
+  s = redactIpAddresses(s);
+  if (s.length <= maxLength) {
+    return { summary: s, truncated: false };
+  }
+  const truncatedCount = s.length - maxLength;
+  const summary = s.slice(0, maxLength) + `... [${truncatedCount} chars truncated]`;
+  return {
+    summary,
+    truncated: true
+  };
+}
+function redactTraceText(result, maxLength = 12e3) {
+  if (typeof result !== "string") {
+    return { text: "", truncated: false };
+  }
+  let s = redactFilePath(result);
+  s = redactDiscordId(s);
+  s = redactIpAddresses(s);
+  if (s.length <= maxLength) {
+    return { text: s, truncated: false };
+  }
+  return {
+    text: `${s.slice(0, maxLength)}
+... [${s.length - maxLength} chars truncated]`,
+    truncated: true
+  };
+}
+var init_redaction = __esm({
+  "src/daemon/workflow/redaction.ts"() {
+    "use strict";
+  }
+});
+
+// src/daemon/workflow/trace-normalizer.ts
+function stringifyTraceValue(value, toolName) {
+  if (value === null || value === void 0) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object" && toolName === "run_shell_command") {
+    const resObj = value;
+    const exitCode = resObj["exitCode"] ?? resObj["exit_code"] ?? resObj["code"];
+    const stdout = String(resObj["stdout"] ?? resObj["output"] ?? "");
+    const stderr = String(resObj["stderr"] ?? "");
+    const lines = [];
+    if (exitCode !== void 0 && String(exitCode) !== "0") lines.push(`exit code: ${String(exitCode)}`);
+    if (stdout && stderr) {
+      lines.push(`stdout:
+${stdout}`);
+    } else if (stdout) {
+      lines.push(stdout);
+    }
+    if (stderr) lines.push(`stderr:
+${stderr}`);
+    return lines.join("\n");
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+function firstString(...values) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return null;
+}
+function normalizeToolName(value) {
+  const withoutServerSuffix = value.replace(/\s*\([^)]*MCP Server\)\s*$/i, "").trim();
+  if (withoutServerSuffix === "discord_message" || withoutServerSuffix.endsWith("/discord_message")) {
+    return "discord_message";
+  }
+  return withoutServerSuffix || value;
+}
+function recordValue(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+function extractContentBlockText(value) {
+  const record = recordValue(value);
+  if (!record) return typeof value === "string" ? value : "";
+  if (typeof record["text"] === "string") return record["text"];
+  if (typeof record["thought"] === "string") return record["thought"];
+  const content = record["content"];
+  if (content && typeof content === "object") {
+    return extractContentBlockText(content);
+  }
+  const resource = record["resource"];
+  if (resource && typeof resource === "object") {
+    return extractContentBlockText(resource);
+  }
+  return "";
+}
+function extractToolContentText(value) {
+  if (!Array.isArray(value)) return "";
+  return value.map((entry) => {
+    const record = recordValue(entry);
+    if (!record) return "";
+    if (record["type"] === "diff") {
+      const path15 = firstString(record["path"]) ?? "diff";
+      const oldText = typeof record["oldText"] === "string" ? record["oldText"] : "";
+      const newText = typeof record["newText"] === "string" ? record["newText"] : "";
+      return [
+        `Diff: ${path15}`,
+        oldText ? `--- old
+${oldText}` : "",
+        newText ? `+++ new
+${newText}` : ""
+      ].filter(Boolean).join("\n");
+    }
+    if (record["type"] === "terminal") {
+      const terminalId = firstString(record["terminalId"]);
+      return terminalId ? `Terminal output: ${terminalId}` : "Terminal output";
+    }
+    if (record["type"] === "content") {
+      return extractContentBlockText(record["content"]);
+    }
+    return extractContentBlockText(record);
+  }).filter(Boolean).join("\n\n");
+}
+function isInternalNarrationText(text) {
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (lines.length === 0) return false;
+  return lines.every(
+    (line) => /^\[current working directory\b[^\]]*\]$/i.test(line) || /^\((?:Executing|Creating|Running|Using|Reading|Compiling|Listing)\b[\s\S]*\)$/i.test(line)
+  );
+}
+function summarizePlanEntries(entries) {
+  if (!Array.isArray(entries)) return null;
+  const lines = entries.map((entry) => {
+    const record = recordValue(entry);
+    if (!record) return "";
+    const content = firstString(record["content"]);
+    if (!content) return "";
+    const status = firstString(record["status"]);
+    return status ? `${status}: ${content}` : content;
+  }).filter(Boolean);
+  return lines.length > 0 ? lines.join("\n") : null;
+}
+function resolveAcpStatus(sessionUpdate, rawStatus, hasResultText) {
+  if (rawStatus === "failed") return { type: "tool_failed", status: "failed" };
+  if (rawStatus === "cancelled") return { type: "tool_cancelled", status: "cancelled" };
+  if (rawStatus === "completed" || hasResultText) return { type: "tool_completed", status: "completed" };
+  if (sessionUpdate === "tool_call_update") return { type: "tool_progress", status: "progress" };
+  return { type: "tool_started", status: "started" };
+}
+function resolveDuration(id, type, timestamp, activeToolTimers) {
+  if (!id) return null;
+  if (type === "tool_started") {
+    if (!activeToolTimers.has(id)) {
+      activeToolTimers.set(id, timestamp);
+    }
+    return null;
+  }
+  const start = activeToolTimers.get(id);
+  if (!start) return null;
+  if (type === "tool_completed" || type === "tool_failed" || type === "tool_cancelled") {
+    activeToolTimers.delete(id);
+  }
+  return timestamp - start;
+}
+function familyFromAcpKind(kind) {
+  switch (kind) {
+    case "execute":
+      return "shell";
+    case "read":
+    case "edit":
+    case "delete":
+    case "move":
+      return "filesystem";
+    case "search":
+      return "search";
+    case "fetch":
+      return "web";
+    case "think":
+    case "switch_mode":
+      return "planning";
+    default:
+      return "unknown";
+  }
+}
+function resolveTopLevelToolEntry(payload) {
+  const rawInput = recordValue(payload["rawInput"]);
+  const rawToolName = firstString(
+    rawInput?.["name"],
+    rawInput?.["toolName"],
+    rawInput?.["tool_name"]
+  );
+  if (rawToolName) return resolveToolEntry(normalizeToolName(rawToolName));
+  const kind = firstString(payload["kind"]) ?? "other";
+  const title = firstString(payload["title"]) ?? kind;
+  if (/^Searching\s+the\s+web\s+for:/i.test(title)) {
+    return resolveToolEntry("google_web_search");
+  }
+  if (kind === "fetch" || /^Processing\s+URLs\s+and\s+instructions\s+from\s+prompt:/i.test(title)) {
+    return resolveToolEntry("web_fetch");
+  }
+  if (/^"[^"]+":\s+\S/.test(title)) {
+    return resolveToolEntry("activate_skill");
+  }
+  if (/^(?:ReadFolder|ListDirectory)\b/i.test(title) || kind === "read" && /^[.~/(]|^[A-Za-z]:[\\/]/.test(title)) {
+    return {
+      canonical: "list_directory",
+      displayName: "ReadFolder",
+      family: "filesystem"
+    };
+  }
+  if (/^ReadFile\b/i.test(title)) {
+    return resolveToolEntry("read_file");
+  }
+  return {
+    canonical: `acp_${kind}`,
+    displayName: title,
+    family: familyFromAcpKind(kind)
+  };
+}
+function rawInputArgs(rawInput) {
+  const record = recordValue(rawInput);
+  if (!record) return {};
+  const args = recordValue(record["args"]) ?? recordValue(record["arguments"]);
+  if (args) return args;
+  if (firstString(record["name"], record["toolName"], record["tool_name"])) {
+    const rest = { ...record };
+    delete rest["name"];
+    delete rest["toolName"];
+    delete rest["tool_name"];
+    return rest;
+  }
+  return record;
+}
+function argsWithTitleCommand(args, toolEntry, title) {
+  if (toolEntry.family !== "shell") return args;
+  if (firstString(args["command"], args["commandLine"], args["CommandLine"])) return args;
+  const command = title.replace(/^Shell(?:\s+command)?\s*/i, "").trim();
+  return command ? { ...args, command } : args;
+}
+function argsWithTitleMetadata(args, toolEntry, title) {
+  const withCommand = argsWithTitleCommand(args, toolEntry, title);
+  if (toolEntry.canonical === "list_directory" && !firstString(withCommand["dir_path"], withCommand["path"])) {
+    const dir = title.replace(/^(?:ReadFolder|ListDirectory)\s*/i, "").trim();
+    return dir ? { ...withCommand, dir_path: dir } : withCommand;
+  }
+  if (toolEntry.canonical === "read_file" && !firstString(withCommand["file_path"], withCommand["path"])) {
+    const file = title.replace(/^ReadFile\s*/i, "").trim();
+    return file ? { ...withCommand, file_path: file } : withCommand;
+  }
+  if (toolEntry.canonical === "activate_skill" && !firstString(withCommand["name"], withCommand["skill"])) {
+    const skill = title.match(/^"([^"]+)":\s+/)?.[1];
+    return skill ? { ...withCommand, name: skill } : withCommand;
+  }
+  if (toolEntry.canonical === "web_fetch" && !firstString(withCommand["url"], withCommand["prompt"], withCommand["query"])) {
+    const prompt = title.match(/^Processing\s+URLs\s+and\s+instructions\s+from\s+prompt:\s*["“]?(.+?)["”]?\s*$/i)?.[1];
+    return prompt ? { ...withCommand, prompt } : withCommand;
+  }
+  if (toolEntry.canonical !== "google_web_search") return withCommand;
+  if (firstString(withCommand["query"], withCommand["prompt"])) return withCommand;
+  const match = title.match(/^Searching\s+the\s+web\s+for:\s*["“]?(.+?)["”]?\s*$/i);
+  return match?.[1] ? { ...withCommand, query: match[1] } : withCommand;
+}
+function normalizeAcpUpdate(sessionUpdate, updatePayload, activeToolTimers) {
+  const timestamp = Date.now();
+  if (sessionUpdate === "plan") {
+    let summary = "Planning next steps...";
+    const entriesSummary = summarizePlanEntries(updatePayload["entries"]);
+    const planVal = updatePayload["plan"];
+    if (entriesSummary) {
+      summary = entriesSummary;
+    } else if (planVal && typeof planVal === "string") {
+      summary = planVal;
+    } else if (planVal && typeof planVal === "object") {
+      const steps = planVal["steps"];
+      if (Array.isArray(steps)) {
+        summary = steps.map((s) => String(s)).join("\n");
+      } else {
+        summary = JSON.stringify(planVal);
+      }
+    } else {
+      const thoughtVal = updatePayload["thought"] || updatePayload["agent_thought_chunk"];
+      if (thoughtVal && typeof thoughtVal === "string") {
+        summary = thoughtVal;
+      }
+    }
+    const redacted = redactTraceResult(summary, 500);
+    return {
+      type: "phase_started",
+      timestamp,
+      toolName: null,
+      canonicalToolName: null,
+      displayName: null,
+      toolFamily: "planning",
+      args: {},
+      status: "started",
+      durationMs: null,
+      resultSummary: redacted.summary,
+      resultDetail: redacted.summary,
+      artifactRef: null,
+      redactionMetadata: {
+        fieldsRedacted: [],
+        truncated: redacted.truncated
+      },
+      raw: updatePayload
+    };
+  }
+  if (sessionUpdate === "tool_call" || sessionUpdate === "tool_call_update") {
+    const toolCall = updatePayload["toolCall"];
+    if (!toolCall) {
+      const id2 = firstString(updatePayload["toolCallId"]) ?? "";
+      const title = firstString(updatePayload["title"]) ?? "";
+      if (!id2 || !title) return null;
+      const toolEntry2 = resolveTopLevelToolEntry(updatePayload);
+      const rawArgs2 = argsWithTitleMetadata(rawInputArgs(updatePayload["rawInput"]), toolEntry2, title);
+      const { redacted: redactedArgs2, fieldsRedacted: fieldsRedacted2 } = redactTraceArgs(rawArgs2);
+      const contentText = extractToolContentText(updatePayload["content"]);
+      const outputText = stringifyTraceValue(
+        updatePayload["rawOutput"],
+        toolEntry2.family === "shell" ? "run_shell_command" : toolEntry2.canonical
+      );
+      const visibleContentText = toolEntry2.family === "shell" && isInternalNarrationText(contentText) ? "" : contentText;
+      const resultText = [visibleContentText, outputText].filter(Boolean).join("\n\n");
+      const metadataOnlyShellUpdate = toolEntry2.family === "shell" && Boolean(contentText) && !visibleContentText && !outputText;
+      const rawStatus = metadataOnlyShellUpdate ? "in_progress" : updatePayload["status"];
+      const statusInfo = resolveAcpStatus(sessionUpdate, rawStatus, Boolean(resultText));
+      const durationMs2 = resolveDuration(id2, statusInfo.type, timestamp, activeToolTimers);
+      const redactedResult = redactTraceResult(resultText, 200);
+      const redactedDetail = redactTraceText(resultText, 12e3);
+      const isDiscordMessage2 = toolEntry2.canonical === "discord_message";
+      let policySuppressed2 = false;
+      let intercepted2 = false;
+      if (isDiscordMessage2) {
+        const targetChannelId = String(rawArgs2["channel_id"] || rawArgs2["channelId"] || "");
+        const activeRun = targetChannelId ? runtimeStore.activeWorkflowRuns.get(targetChannelId) : null;
+        if (activeRun) {
+          if (!isExplicitSendToCurrentThread(activeRun.userContent)) {
+            policySuppressed2 = true;
+          }
+        }
+        const rawOutput = updatePayload["rawOutput"];
+        if (rawOutput && typeof rawOutput === "object" && rawOutput.intercepted === true) {
+          intercepted2 = true;
+          policySuppressed2 = true;
+        }
+      }
+      return {
+        type: statusInfo.type,
+        timestamp,
+        toolName: toolEntry2.canonical,
+        canonicalToolName: toolEntry2.canonical,
+        displayName: toolEntry2.displayName,
+        toolFamily: toolEntry2.family,
+        args: redactedArgs2,
+        status: statusInfo.status,
+        durationMs: durationMs2,
+        resultSummary: redactedResult.summary || null,
+        resultDetail: redactedDetail.text || redactedResult.summary || null,
+        policySuppressed: policySuppressed2,
+        intercepted: intercepted2,
+        artifactRef: null,
+        redactionMetadata: {
+          fieldsRedacted: fieldsRedacted2,
+          truncated: redactedResult.truncated || redactedDetail.truncated
+        },
+        raw: updatePayload
+      };
+    }
+    const id = typeof toolCall["id"] === "string" ? toolCall["id"] : "";
+    const name = typeof toolCall["name"] === "string" ? normalizeToolName(toolCall["name"]) : "";
+    if (!name) return null;
+    const toolEntry = resolveToolEntry(name);
+    const rawArgs = toolCall["arguments"] ?? toolCall["args"] ?? {};
+    const { redacted: redactedArgs, fieldsRedacted } = redactTraceArgs(rawArgs);
+    let type = "tool_started";
+    let status = "started";
+    let durationMs = null;
+    let resultSummary = null;
+    let resultDetail = null;
+    let truncated = false;
+    const progress = toolCall["progress"];
+    const result = toolCall["result"] ?? toolCall["response"];
+    const error = toolCall["error"] ?? toolCall["errorMessage"];
+    if (error !== void 0 && error !== null) {
+      type = "tool_failed";
+      status = "failed";
+      const start = activeToolTimers.get(id);
+      if (start) {
+        durationMs = timestamp - start;
+        activeToolTimers.delete(id);
+      }
+      const errorStr = stringifyTraceValue(error, name);
+      const redactedError = redactTraceResult(errorStr, 200);
+      const redactedErrorDetail = redactTraceText(errorStr, 12e3);
+      resultSummary = redactedError.summary;
+      resultDetail = redactedErrorDetail.text || resultSummary;
+      truncated = redactedError.truncated || redactedErrorDetail.truncated;
+    } else if (result !== void 0 && result !== null) {
+      type = "tool_completed";
+      status = "completed";
+      const start = activeToolTimers.get(id);
+      if (start) {
+        durationMs = timestamp - start;
+        activeToolTimers.delete(id);
+      }
+      const resultStr = stringifyTraceValue(result, name);
+      const redactedResult = redactTraceResult(resultStr, 200);
+      const redactedDetail = redactTraceText(resultStr, 12e3);
+      resultSummary = redactedResult.summary;
+      resultDetail = redactedDetail.text || resultSummary;
+      truncated = redactedResult.truncated || redactedDetail.truncated;
+    } else if (sessionUpdate === "tool_call_update" || progress !== void 0 && progress !== null) {
+      type = "tool_progress";
+      status = "progress";
+      const start = activeToolTimers.get(id);
+      if (start) {
+        durationMs = timestamp - start;
+      }
+      const progressStr = stringifyTraceValue(progress, name);
+      const redactedProgress = redactTraceResult(progressStr, 200);
+      const redactedProgressDetail = redactTraceText(progressStr, 12e3);
+      resultSummary = redactedProgress.summary;
+      resultDetail = redactedProgressDetail.text || resultSummary;
+      truncated = redactedProgress.truncated || redactedProgressDetail.truncated;
+    } else {
+      type = "tool_started";
+      status = "started";
+      activeToolTimers.set(id, timestamp);
+    }
+    let artifactRef = null;
+    if (name === "write_file" || name === "replace" || name === "write_to_file" || name === "replace_file_content") {
+      const pathVal = firstString(rawArgs["file_path"], rawArgs["path"], rawArgs["TargetFile"], rawArgs["filePath"]);
+      if (typeof pathVal === "string") {
+        artifactRef = redactFilePath(pathVal);
+      }
+    }
+    const isDiscordMessage = name === "discord_message" || toolEntry.canonical === "discord_message";
+    let policySuppressed = false;
+    let intercepted = false;
+    if (isDiscordMessage) {
+      const targetChannelId = String(rawArgs["channel_id"] || rawArgs["channelId"] || "");
+      const activeRun = targetChannelId ? runtimeStore.activeWorkflowRuns.get(targetChannelId) : null;
+      if (activeRun) {
+        if (!isExplicitSendToCurrentThread(activeRun.userContent)) {
+          policySuppressed = true;
+        }
+      }
+      if (result && typeof result === "object" && result.intercepted === true) {
+        intercepted = true;
+        policySuppressed = true;
+      }
+    }
+    return {
+      type,
+      timestamp,
+      toolName: name,
+      canonicalToolName: toolEntry.canonical,
+      displayName: toolEntry.displayName,
+      toolFamily: toolEntry.family,
+      args: redactedArgs,
+      status,
+      durationMs,
+      resultSummary,
+      resultDetail,
+      policySuppressed,
+      intercepted,
+      artifactRef,
+      redactionMetadata: {
+        fieldsRedacted,
+        truncated
+      },
+      raw: updatePayload
+    };
+  }
+  return null;
+}
+var init_trace_normalizer = __esm({
+  "src/daemon/workflow/trace-normalizer.ts"() {
+    "use strict";
+    init_tool_registry();
+    init_redaction();
+    init_runtime();
+    init_policy();
+  }
+});
+
+// src/daemon/cli-pool.ts
+function buildPoolKey(bindingKey, allowedTools) {
+  const tier = allowedTools === "all" ? "full" : allowedTools === "none" ? "chat" : allowedTools === "google_web_search" ? "public-web-search" : allowedTools === "google_web_search,web_fetch" ? "web" : allowedTools.includes("google_web_search,web_fetch") ? "web-discord" : "discord";
+  return `${bindingKey}:${tier}`;
+}
+function buildGeminiProcessEnv(config, roleContext, baseEnv = process.env) {
+  return { ...baseEnv, ...config.geminiCliEnv ?? {}, ...roleEnv(roleContext) };
+}
+function appendHeadlessIsolationArgs(args) {
+  args.push("--extensions", "gemini-discord");
+  args.push("--allowed-mcp-server-names", "discord-bridge");
+}
+function normalizeResumeSessionId(value) {
+  const trimmed = value?.trim();
+  return trimmed && trimmed !== "latest" ? trimmed : null;
+}
+function normalizeAcpError(error) {
+  if (error && typeof error === "object") {
+    const candidate = error;
+    const message = typeof candidate["message"] === "string" ? candidate["message"] : "Gemini ACP request failed";
+    const details = candidate["data"];
+    if (details && typeof details === "object" && "details" in details) {
+      const detailMessage = details["details"];
+      if (typeof detailMessage === "string" && detailMessage.trim()) {
+        return new Error(`${message}: ${detailMessage}`);
+      }
+    }
+    return new Error(message);
+  }
+  return new Error(typeof error === "string" ? error : "Gemini ACP request failed");
+}
+function isRetryableAcpExitError(error) {
+  const message = error.message.toLowerCase();
+  return message.includes("gemini acp exited with code 1") || message.includes("gemini returned no assistant output");
+}
+function isMissingSessionError(error) {
+  const message = error.message.toLowerCase();
+  return message.includes("no previous sessions found for this project") || message.includes("session not found") || message.includes("invalid session identifier") || message.includes("failed to resolve session") || message.includes("resume_session_unavailable");
+}
+function extractUpdateText(update) {
+  const content = update["content"];
+  if (Array.isArray(content)) {
+    return content.map((value) => {
+      if (!value || typeof value !== "object") {
+        return "";
+      }
+      const record = value;
+      const inner = record["content"];
+      if (inner && typeof inner === "object" && typeof inner["text"] === "string") {
+        return String(inner["text"]);
+      }
+      return typeof record["text"] === "string" ? record["text"] : "";
+    }).join("");
+  }
+  if (content && typeof content === "object") {
+    const record = content;
+    if (typeof record["text"] === "string") {
+      return record["text"];
+    }
+  }
+  return "";
+}
+var import_node_child_process2, readline, ACP_PROTOCOL_VERSION, SESSION_REQUEST_TIMEOUT_MS, STARTUP_REQUEST_TIMEOUT_MS, SESSION_REPLAY_QUIET_MS, SESSION_REPLAY_MAX_WAIT_MS, CliProcessPool;
+var init_cli_pool = __esm({
+  "src/daemon/cli-pool.ts"() {
+    "use strict";
+    import_node_child_process2 = require("node:child_process");
+    readline = __toESM(require("node:readline"), 1);
+    init_log();
+    init_acp_content();
+    init_gemini_output();
+    init_permissions();
+    init_trace_normalizer();
+    ACP_PROTOCOL_VERSION = 1;
+    SESSION_REQUEST_TIMEOUT_MS = 12e4;
+    STARTUP_REQUEST_TIMEOUT_MS = 9e4;
+    SESSION_REPLAY_QUIET_MS = 400;
+    SESSION_REPLAY_MAX_WAIT_MS = 6e3;
+    CliProcessPool = class {
+      pool = /* @__PURE__ */ new Map();
+      maxSize;
+      idleTimeoutMs;
+      config;
+      constructor(config) {
+        this.config = config;
+        this.maxSize = config.geminiMaxConcurrent;
+        this.idleTimeoutMs = config.cliIdleTimeoutMs;
+      }
+      async send(bindingKey, prompt, callbacks, opts) {
+        const allowedTools = resolveGeminiAllowedTools(opts.roleContext, opts.toolMode);
+        const poolKey = buildPoolKey(bindingKey, allowedTools);
+        let lastError = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          let entry = this.pool.get(poolKey);
+          if (entry && !entry.busy && this.isAlive(entry)) {
+            entry.busy = true;
+            entry.lastActivityAt = Date.now();
+            this.resetIdleTimer(entry);
+            log.info("CLI pool: reusing warm ACP process", {
+              poolKey,
+              aliveMs: Date.now() - entry.spawnedAt,
+              sessionId: entry.sessionId
+            });
+          } else {
+            if (entry) {
+              this.evict(poolKey);
+            }
+            if (this.pool.size >= this.maxSize) {
+              this.evictOldestIdle();
+            }
+            entry = await this.spawnProcess(poolKey, allowedTools, opts.roleContext);
+            entry.busy = true;
+            this.pool.set(poolKey, entry);
+          }
+          try {
+            await this.ensureSession(entry, opts);
+            const response = await this.promptWithAcp(entry, prompt, callbacks, opts);
+            entry.busy = false;
+            entry.lastActivityAt = Date.now();
+            this.resetIdleTimer(entry);
+            return response;
+          } catch (error) {
+            const normalized = error instanceof Error ? error : new Error(String(error));
+            lastError = normalized;
+            this.evict(poolKey);
+            if (attempt === 0 && isRetryableAcpExitError(normalized)) {
+              log.warn("CLI pool: retrying Gemini ACP after crash", {
+                poolKey,
+                error: normalized.message
+              });
+              continue;
+            }
+            throw normalized;
+          }
+        }
+        throw lastError ?? new Error("Gemini ACP request failed");
+      }
+      async spawnProcess(poolKey, allowedTools, roleContext) {
+        const spawnedAt = Date.now();
+        const args = [
+          "--acp",
+          "--model",
+          this.config.geminiModel,
+          "--approval-mode",
+          "yolo",
+          "--allowed-tools",
+          allowedTools
+        ];
+        appendHeadlessIsolationArgs(args);
+        log.info("CLI pool: initializing ACP process entry", {
+          poolKey,
+          model: this.config.geminiModel,
+          allowedTools,
+          extensionScope: "gemini-discord"
+        });
+        const proc = (0, import_node_child_process2.spawn)(this.config.geminiPath, args, {
+          stdio: ["pipe", "pipe", "pipe"],
+          env: buildGeminiProcessEnv(this.config, roleContext)
+        });
+        if (!proc.stdout || !proc.stdin) {
+          throw new Error("Gemini ACP did not expose the expected stdio streams.");
+        }
+        const rl = readline.createInterface({ input: proc.stdout });
+        const entry = {
+          proc,
+          poolKey,
+          rl,
+          busy: false,
+          spawnedAt,
+          lastActivityAt: spawnedAt,
+          idleTimer: null,
+          allowedTools,
+          initialized: false,
+          nextRequestId: 1,
+          pendingRequests: /* @__PURE__ */ new Map(),
+          activePrompt: null,
+          sessionId: null,
+          cwd: null,
+          stderrTail: "",
+          lastSessionUpdateAt: 0,
+          activeToolTimers: /* @__PURE__ */ new Map()
+        };
+        proc.stderr?.on("data", (chunk) => {
+          entry.stderrTail = `${entry.stderrTail}${chunk.toString()}`.slice(-4e3);
+        });
+        rl.on("line", (line) => {
+          this.handleStdoutLine(entry, line);
+        });
+        proc.on("error", (error) => {
+          this.rejectAllPending(entry, new Error(`Failed to spawn gemini: ${error.message}`));
+          if (this.pool.get(entry.poolKey) === entry) {
+            this.pool.delete(entry.poolKey);
+          }
+        });
+        proc.on("close", (code) => {
+          this.rejectAllPending(entry, new Error(`Gemini ACP exited with code ${code}. ${entry.stderrTail.slice(-300)}`));
+          if (entry.idleTimer) {
+            clearTimeout(entry.idleTimer);
+          }
+          try {
+            rl.close();
+          } catch {
+          }
+          if (this.pool.get(entry.poolKey) === entry) {
+            this.pool.delete(entry.poolKey);
+          }
+        });
+        try {
+          await this.sendRequest(entry, "initialize", {
+            protocolVersion: ACP_PROTOCOL_VERSION,
+            clientCapabilities: {
+              auth: { terminal: false },
+              fs: { readTextFile: false, writeTextFile: false },
+              terminal: false
+            },
+            clientInfo: {
+              name: "gemini-discord",
+              version: "0.1.1"
+            }
+          }, STARTUP_REQUEST_TIMEOUT_MS);
+          entry.initialized = true;
+          this.resetIdleTimer(entry);
+          return entry;
+        } catch (error) {
+          try {
+            proc.kill("SIGTERM");
+          } catch {
+          }
+          try {
+            rl.close();
+          } catch {
+          }
+          throw error;
+        }
+      }
+      async ensureSession(entry, opts) {
+        const resumeSessionId = normalizeResumeSessionId(opts.resumeSessionId);
+        if (entry.sessionId && entry.cwd === opts.cwd) {
+          if (!resumeSessionId || resumeSessionId === entry.sessionId) {
+            opts.onSessionId?.(entry.sessionId);
+            return;
+          }
+          await this.closeSession(entry);
+        }
+        if (resumeSessionId) {
+          try {
+            await this.sendRequest(entry, "session/load", {
+              sessionId: resumeSessionId,
+              cwd: opts.cwd,
+              mcpServers: []
+            }, SESSION_REQUEST_TIMEOUT_MS);
+            entry.sessionId = resumeSessionId;
+            entry.cwd = opts.cwd;
+            await this.waitForSessionReplayToDrain(entry);
+            opts.onSessionId?.(entry.sessionId);
+            return;
+          } catch (error) {
+            const normalized = error instanceof Error ? error : new Error(String(error));
+            if (!isMissingSessionError(normalized)) {
+              throw normalized;
+            }
+            log.warn("CLI pool: resume target unavailable, starting fresh session", {
+              poolKey: entry.poolKey,
+              requestedSessionId: resumeSessionId,
+              cwd: opts.cwd,
+              error: normalized.message
+            });
+            entry.sessionId = null;
+            entry.cwd = null;
+          }
+        }
+        const result = await this.sendRequest(entry, "session/new", {
+          cwd: opts.cwd,
+          mcpServers: []
+        }, SESSION_REQUEST_TIMEOUT_MS);
+        if (!result || typeof result !== "object" || typeof result["sessionId"] !== "string") {
+          throw new Error("Gemini ACP did not return a sessionId for the new session.");
+        }
+        entry.sessionId = String(result["sessionId"]);
+        entry.cwd = opts.cwd;
+        opts.onSessionId?.(entry.sessionId);
+      }
+      async closeSession(entry) {
+        if (!entry.sessionId) {
+          return;
+        }
+        try {
+          await this.sendRequest(entry, "session/close", {
+            sessionId: entry.sessionId
+          }, 3e4);
+        } catch {
+        } finally {
+          entry.sessionId = null;
+          entry.cwd = null;
+        }
+      }
+      async waitForSessionReplayToDrain(entry) {
+        const startedAt = Date.now();
+        let lastObservedAt = startedAt;
+        while (Date.now() - startedAt < SESSION_REPLAY_MAX_WAIT_MS) {
+          if (entry.lastSessionUpdateAt > lastObservedAt) {
+            lastObservedAt = entry.lastSessionUpdateAt;
+          }
+          if (Date.now() - lastObservedAt >= SESSION_REPLAY_QUIET_MS) {
+            return;
+          }
+          await new Promise((resolve2) => setTimeout(resolve2, 50));
+        }
+        log.warn("CLI pool: session replay did not fully drain before prompt", {
+          poolKey: entry.poolKey,
+          sessionId: entry.sessionId,
+          waitedMs: Date.now() - startedAt
+        });
+      }
+      async promptWithAcp(entry, prompt, callbacks, opts) {
+        if (!entry.sessionId) {
+          throw new Error("Gemini ACP session is not initialized.");
+        }
+        const requestId = entry.nextRequestId++;
+        const hasAttachments = (opts.attachments?.length ?? 0) > 0;
+        return new Promise((resolve2, reject2) => {
+          const maxTotalTimeoutMs = this.config.geminiTimeoutMs;
+          const firstOutputTimeoutMs = hasAttachments ? Math.min(maxTotalTimeoutMs, 6e5) : Math.min(maxTotalTimeoutMs, 12e4);
+          const postOutputTimeoutMs = 12e4;
+          const activePrompt = {
+            requestId,
+            callbacks,
+            fullResponse: "",
+            sawAssistantOutput: false,
+            lastOutputAt: Date.now(),
+            startedAt: Date.now(),
+            timeoutHandle: setInterval(() => {
+              const current = entry.activePrompt;
+              if (!current || current.requestId !== requestId) {
+                return;
+              }
+              const idleMs = Date.now() - current.lastOutputAt;
+              const totalMs = Date.now() - current.startedAt;
+              if (!current.sawAssistantOutput && idleMs > firstOutputTimeoutMs) {
+                const error = new Error(`Gemini stalled \u2014 no output for ${Math.round(idleMs / 1e3)}s`);
+                this.failPrompt(entry, error, true);
+                return;
+              }
+              if (current.sawAssistantOutput && idleMs > postOutputTimeoutMs) {
+                const error = new Error(`Gemini stalled \u2014 no output for ${Math.round(idleMs / 1e3)}s`);
+                this.failPrompt(entry, error, true);
+                return;
+              }
+              if (totalMs > maxTotalTimeoutMs) {
+                const error = new Error(`Gemini timed out after ${Math.round(totalMs / 1e3)}s total`);
+                this.failPrompt(entry, error, true);
+              }
+            }, 5e3),
+            resolve: resolve2,
+            reject: reject2
+          };
+          entry.activePrompt = activePrompt;
+          entry.pendingRequests.set(requestId, {
+            resolve: () => {
+              const current = entry.activePrompt;
+              if (!current || current.requestId !== requestId) {
+                resolve2("");
+                return;
+              }
+              clearInterval(current.timeoutHandle);
+              entry.activePrompt = null;
+              if (!current.sawAssistantOutput) {
+                reject2(new Error("Gemini returned no assistant output for this turn."));
+                return;
+              }
+              resolve2(current.fullResponse);
+            },
+            reject: (error) => {
+              const current = entry.activePrompt;
+              if (current && current.requestId === requestId) {
+                clearInterval(current.timeoutHandle);
+                entry.activePrompt = null;
+              }
+              reject2(error);
+            }
+          });
+          try {
+            this.writeJsonLine(entry, {
+              jsonrpc: "2.0",
+              id: requestId,
+              method: "session/prompt",
+              params: {
+                sessionId: entry.sessionId,
+                prompt: buildAcpPromptBlocks(prompt, opts.attachments)
+              }
+            });
+          } catch (error) {
+            this.failPrompt(entry, error instanceof Error ? error : new Error(String(error)), false);
+          }
+        });
+      }
+      handleStdoutLine(entry, line) {
+        if (line.length < 3 || line[0] !== "{") {
+          return;
+        }
+        let parsed;
+        try {
+          parsed = JSON.parse(line);
+        } catch {
+          return;
+        }
+        const method = typeof parsed["method"] === "string" ? parsed["method"] : null;
+        if (method === "session/update") {
+          const params = parsed["params"];
+          if (params && typeof params === "object") {
+            this.handleSessionUpdate(entry, params);
+          }
+          return;
+        }
+        const rawId = parsed["id"];
+        if (typeof rawId !== "number") {
+          return;
+        }
+        const pending = entry.pendingRequests.get(rawId);
+        if (!pending) {
+          return;
+        }
+        entry.pendingRequests.delete(rawId);
+        if ("error" in parsed && parsed["error"]) {
+          pending.reject(normalizeAcpError(parsed["error"]));
+          return;
+        }
+        const activePrompt = entry.activePrompt;
+        if (activePrompt && activePrompt.requestId === rawId) {
+          const finalText = extractGeminiResultText(parsed["result"]);
+          if (finalText) {
+            const delta = getGeminiTextDelta(activePrompt.fullResponse, finalText);
+            if (delta) {
+              activePrompt.sawAssistantOutput = true;
+              activePrompt.fullResponse += delta;
+              activePrompt.callbacks.onToken(delta);
+            }
+          }
+        }
+        pending.resolve(parsed["result"]);
+      }
+      handleSessionUpdate(entry, params) {
+        entry.lastSessionUpdateAt = Date.now();
+        const activePrompt = entry.activePrompt;
+        if (!activePrompt || !entry.sessionId) {
+          return;
+        }
+        const sessionId = typeof params["sessionId"] === "string" ? params["sessionId"] : null;
+        if (!sessionId || sessionId !== entry.sessionId) {
+          return;
+        }
+        const rawUpdate = params["update"];
+        if (!rawUpdate || typeof rawUpdate !== "object") {
+          return;
+        }
+        const update = rawUpdate;
+        const sessionUpdate = typeof update["sessionUpdate"] === "string" ? update["sessionUpdate"] : "";
+        activePrompt.lastOutputAt = Date.now();
+        if (sessionUpdate === "agent_message_chunk") {
+          const candidate = extractUpdateText(update);
+          if (!candidate) {
+            return;
+          }
+          const delta = getGeminiTextDelta(activePrompt.fullResponse, candidate);
+          if (!delta) {
+            return;
+          }
+          activePrompt.sawAssistantOutput = true;
+          activePrompt.fullResponse += delta;
+          activePrompt.callbacks.onToken(delta);
+          return;
+        }
+        if (sessionUpdate === "agent_thought_chunk") {
+          activePrompt.callbacks.onThought?.();
+          return;
+        }
+        if (sessionUpdate === "tool_call" || sessionUpdate === "tool_call_update" || sessionUpdate === "plan") {
+          activePrompt.callbacks.onThought?.();
+          if (activePrompt.callbacks.onTraceEvent) {
+            const traceEvent = normalizeAcpUpdate(sessionUpdate, update, entry.activeToolTimers);
+            if (traceEvent) {
+              activePrompt.callbacks.onTraceEvent(traceEvent);
+            }
+          }
+        }
+      }
+      failPrompt(entry, error, evictAfter) {
+        const activePrompt = entry.activePrompt;
+        if (!activePrompt) {
+          return;
+        }
+        const pending = entry.pendingRequests.get(activePrompt.requestId);
+        if (pending) {
+          entry.pendingRequests.delete(activePrompt.requestId);
+          pending.reject(error);
+        } else {
+          clearInterval(activePrompt.timeoutHandle);
+          entry.activePrompt = null;
+          activePrompt.reject(error);
+        }
+        if (evictAfter) {
+          this.evict(entry.poolKey);
+        }
+      }
+      async sendRequest(entry, method, params, timeoutMs) {
+        const requestId = entry.nextRequestId++;
+        return new Promise((resolve2, reject2) => {
+          const timeoutHandle = setTimeout(() => {
+            entry.pendingRequests.delete(requestId);
+            reject2(new Error(`Gemini ACP ${method} timed out after ${Math.round(timeoutMs / 1e3)}s`));
+          }, timeoutMs);
+          entry.pendingRequests.set(requestId, {
+            resolve: (value) => {
+              clearTimeout(timeoutHandle);
+              resolve2(value);
+            },
+            reject: (error) => {
+              clearTimeout(timeoutHandle);
+              reject2(error);
+            }
+          });
+          try {
+            this.writeJsonLine(entry, {
+              jsonrpc: "2.0",
+              id: requestId,
+              method,
+              params
+            });
+          } catch (error) {
+            clearTimeout(timeoutHandle);
+            entry.pendingRequests.delete(requestId);
+            reject2(error instanceof Error ? error : new Error(String(error)));
+          }
+        });
+      }
+      writeJsonLine(entry, payload) {
+        if (!entry.proc.stdin || entry.proc.stdin.destroyed || !this.isAlive(entry)) {
+          throw new Error("Gemini ACP stdin is not writable.");
+        }
+        entry.proc.stdin.write(`${JSON.stringify(payload)}
+`);
+      }
+      rejectAllPending(entry, error) {
+        if (entry.activePrompt) {
+          clearInterval(entry.activePrompt.timeoutHandle);
+          entry.activePrompt = null;
+        }
+        for (const [requestId, pending] of entry.pendingRequests.entries()) {
+          entry.pendingRequests.delete(requestId);
+          pending.reject(error);
+        }
+      }
+      isAlive(entry) {
+        return entry.proc.exitCode === null && !entry.proc.killed;
+      }
+      resetIdleTimer(entry) {
+        if (entry.idleTimer) {
+          clearTimeout(entry.idleTimer);
+        }
+        entry.idleTimer = setTimeout(() => {
+          if (!entry.busy) {
+            log.info("CLI pool: evicting idle ACP process", {
+              poolKey: entry.poolKey,
+              sessionId: entry.sessionId
+            });
+            this.evict(entry.poolKey);
+          }
+        }, this.idleTimeoutMs);
+      }
+      evict(poolKey) {
+        const entry = this.pool.get(poolKey);
+        if (!entry) {
+          return;
+        }
+        if (entry.idleTimer) {
+          clearTimeout(entry.idleTimer);
+        }
+        this.rejectAllPending(entry, new Error(`CLI pool entry evicted: ${poolKey}`));
+        this.pool.delete(poolKey);
+        try {
+          if (this.isAlive(entry)) {
+            entry.proc.kill("SIGTERM");
+          }
+        } catch {
+        }
+        try {
+          entry.rl.close();
+        } catch {
+        }
+        entry.pendingRequests.clear();
+      }
+      evictOldestIdle() {
+        let oldest = null;
+        for (const entry of this.pool.values()) {
+          if (entry.busy) {
+            continue;
+          }
+          if (!oldest || entry.lastActivityAt < oldest.lastActivityAt) {
+            oldest = entry;
+          }
+        }
+        if (oldest) {
+          log.info("CLI pool: evicting oldest idle ACP process to make room", {
+            poolKey: oldest.poolKey
+          });
+          this.evict(oldest.poolKey);
+        }
+      }
+      kill(bindingKey) {
+        let killed = 0;
+        for (const [key] of this.pool) {
+          if (key.startsWith(bindingKey + ":")) {
+            this.evict(key);
+            killed++;
+          }
+        }
+        log.info("CLI pool: killed binding processes", { bindingKey, killed });
+      }
+      killAll() {
+        for (const [key] of this.pool) {
+          this.evict(key);
+        }
+      }
+      status() {
+        const now = Date.now();
+        const processes = [];
+        for (const entry of this.pool.values()) {
+          processes.push({
+            poolKey: entry.poolKey,
+            busy: entry.busy,
+            aliveMs: now - entry.spawnedAt,
+            lastActivityMs: now - entry.lastActivityAt,
+            allowedTools: entry.allowedTools
+          });
+        }
+        return {
+          total: this.pool.size,
+          busy: processes.filter((process2) => process2.busy).length,
+          idle: processes.filter((process2) => !process2.busy).length,
+          maxSize: this.maxSize,
+          processes
+        };
+      }
+    };
   }
 });
 
@@ -88682,7 +90127,7 @@ function setupInteractionHandler(client, config, state2, memory, extensionDir2, 
       }
       await interaction.deferReply();
       try {
-        const isValid = await validateModel(config.geminiPath, newModel);
+        const isValid = await validateModel(config, newModel);
         if (!isValid) {
           throw new Error(`Model \`${newModel}\` failed validation check.`);
         }
@@ -88694,7 +90139,7 @@ function setupInteractionHandler(client, config, state2, memory, extensionDir2, 
 Confirmation: Gemini CLI verified connectivity.`);
       } catch (error) {
         log.error("Model switch failed", { error: error instanceof Error ? error.message : String(error) });
-        await interaction.editReply(`**Model switch failed.** 
+        await interaction.editReply(`**Model switch failed.**
 Error: \`${error instanceof Error ? error.message : String(error)}\`
 Action: Reverted to \`${oldModel}\`.`);
       }
@@ -88760,11 +90205,11 @@ async function handleAutocomplete(interaction, config) {
     filtered.map((choice) => ({ name: choice, value: choice }))
   );
 }
-async function validateModel(geminiPath, model) {
+async function validateModel(config, model) {
   return new Promise((resolve2) => {
-    const proc = (0, import_node_child_process4.spawn)(geminiPath, ["--model", model, "-p", "ping", "--output-format", "json"], {
+    const proc = (0, import_node_child_process4.spawn)(config.geminiPath, ["--model", model, "-p", "ping", "--output-format", "json"], {
       timeout: 15e3,
-      env: { ...process.env }
+      env: buildGeminiProcessEnv(config, resolveLocalValidationRoleContext(config))
     });
     proc.on("close", (code) => {
       resolve2(code === 0);
@@ -88773,6 +90218,16 @@ async function validateModel(geminiPath, model) {
       resolve2(false);
     });
   });
+}
+function resolveLocalValidationRoleContext(config) {
+  return {
+    role: "BOSS",
+    senderDiscordId: config.discordBossUserId,
+    senderDisplayLabel: "local model validation",
+    bossLabel: "the boss",
+    bossConfigValid: Boolean(config.discordBossUserId),
+    bossConfigReason: config.discordBossUserId ? void 0 : "missing"
+  };
 }
 var import_discord6, import_node_child_process4, COMMANDS, DM_COMMAND_NAMES, DEFAULT_AVAILABLE_MODELS;
 var init_commands = __esm({
@@ -88787,6 +90242,7 @@ var init_commands = __esm({
     init_permissions();
     init_thread_creator();
     init_task_validation();
+    init_cli_pool();
     init_mention_safety();
     COMMANDS = [
       new import_discord6.SlashCommandBuilder().setName("new").setDescription("Start a fresh Gemini conversation for this channel.").setDefaultMemberPermissions(import_discord6.PermissionFlagsBits.ManageMessages),
@@ -91919,17 +93375,7 @@ init_log();
 init_runtime();
 init_task_validation();
 init_thread_manifest();
-
-// src/daemon/workflow/policy.ts
-function isExplicitSendToCurrentThread(userContent) {
-  const normalized = userContent.toLowerCase();
-  if (normalized.includes("reply with") || normalized.includes("reply only") || normalized.includes("reply with only") || normalized.includes("reply to this with") || normalized.includes("reply back")) {
-    return false;
-  }
-  return normalized.includes("send") || normalized.includes("post") || normalized.includes("publish");
-}
-
-// src/daemon/api/messages.ts
+init_policy();
 init_api_utils();
 async function handleMessageRoutes(req, res, pathname, parsed, deps) {
   const { config, memory, extensionDir: extensionDir2 } = deps;
@@ -92842,1373 +94288,7 @@ var Semaphore = class {
 
 // src/daemon.ts
 init_retry();
-
-// src/daemon/cli-pool.ts
-var import_node_child_process2 = require("node:child_process");
-var readline = __toESM(require("node:readline"), 1);
-init_log();
-
-// src/daemon/acp-content.ts
-var path9 = __toESM(require("node:path"), 1);
-function buildAcpPromptBlocks(prompt, attachments = []) {
-  if (attachments.length === 0) {
-    return [{ type: "text", text: prompt }];
-  }
-  return [
-    ...attachments.map(toAcpAttachmentBlock),
-    {
-      type: "text",
-      text: [
-        "",
-        "Use the attached file content as the primary evidence for this turn. If the user asks to identify a person, character, object, place, or media source, ground the answer in visible/audible/textual details from the attachment and say when you are uncertain. Do not infer from prior conversation, memory, or unrelated context when it conflicts with the attachment.",
-        "",
-        prompt
-      ].join("\n")
-    }
-  ];
-}
-function toAcpAttachmentBlock(attachment) {
-  const uri = toFileUri(attachment.relativePath);
-  const mimeType = attachment.inlineData?.mimeType;
-  if (attachment.inlineData && mimeType?.startsWith("image/")) {
-    return {
-      type: "image",
-      data: attachment.inlineData.data,
-      mimeType,
-      uri
-    };
-  }
-  if (attachment.inlineData && mimeType?.startsWith("audio/")) {
-    return {
-      type: "audio",
-      data: attachment.inlineData.data,
-      mimeType
-    };
-  }
-  if (attachment.inlineData && mimeType) {
-    return {
-      type: "resource",
-      resource: {
-        uri,
-        blob: attachment.inlineData.data,
-        mimeType
-      }
-    };
-  }
-  return {
-    type: "resource_link",
-    uri,
-    name: attachment.metadata.name || path9.basename(attachment.relativePath),
-    mimeType: attachment.metadata.contentType,
-    size: attachment.metadata.sizeBytes
-  };
-}
-function toFileUri(relativePath) {
-  return `file://${relativePath.split(path9.sep).join("/")}`;
-}
-
-// src/daemon/gemini-output.ts
-function asRecord(value) {
-  return value && typeof value === "object" ? value : null;
-}
-function extractGeminiResultText(value) {
-  if (typeof value === "string") {
-    return value;
-  }
-  if (Array.isArray(value)) {
-    const joined = value.map((entry) => extractGeminiResultText(entry)).filter((entry) => typeof entry === "string" && entry.length > 0).join("");
-    return joined || null;
-  }
-  const record = asRecord(value);
-  if (!record) {
-    return null;
-  }
-  const directFields = ["response", "text", "content"];
-  for (const field of directFields) {
-    const candidate = record[field];
-    if (typeof candidate === "string" && candidate.length > 0) {
-      return candidate;
-    }
-  }
-  const parts = record["parts"];
-  if (Array.isArray(parts)) {
-    const joined = parts.map((part) => {
-      const partRecord = asRecord(part);
-      if (!partRecord || partRecord["thought"] === true) {
-        return "";
-      }
-      return typeof partRecord["text"] === "string" ? partRecord["text"] : "";
-    }).join("");
-    if (joined.length > 0) {
-      return joined;
-    }
-  }
-  const nestedFields = ["result", "output", "message"];
-  for (const field of nestedFields) {
-    const nested = extractGeminiResultText(record[field]);
-    if (nested) {
-      return nested;
-    }
-  }
-  return null;
-}
-function getGeminiTextDelta(existing, incoming) {
-  if (!incoming || incoming === existing) {
-    return "";
-  }
-  if (!existing) {
-    return incoming;
-  }
-  if (incoming.startsWith(existing)) {
-    return incoming.slice(existing.length);
-  }
-  const maxOverlap = Math.min(existing.length, incoming.length);
-  for (let overlap = maxOverlap; overlap > 0; overlap--) {
-    if (existing.slice(-overlap) === incoming.slice(0, overlap)) {
-      return incoming.slice(overlap);
-    }
-  }
-  return incoming;
-}
-
-// src/daemon/cli-pool.ts
-init_permissions();
-
-// src/daemon/workflow/tool-registry.ts
-var BUILTIN_TOOL_REGISTRY = {
-  "run_shell_command": { canonical: "run_shell_command", displayName: "Shell", family: "shell" },
-  "glob": { canonical: "glob", displayName: "Glob", family: "search" },
-  "grep_search": { canonical: "grep_search", displayName: "SearchText", family: "search" },
-  "list_directory": { canonical: "list_directory", displayName: "ListDirectory", family: "filesystem" },
-  "read_file": { canonical: "read_file", displayName: "ReadFile", family: "filesystem" },
-  "read_many_files": { canonical: "read_many_files", displayName: "ReadManyFiles", family: "filesystem" },
-  "replace": { canonical: "replace", displayName: "Edit", family: "filesystem" },
-  "write_file": { canonical: "write_file", displayName: "WriteFile", family: "filesystem" },
-  "google_web_search": { canonical: "google_web_search", displayName: "GoogleSearch", family: "web" },
-  "web_fetch": { canonical: "web_fetch", displayName: "WebFetch", family: "web" },
-  "ask_user": { canonical: "ask_user", displayName: "AskUser", family: "interaction" },
-  "write_todos": { canonical: "write_todos", displayName: "TodoWrite", family: "planning" },
-  "save_memory": { canonical: "save_memory", displayName: "SaveMemory", family: "planning" },
-  "tracker_create_task": { canonical: "tracker_create_task", displayName: "CreateTask", family: "planning" },
-  "tracker_update_task": { canonical: "tracker_update_task", displayName: "UpdateTask", family: "planning" },
-  "tracker_get_task": { canonical: "tracker_get_task", displayName: "GetTask", family: "planning" },
-  "tracker_list_tasks": { canonical: "tracker_list_tasks", displayName: "ListTasks", family: "planning" },
-  "tracker_add_dependency": { canonical: "tracker_add_dependency", displayName: "AddDependency", family: "planning" },
-  "tracker_visualize": { canonical: "tracker_visualize", displayName: "Visualize", family: "planning" },
-  "update_topic": { canonical: "update_topic", displayName: "UpdateTopic", family: "planning" },
-  "list_mcp_resources": { canonical: "list_mcp_resources", displayName: "ListMCPResources", family: "mcp" },
-  "read_mcp_resource": { canonical: "read_mcp_resource", displayName: "ReadMCPResource", family: "mcp" },
-  "activate_skill": { canonical: "activate_skill", displayName: "ActivateSkill", family: "mcp" },
-  "get_internal_docs": { canonical: "get_internal_docs", displayName: "InternalDocs", family: "mcp" },
-  "enter_plan_mode": { canonical: "enter_plan_mode", displayName: "PlanMode", family: "planning" },
-  "exit_plan_mode": { canonical: "exit_plan_mode", displayName: "ExitPlanMode", family: "planning" },
-  "complete_task": { canonical: "complete_task", displayName: "CompleteTask", family: "planning" }
-};
-function isBuiltinTool(name) {
-  return name in BUILTIN_TOOL_REGISTRY;
-}
-function isMcpTool(name) {
-  return name.includes("/") || name.startsWith("mcp_") || name.includes("__");
-}
-function resolveToolEntry(rawToolName) {
-  if (isBuiltinTool(rawToolName)) {
-    return BUILTIN_TOOL_REGISTRY[rawToolName];
-  }
-  const family = isMcpTool(rawToolName) ? "mcp" : "unknown";
-  let displayName = rawToolName;
-  if (rawToolName.includes("/") || rawToolName.includes("__")) {
-    const parts = rawToolName.split(/[\/]+|__/);
-    const toolPart = parts[parts.length - 1];
-    displayName = toolPart.split(/[-_]/).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join("");
-  }
-  return {
-    canonical: rawToolName,
-    displayName,
-    family
-  };
-}
-
-// src/daemon/workflow/redaction.ts
-function redactFilePath(path15) {
-  if (typeof path15 !== "string") return path15;
-  return path15.replace(/\/Users\/[^/]+\//g, "~/");
-}
-function redactDiscordId(id) {
-  if (typeof id !== "string") return id;
-  return id.replace(/\b\d{17,20}\b/g, (match) => {
-    return match.slice(0, 6) + "...";
-  });
-}
-function redactIpAddresses(text) {
-  if (typeof text !== "string") return text;
-  let redacted = text.replace(/\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b/g, "[IP_REDACTED]");
-  redacted = redacted.replace(/\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b/g, "[IP_REDACTED]");
-  redacted = redacted.replace(/\b((?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{0,4})\b/g, "[IP_REDACTED]");
-  return redacted;
-}
-function redactCommandFlags(cmd, fieldsRedacted) {
-  if (typeof cmd !== "string") return cmd;
-  let redacted = cmd;
-  const flagRegex = /(--(?:token|secret|password|key|env)|-(?:token|secret|password|key|env|e))(=|\s+)([^\s]+)/gi;
-  redacted = redacted.replace(flagRegex, (match, flag, separator, value) => {
-    fieldsRedacted.push(flag.replace(/^-+/, ""));
-    return `${flag}${separator}[REDACTED]`;
-  });
-  return redacted;
-}
-function redactTraceArgs(args) {
-  const fieldsRedacted = [];
-  function redactValue(val, keyName) {
-    if (val === null || val === void 0) return val;
-    if (typeof val === "string") {
-      let s = val;
-      if (keyName) {
-        const lowerKey = keyName.toLowerCase();
-        if (lowerKey.includes("secret") || lowerKey.includes("token") || lowerKey.includes("key") || lowerKey.includes("password") || lowerKey.includes("credential") || lowerKey.includes("auth")) {
-          fieldsRedacted.push(keyName);
-          return "[REDACTED]";
-        }
-      }
-      if (/\bey[Jj][a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+\b/.test(s)) {
-        fieldsRedacted.push(keyName || "jwt");
-        s = "[REDACTED]";
-      }
-      if (/bearer\s+[a-zA-Z0-9-_.]+/i.test(s)) {
-        fieldsRedacted.push(keyName || "bearer_token");
-        s = s.replace(/bearer\s+[a-zA-Z0-9-_.]+/gi, "Bearer [REDACTED]");
-      }
-      if (keyName === "commandLine" || keyName === "command" || keyName === "args" || keyName === "CommandLine") {
-        s = redactCommandFlags(s, fieldsRedacted);
-      }
-      s = redactFilePath(s);
-      s = redactDiscordId(s);
-      s = redactIpAddresses(s);
-      return s;
-    }
-    if (Array.isArray(val)) {
-      return val.map((item) => redactValue(item, keyName));
-    }
-    if (typeof val === "object") {
-      const obj = val;
-      const newObj = {};
-      for (const k of Object.keys(obj)) {
-        newObj[k] = redactValue(obj[k], k);
-      }
-      return newObj;
-    }
-    return val;
-  }
-  const redacted = redactValue(args);
-  return {
-    redacted,
-    fieldsRedacted: Array.from(new Set(fieldsRedacted))
-  };
-}
-function redactTraceResult(result, maxLength = 200) {
-  if (typeof result !== "string") {
-    return { summary: "", truncated: false };
-  }
-  let s = redactFilePath(result);
-  s = redactDiscordId(s);
-  s = redactIpAddresses(s);
-  if (s.length <= maxLength) {
-    return { summary: s, truncated: false };
-  }
-  const truncatedCount = s.length - maxLength;
-  const summary = s.slice(0, maxLength) + `... [${truncatedCount} chars truncated]`;
-  return {
-    summary,
-    truncated: true
-  };
-}
-function redactTraceText(result, maxLength = 12e3) {
-  if (typeof result !== "string") {
-    return { text: "", truncated: false };
-  }
-  let s = redactFilePath(result);
-  s = redactDiscordId(s);
-  s = redactIpAddresses(s);
-  if (s.length <= maxLength) {
-    return { text: s, truncated: false };
-  }
-  return {
-    text: `${s.slice(0, maxLength)}
-... [${s.length - maxLength} chars truncated]`,
-    truncated: true
-  };
-}
-
-// src/daemon/workflow/trace-normalizer.ts
-init_runtime();
-function stringifyTraceValue(value, toolName) {
-  if (value === null || value === void 0) return "";
-  if (typeof value === "string") return value;
-  if (typeof value === "object" && toolName === "run_shell_command") {
-    const resObj = value;
-    const exitCode = resObj["exitCode"] ?? resObj["exit_code"] ?? resObj["code"];
-    const stdout = String(resObj["stdout"] ?? resObj["output"] ?? "");
-    const stderr = String(resObj["stderr"] ?? "");
-    const lines = [];
-    if (exitCode !== void 0 && String(exitCode) !== "0") lines.push(`exit code: ${String(exitCode)}`);
-    if (stdout && stderr) {
-      lines.push(`stdout:
-${stdout}`);
-    } else if (stdout) {
-      lines.push(stdout);
-    }
-    if (stderr) lines.push(`stderr:
-${stderr}`);
-    return lines.join("\n");
-  }
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
-}
-function firstString(...values) {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim()) return value;
-  }
-  return null;
-}
-function normalizeToolName(value) {
-  const withoutServerSuffix = value.replace(/\s*\([^)]*MCP Server\)\s*$/i, "").trim();
-  if (withoutServerSuffix === "discord_message" || withoutServerSuffix.endsWith("/discord_message")) {
-    return "discord_message";
-  }
-  return withoutServerSuffix || value;
-}
-function recordValue(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : null;
-}
-function extractContentBlockText(value) {
-  const record = recordValue(value);
-  if (!record) return typeof value === "string" ? value : "";
-  if (typeof record["text"] === "string") return record["text"];
-  if (typeof record["thought"] === "string") return record["thought"];
-  const content = record["content"];
-  if (content && typeof content === "object") {
-    return extractContentBlockText(content);
-  }
-  const resource = record["resource"];
-  if (resource && typeof resource === "object") {
-    return extractContentBlockText(resource);
-  }
-  return "";
-}
-function extractToolContentText(value) {
-  if (!Array.isArray(value)) return "";
-  return value.map((entry) => {
-    const record = recordValue(entry);
-    if (!record) return "";
-    if (record["type"] === "diff") {
-      const path15 = firstString(record["path"]) ?? "diff";
-      const oldText = typeof record["oldText"] === "string" ? record["oldText"] : "";
-      const newText = typeof record["newText"] === "string" ? record["newText"] : "";
-      return [
-        `Diff: ${path15}`,
-        oldText ? `--- old
-${oldText}` : "",
-        newText ? `+++ new
-${newText}` : ""
-      ].filter(Boolean).join("\n");
-    }
-    if (record["type"] === "terminal") {
-      const terminalId = firstString(record["terminalId"]);
-      return terminalId ? `Terminal output: ${terminalId}` : "Terminal output";
-    }
-    if (record["type"] === "content") {
-      return extractContentBlockText(record["content"]);
-    }
-    return extractContentBlockText(record);
-  }).filter(Boolean).join("\n\n");
-}
-function isInternalNarrationText(text) {
-  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  if (lines.length === 0) return false;
-  return lines.every(
-    (line) => /^\[current working directory\b[^\]]*\]$/i.test(line) || /^\((?:Executing|Creating|Running|Using|Reading|Compiling|Listing)\b[\s\S]*\)$/i.test(line)
-  );
-}
-function summarizePlanEntries(entries) {
-  if (!Array.isArray(entries)) return null;
-  const lines = entries.map((entry) => {
-    const record = recordValue(entry);
-    if (!record) return "";
-    const content = firstString(record["content"]);
-    if (!content) return "";
-    const status = firstString(record["status"]);
-    return status ? `${status}: ${content}` : content;
-  }).filter(Boolean);
-  return lines.length > 0 ? lines.join("\n") : null;
-}
-function resolveAcpStatus(sessionUpdate, rawStatus, hasResultText) {
-  if (rawStatus === "failed") return { type: "tool_failed", status: "failed" };
-  if (rawStatus === "cancelled") return { type: "tool_cancelled", status: "cancelled" };
-  if (rawStatus === "completed" || hasResultText) return { type: "tool_completed", status: "completed" };
-  if (sessionUpdate === "tool_call_update") return { type: "tool_progress", status: "progress" };
-  return { type: "tool_started", status: "started" };
-}
-function resolveDuration(id, type, timestamp, activeToolTimers) {
-  if (!id) return null;
-  if (type === "tool_started") {
-    if (!activeToolTimers.has(id)) {
-      activeToolTimers.set(id, timestamp);
-    }
-    return null;
-  }
-  const start = activeToolTimers.get(id);
-  if (!start) return null;
-  if (type === "tool_completed" || type === "tool_failed" || type === "tool_cancelled") {
-    activeToolTimers.delete(id);
-  }
-  return timestamp - start;
-}
-function familyFromAcpKind(kind) {
-  switch (kind) {
-    case "execute":
-      return "shell";
-    case "read":
-    case "edit":
-    case "delete":
-    case "move":
-      return "filesystem";
-    case "search":
-      return "search";
-    case "fetch":
-      return "web";
-    case "think":
-    case "switch_mode":
-      return "planning";
-    default:
-      return "unknown";
-  }
-}
-function resolveTopLevelToolEntry(payload) {
-  const rawInput = recordValue(payload["rawInput"]);
-  const rawToolName = firstString(
-    rawInput?.["name"],
-    rawInput?.["toolName"],
-    rawInput?.["tool_name"]
-  );
-  if (rawToolName) return resolveToolEntry(normalizeToolName(rawToolName));
-  const kind = firstString(payload["kind"]) ?? "other";
-  const title = firstString(payload["title"]) ?? kind;
-  if (/^Searching\s+the\s+web\s+for:/i.test(title)) {
-    return resolveToolEntry("google_web_search");
-  }
-  if (kind === "fetch" || /^Processing\s+URLs\s+and\s+instructions\s+from\s+prompt:/i.test(title)) {
-    return resolveToolEntry("web_fetch");
-  }
-  if (/^"[^"]+":\s+\S/.test(title)) {
-    return resolveToolEntry("activate_skill");
-  }
-  if (/^(?:ReadFolder|ListDirectory)\b/i.test(title) || kind === "read" && /^[.~/(]|^[A-Za-z]:[\\/]/.test(title)) {
-    return {
-      canonical: "list_directory",
-      displayName: "ReadFolder",
-      family: "filesystem"
-    };
-  }
-  if (/^ReadFile\b/i.test(title)) {
-    return resolveToolEntry("read_file");
-  }
-  return {
-    canonical: `acp_${kind}`,
-    displayName: title,
-    family: familyFromAcpKind(kind)
-  };
-}
-function rawInputArgs(rawInput) {
-  const record = recordValue(rawInput);
-  if (!record) return {};
-  const args = recordValue(record["args"]) ?? recordValue(record["arguments"]);
-  if (args) return args;
-  if (firstString(record["name"], record["toolName"], record["tool_name"])) {
-    const rest = { ...record };
-    delete rest["name"];
-    delete rest["toolName"];
-    delete rest["tool_name"];
-    return rest;
-  }
-  return record;
-}
-function argsWithTitleCommand(args, toolEntry, title) {
-  if (toolEntry.family !== "shell") return args;
-  if (firstString(args["command"], args["commandLine"], args["CommandLine"])) return args;
-  const command = title.replace(/^Shell(?:\s+command)?\s*/i, "").trim();
-  return command ? { ...args, command } : args;
-}
-function argsWithTitleMetadata(args, toolEntry, title) {
-  const withCommand = argsWithTitleCommand(args, toolEntry, title);
-  if (toolEntry.canonical === "list_directory" && !firstString(withCommand["dir_path"], withCommand["path"])) {
-    const dir = title.replace(/^(?:ReadFolder|ListDirectory)\s*/i, "").trim();
-    return dir ? { ...withCommand, dir_path: dir } : withCommand;
-  }
-  if (toolEntry.canonical === "read_file" && !firstString(withCommand["file_path"], withCommand["path"])) {
-    const file = title.replace(/^ReadFile\s*/i, "").trim();
-    return file ? { ...withCommand, file_path: file } : withCommand;
-  }
-  if (toolEntry.canonical === "activate_skill" && !firstString(withCommand["name"], withCommand["skill"])) {
-    const skill = title.match(/^"([^"]+)":\s+/)?.[1];
-    return skill ? { ...withCommand, name: skill } : withCommand;
-  }
-  if (toolEntry.canonical === "web_fetch" && !firstString(withCommand["url"], withCommand["prompt"], withCommand["query"])) {
-    const prompt = title.match(/^Processing\s+URLs\s+and\s+instructions\s+from\s+prompt:\s*["“]?(.+?)["”]?\s*$/i)?.[1];
-    return prompt ? { ...withCommand, prompt } : withCommand;
-  }
-  if (toolEntry.canonical !== "google_web_search") return withCommand;
-  if (firstString(withCommand["query"], withCommand["prompt"])) return withCommand;
-  const match = title.match(/^Searching\s+the\s+web\s+for:\s*["“]?(.+?)["”]?\s*$/i);
-  return match?.[1] ? { ...withCommand, query: match[1] } : withCommand;
-}
-function normalizeAcpUpdate(sessionUpdate, updatePayload, activeToolTimers) {
-  const timestamp = Date.now();
-  if (sessionUpdate === "plan") {
-    let summary = "Planning next steps...";
-    const entriesSummary = summarizePlanEntries(updatePayload["entries"]);
-    const planVal = updatePayload["plan"];
-    if (entriesSummary) {
-      summary = entriesSummary;
-    } else if (planVal && typeof planVal === "string") {
-      summary = planVal;
-    } else if (planVal && typeof planVal === "object") {
-      const steps = planVal["steps"];
-      if (Array.isArray(steps)) {
-        summary = steps.map((s) => String(s)).join("\n");
-      } else {
-        summary = JSON.stringify(planVal);
-      }
-    } else {
-      const thoughtVal = updatePayload["thought"] || updatePayload["agent_thought_chunk"];
-      if (thoughtVal && typeof thoughtVal === "string") {
-        summary = thoughtVal;
-      }
-    }
-    const redacted = redactTraceResult(summary, 500);
-    return {
-      type: "phase_started",
-      timestamp,
-      toolName: null,
-      canonicalToolName: null,
-      displayName: null,
-      toolFamily: "planning",
-      args: {},
-      status: "started",
-      durationMs: null,
-      resultSummary: redacted.summary,
-      resultDetail: redacted.summary,
-      artifactRef: null,
-      redactionMetadata: {
-        fieldsRedacted: [],
-        truncated: redacted.truncated
-      },
-      raw: updatePayload
-    };
-  }
-  if (sessionUpdate === "tool_call" || sessionUpdate === "tool_call_update") {
-    const toolCall = updatePayload["toolCall"];
-    if (!toolCall) {
-      const id2 = firstString(updatePayload["toolCallId"]) ?? "";
-      const title = firstString(updatePayload["title"]) ?? "";
-      if (!id2 || !title) return null;
-      const toolEntry2 = resolveTopLevelToolEntry(updatePayload);
-      const rawArgs2 = argsWithTitleMetadata(rawInputArgs(updatePayload["rawInput"]), toolEntry2, title);
-      const { redacted: redactedArgs2, fieldsRedacted: fieldsRedacted2 } = redactTraceArgs(rawArgs2);
-      const contentText = extractToolContentText(updatePayload["content"]);
-      const outputText = stringifyTraceValue(
-        updatePayload["rawOutput"],
-        toolEntry2.family === "shell" ? "run_shell_command" : toolEntry2.canonical
-      );
-      const visibleContentText = toolEntry2.family === "shell" && isInternalNarrationText(contentText) ? "" : contentText;
-      const resultText = [visibleContentText, outputText].filter(Boolean).join("\n\n");
-      const metadataOnlyShellUpdate = toolEntry2.family === "shell" && Boolean(contentText) && !visibleContentText && !outputText;
-      const rawStatus = metadataOnlyShellUpdate ? "in_progress" : updatePayload["status"];
-      const statusInfo = resolveAcpStatus(sessionUpdate, rawStatus, Boolean(resultText));
-      const durationMs2 = resolveDuration(id2, statusInfo.type, timestamp, activeToolTimers);
-      const redactedResult = redactTraceResult(resultText, 200);
-      const redactedDetail = redactTraceText(resultText, 12e3);
-      const isDiscordMessage2 = toolEntry2.canonical === "discord_message";
-      let policySuppressed2 = false;
-      let intercepted2 = false;
-      if (isDiscordMessage2) {
-        const targetChannelId = String(rawArgs2["channel_id"] || rawArgs2["channelId"] || "");
-        const activeRun = targetChannelId ? runtimeStore.activeWorkflowRuns.get(targetChannelId) : null;
-        if (activeRun) {
-          if (!isExplicitSendToCurrentThread(activeRun.userContent)) {
-            policySuppressed2 = true;
-          }
-        }
-        const rawOutput = updatePayload["rawOutput"];
-        if (rawOutput && typeof rawOutput === "object" && rawOutput.intercepted === true) {
-          intercepted2 = true;
-          policySuppressed2 = true;
-        }
-      }
-      return {
-        type: statusInfo.type,
-        timestamp,
-        toolName: toolEntry2.canonical,
-        canonicalToolName: toolEntry2.canonical,
-        displayName: toolEntry2.displayName,
-        toolFamily: toolEntry2.family,
-        args: redactedArgs2,
-        status: statusInfo.status,
-        durationMs: durationMs2,
-        resultSummary: redactedResult.summary || null,
-        resultDetail: redactedDetail.text || redactedResult.summary || null,
-        policySuppressed: policySuppressed2,
-        intercepted: intercepted2,
-        artifactRef: null,
-        redactionMetadata: {
-          fieldsRedacted: fieldsRedacted2,
-          truncated: redactedResult.truncated || redactedDetail.truncated
-        },
-        raw: updatePayload
-      };
-    }
-    const id = typeof toolCall["id"] === "string" ? toolCall["id"] : "";
-    const name = typeof toolCall["name"] === "string" ? normalizeToolName(toolCall["name"]) : "";
-    if (!name) return null;
-    const toolEntry = resolveToolEntry(name);
-    const rawArgs = toolCall["arguments"] ?? toolCall["args"] ?? {};
-    const { redacted: redactedArgs, fieldsRedacted } = redactTraceArgs(rawArgs);
-    let type = "tool_started";
-    let status = "started";
-    let durationMs = null;
-    let resultSummary = null;
-    let resultDetail = null;
-    let truncated = false;
-    const progress = toolCall["progress"];
-    const result = toolCall["result"] ?? toolCall["response"];
-    const error = toolCall["error"] ?? toolCall["errorMessage"];
-    if (error !== void 0 && error !== null) {
-      type = "tool_failed";
-      status = "failed";
-      const start = activeToolTimers.get(id);
-      if (start) {
-        durationMs = timestamp - start;
-        activeToolTimers.delete(id);
-      }
-      const errorStr = stringifyTraceValue(error, name);
-      const redactedError = redactTraceResult(errorStr, 200);
-      const redactedErrorDetail = redactTraceText(errorStr, 12e3);
-      resultSummary = redactedError.summary;
-      resultDetail = redactedErrorDetail.text || resultSummary;
-      truncated = redactedError.truncated || redactedErrorDetail.truncated;
-    } else if (result !== void 0 && result !== null) {
-      type = "tool_completed";
-      status = "completed";
-      const start = activeToolTimers.get(id);
-      if (start) {
-        durationMs = timestamp - start;
-        activeToolTimers.delete(id);
-      }
-      const resultStr = stringifyTraceValue(result, name);
-      const redactedResult = redactTraceResult(resultStr, 200);
-      const redactedDetail = redactTraceText(resultStr, 12e3);
-      resultSummary = redactedResult.summary;
-      resultDetail = redactedDetail.text || resultSummary;
-      truncated = redactedResult.truncated || redactedDetail.truncated;
-    } else if (sessionUpdate === "tool_call_update" || progress !== void 0 && progress !== null) {
-      type = "tool_progress";
-      status = "progress";
-      const start = activeToolTimers.get(id);
-      if (start) {
-        durationMs = timestamp - start;
-      }
-      const progressStr = stringifyTraceValue(progress, name);
-      const redactedProgress = redactTraceResult(progressStr, 200);
-      const redactedProgressDetail = redactTraceText(progressStr, 12e3);
-      resultSummary = redactedProgress.summary;
-      resultDetail = redactedProgressDetail.text || resultSummary;
-      truncated = redactedProgress.truncated || redactedProgressDetail.truncated;
-    } else {
-      type = "tool_started";
-      status = "started";
-      activeToolTimers.set(id, timestamp);
-    }
-    let artifactRef = null;
-    if (name === "write_file" || name === "replace" || name === "write_to_file" || name === "replace_file_content") {
-      const pathVal = firstString(rawArgs["file_path"], rawArgs["path"], rawArgs["TargetFile"], rawArgs["filePath"]);
-      if (typeof pathVal === "string") {
-        artifactRef = redactFilePath(pathVal);
-      }
-    }
-    const isDiscordMessage = name === "discord_message" || toolEntry.canonical === "discord_message";
-    let policySuppressed = false;
-    let intercepted = false;
-    if (isDiscordMessage) {
-      const targetChannelId = String(rawArgs["channel_id"] || rawArgs["channelId"] || "");
-      const activeRun = targetChannelId ? runtimeStore.activeWorkflowRuns.get(targetChannelId) : null;
-      if (activeRun) {
-        if (!isExplicitSendToCurrentThread(activeRun.userContent)) {
-          policySuppressed = true;
-        }
-      }
-      if (result && typeof result === "object" && result.intercepted === true) {
-        intercepted = true;
-        policySuppressed = true;
-      }
-    }
-    return {
-      type,
-      timestamp,
-      toolName: name,
-      canonicalToolName: toolEntry.canonical,
-      displayName: toolEntry.displayName,
-      toolFamily: toolEntry.family,
-      args: redactedArgs,
-      status,
-      durationMs,
-      resultSummary,
-      resultDetail,
-      policySuppressed,
-      intercepted,
-      artifactRef,
-      redactionMetadata: {
-        fieldsRedacted,
-        truncated
-      },
-      raw: updatePayload
-    };
-  }
-  return null;
-}
-
-// src/daemon/cli-pool.ts
-var ACP_PROTOCOL_VERSION = 1;
-var SESSION_REQUEST_TIMEOUT_MS = 12e4;
-var STARTUP_REQUEST_TIMEOUT_MS = 9e4;
-var SESSION_REPLAY_QUIET_MS = 400;
-var SESSION_REPLAY_MAX_WAIT_MS = 6e3;
-function buildPoolKey(bindingKey, allowedTools) {
-  const tier = allowedTools === "all" ? "full" : allowedTools === "none" ? "chat" : allowedTools === "google_web_search" ? "public-web-search" : allowedTools === "google_web_search,web_fetch" ? "web" : allowedTools.includes("google_web_search,web_fetch") ? "web-discord" : "discord";
-  return `${bindingKey}:${tier}`;
-}
-function appendHeadlessIsolationArgs(args) {
-  args.push("--extensions", "gemini-discord");
-  args.push("--allowed-mcp-server-names", "discord-bridge");
-}
-function normalizeResumeSessionId(value) {
-  const trimmed = value?.trim();
-  return trimmed && trimmed !== "latest" ? trimmed : null;
-}
-function normalizeAcpError(error) {
-  if (error && typeof error === "object") {
-    const candidate = error;
-    const message = typeof candidate["message"] === "string" ? candidate["message"] : "Gemini ACP request failed";
-    const details = candidate["data"];
-    if (details && typeof details === "object" && "details" in details) {
-      const detailMessage = details["details"];
-      if (typeof detailMessage === "string" && detailMessage.trim()) {
-        return new Error(`${message}: ${detailMessage}`);
-      }
-    }
-    return new Error(message);
-  }
-  return new Error(typeof error === "string" ? error : "Gemini ACP request failed");
-}
-function isRetryableAcpExitError(error) {
-  const message = error.message.toLowerCase();
-  return message.includes("gemini acp exited with code 1") || message.includes("gemini returned no assistant output");
-}
-function isMissingSessionError(error) {
-  const message = error.message.toLowerCase();
-  return message.includes("no previous sessions found for this project") || message.includes("session not found") || message.includes("invalid session identifier") || message.includes("failed to resolve session") || message.includes("resume_session_unavailable");
-}
-function extractUpdateText(update) {
-  const content = update["content"];
-  if (Array.isArray(content)) {
-    return content.map((value) => {
-      if (!value || typeof value !== "object") {
-        return "";
-      }
-      const record = value;
-      const inner = record["content"];
-      if (inner && typeof inner === "object" && typeof inner["text"] === "string") {
-        return String(inner["text"]);
-      }
-      return typeof record["text"] === "string" ? record["text"] : "";
-    }).join("");
-  }
-  if (content && typeof content === "object") {
-    const record = content;
-    if (typeof record["text"] === "string") {
-      return record["text"];
-    }
-  }
-  return "";
-}
-var CliProcessPool = class {
-  pool = /* @__PURE__ */ new Map();
-  maxSize;
-  idleTimeoutMs;
-  config;
-  constructor(config) {
-    this.config = config;
-    this.maxSize = config.geminiMaxConcurrent;
-    this.idleTimeoutMs = config.cliIdleTimeoutMs;
-  }
-  async send(bindingKey, prompt, callbacks, opts) {
-    const allowedTools = resolveGeminiAllowedTools(opts.roleContext, opts.toolMode);
-    const poolKey = buildPoolKey(bindingKey, allowedTools);
-    let lastError = null;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      let entry = this.pool.get(poolKey);
-      if (entry && !entry.busy && this.isAlive(entry)) {
-        entry.busy = true;
-        entry.lastActivityAt = Date.now();
-        this.resetIdleTimer(entry);
-        log.info("CLI pool: reusing warm ACP process", {
-          poolKey,
-          aliveMs: Date.now() - entry.spawnedAt,
-          sessionId: entry.sessionId
-        });
-      } else {
-        if (entry) {
-          this.evict(poolKey);
-        }
-        if (this.pool.size >= this.maxSize) {
-          this.evictOldestIdle();
-        }
-        entry = await this.spawnProcess(poolKey, allowedTools, opts.roleContext);
-        entry.busy = true;
-        this.pool.set(poolKey, entry);
-      }
-      try {
-        await this.ensureSession(entry, opts);
-        const response = await this.promptWithAcp(entry, prompt, callbacks, opts);
-        entry.busy = false;
-        entry.lastActivityAt = Date.now();
-        this.resetIdleTimer(entry);
-        return response;
-      } catch (error) {
-        const normalized = error instanceof Error ? error : new Error(String(error));
-        lastError = normalized;
-        this.evict(poolKey);
-        if (attempt === 0 && isRetryableAcpExitError(normalized)) {
-          log.warn("CLI pool: retrying Gemini ACP after crash", {
-            poolKey,
-            error: normalized.message
-          });
-          continue;
-        }
-        throw normalized;
-      }
-    }
-    throw lastError ?? new Error("Gemini ACP request failed");
-  }
-  async spawnProcess(poolKey, allowedTools, roleContext) {
-    const spawnedAt = Date.now();
-    const args = [
-      "--acp",
-      "--model",
-      this.config.geminiModel,
-      "--approval-mode",
-      "yolo",
-      "--allowed-tools",
-      allowedTools
-    ];
-    appendHeadlessIsolationArgs(args);
-    log.info("CLI pool: initializing ACP process entry", {
-      poolKey,
-      model: this.config.geminiModel,
-      allowedTools,
-      extensionScope: "gemini-discord"
-    });
-    const proc = (0, import_node_child_process2.spawn)(this.config.geminiPath, args, {
-      stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, ...roleEnv(roleContext) }
-    });
-    if (!proc.stdout || !proc.stdin) {
-      throw new Error("Gemini ACP did not expose the expected stdio streams.");
-    }
-    const rl = readline.createInterface({ input: proc.stdout });
-    const entry = {
-      proc,
-      poolKey,
-      rl,
-      busy: false,
-      spawnedAt,
-      lastActivityAt: spawnedAt,
-      idleTimer: null,
-      allowedTools,
-      initialized: false,
-      nextRequestId: 1,
-      pendingRequests: /* @__PURE__ */ new Map(),
-      activePrompt: null,
-      sessionId: null,
-      cwd: null,
-      stderrTail: "",
-      lastSessionUpdateAt: 0,
-      activeToolTimers: /* @__PURE__ */ new Map()
-    };
-    proc.stderr?.on("data", (chunk) => {
-      entry.stderrTail = `${entry.stderrTail}${chunk.toString()}`.slice(-4e3);
-    });
-    rl.on("line", (line) => {
-      this.handleStdoutLine(entry, line);
-    });
-    proc.on("error", (error) => {
-      this.rejectAllPending(entry, new Error(`Failed to spawn gemini: ${error.message}`));
-      if (this.pool.get(entry.poolKey) === entry) {
-        this.pool.delete(entry.poolKey);
-      }
-    });
-    proc.on("close", (code) => {
-      this.rejectAllPending(entry, new Error(`Gemini ACP exited with code ${code}. ${entry.stderrTail.slice(-300)}`));
-      if (entry.idleTimer) {
-        clearTimeout(entry.idleTimer);
-      }
-      try {
-        rl.close();
-      } catch {
-      }
-      if (this.pool.get(entry.poolKey) === entry) {
-        this.pool.delete(entry.poolKey);
-      }
-    });
-    try {
-      await this.sendRequest(entry, "initialize", {
-        protocolVersion: ACP_PROTOCOL_VERSION,
-        clientCapabilities: {
-          auth: { terminal: false },
-          fs: { readTextFile: false, writeTextFile: false },
-          terminal: false
-        },
-        clientInfo: {
-          name: "gemini-discord",
-          version: "0.1.0"
-        }
-      }, STARTUP_REQUEST_TIMEOUT_MS);
-      entry.initialized = true;
-      this.resetIdleTimer(entry);
-      return entry;
-    } catch (error) {
-      try {
-        proc.kill("SIGTERM");
-      } catch {
-      }
-      try {
-        rl.close();
-      } catch {
-      }
-      throw error;
-    }
-  }
-  async ensureSession(entry, opts) {
-    const resumeSessionId = normalizeResumeSessionId(opts.resumeSessionId);
-    if (entry.sessionId && entry.cwd === opts.cwd) {
-      if (!resumeSessionId || resumeSessionId === entry.sessionId) {
-        opts.onSessionId?.(entry.sessionId);
-        return;
-      }
-      await this.closeSession(entry);
-    }
-    if (resumeSessionId) {
-      try {
-        await this.sendRequest(entry, "session/load", {
-          sessionId: resumeSessionId,
-          cwd: opts.cwd,
-          mcpServers: []
-        }, SESSION_REQUEST_TIMEOUT_MS);
-        entry.sessionId = resumeSessionId;
-        entry.cwd = opts.cwd;
-        await this.waitForSessionReplayToDrain(entry);
-        opts.onSessionId?.(entry.sessionId);
-        return;
-      } catch (error) {
-        const normalized = error instanceof Error ? error : new Error(String(error));
-        if (!isMissingSessionError(normalized)) {
-          throw normalized;
-        }
-        log.warn("CLI pool: resume target unavailable, starting fresh session", {
-          poolKey: entry.poolKey,
-          requestedSessionId: resumeSessionId,
-          cwd: opts.cwd,
-          error: normalized.message
-        });
-        entry.sessionId = null;
-        entry.cwd = null;
-      }
-    }
-    const result = await this.sendRequest(entry, "session/new", {
-      cwd: opts.cwd,
-      mcpServers: []
-    }, SESSION_REQUEST_TIMEOUT_MS);
-    if (!result || typeof result !== "object" || typeof result["sessionId"] !== "string") {
-      throw new Error("Gemini ACP did not return a sessionId for the new session.");
-    }
-    entry.sessionId = String(result["sessionId"]);
-    entry.cwd = opts.cwd;
-    opts.onSessionId?.(entry.sessionId);
-  }
-  async closeSession(entry) {
-    if (!entry.sessionId) {
-      return;
-    }
-    try {
-      await this.sendRequest(entry, "session/close", {
-        sessionId: entry.sessionId
-      }, 3e4);
-    } catch {
-    } finally {
-      entry.sessionId = null;
-      entry.cwd = null;
-    }
-  }
-  async waitForSessionReplayToDrain(entry) {
-    const startedAt = Date.now();
-    let lastObservedAt = startedAt;
-    while (Date.now() - startedAt < SESSION_REPLAY_MAX_WAIT_MS) {
-      if (entry.lastSessionUpdateAt > lastObservedAt) {
-        lastObservedAt = entry.lastSessionUpdateAt;
-      }
-      if (Date.now() - lastObservedAt >= SESSION_REPLAY_QUIET_MS) {
-        return;
-      }
-      await new Promise((resolve2) => setTimeout(resolve2, 50));
-    }
-    log.warn("CLI pool: session replay did not fully drain before prompt", {
-      poolKey: entry.poolKey,
-      sessionId: entry.sessionId,
-      waitedMs: Date.now() - startedAt
-    });
-  }
-  async promptWithAcp(entry, prompt, callbacks, opts) {
-    if (!entry.sessionId) {
-      throw new Error("Gemini ACP session is not initialized.");
-    }
-    const requestId = entry.nextRequestId++;
-    const hasAttachments = (opts.attachments?.length ?? 0) > 0;
-    return new Promise((resolve2, reject2) => {
-      const maxTotalTimeoutMs = this.config.geminiTimeoutMs;
-      const firstOutputTimeoutMs = hasAttachments ? Math.min(maxTotalTimeoutMs, 6e5) : Math.min(maxTotalTimeoutMs, 12e4);
-      const postOutputTimeoutMs = 12e4;
-      const activePrompt = {
-        requestId,
-        callbacks,
-        fullResponse: "",
-        sawAssistantOutput: false,
-        lastOutputAt: Date.now(),
-        startedAt: Date.now(),
-        timeoutHandle: setInterval(() => {
-          const current = entry.activePrompt;
-          if (!current || current.requestId !== requestId) {
-            return;
-          }
-          const idleMs = Date.now() - current.lastOutputAt;
-          const totalMs = Date.now() - current.startedAt;
-          if (!current.sawAssistantOutput && idleMs > firstOutputTimeoutMs) {
-            const error = new Error(`Gemini stalled \u2014 no output for ${Math.round(idleMs / 1e3)}s`);
-            this.failPrompt(entry, error, true);
-            return;
-          }
-          if (current.sawAssistantOutput && idleMs > postOutputTimeoutMs) {
-            const error = new Error(`Gemini stalled \u2014 no output for ${Math.round(idleMs / 1e3)}s`);
-            this.failPrompt(entry, error, true);
-            return;
-          }
-          if (totalMs > maxTotalTimeoutMs) {
-            const error = new Error(`Gemini timed out after ${Math.round(totalMs / 1e3)}s total`);
-            this.failPrompt(entry, error, true);
-          }
-        }, 5e3),
-        resolve: resolve2,
-        reject: reject2
-      };
-      entry.activePrompt = activePrompt;
-      entry.pendingRequests.set(requestId, {
-        resolve: () => {
-          const current = entry.activePrompt;
-          if (!current || current.requestId !== requestId) {
-            resolve2("");
-            return;
-          }
-          clearInterval(current.timeoutHandle);
-          entry.activePrompt = null;
-          if (!current.sawAssistantOutput) {
-            reject2(new Error("Gemini returned no assistant output for this turn."));
-            return;
-          }
-          resolve2(current.fullResponse);
-        },
-        reject: (error) => {
-          const current = entry.activePrompt;
-          if (current && current.requestId === requestId) {
-            clearInterval(current.timeoutHandle);
-            entry.activePrompt = null;
-          }
-          reject2(error);
-        }
-      });
-      try {
-        this.writeJsonLine(entry, {
-          jsonrpc: "2.0",
-          id: requestId,
-          method: "session/prompt",
-          params: {
-            sessionId: entry.sessionId,
-            prompt: buildAcpPromptBlocks(prompt, opts.attachments)
-          }
-        });
-      } catch (error) {
-        this.failPrompt(entry, error instanceof Error ? error : new Error(String(error)), false);
-      }
-    });
-  }
-  handleStdoutLine(entry, line) {
-    if (line.length < 3 || line[0] !== "{") {
-      return;
-    }
-    let parsed;
-    try {
-      parsed = JSON.parse(line);
-    } catch {
-      return;
-    }
-    const method = typeof parsed["method"] === "string" ? parsed["method"] : null;
-    if (method === "session/update") {
-      const params = parsed["params"];
-      if (params && typeof params === "object") {
-        this.handleSessionUpdate(entry, params);
-      }
-      return;
-    }
-    const rawId = parsed["id"];
-    if (typeof rawId !== "number") {
-      return;
-    }
-    const pending = entry.pendingRequests.get(rawId);
-    if (!pending) {
-      return;
-    }
-    entry.pendingRequests.delete(rawId);
-    if ("error" in parsed && parsed["error"]) {
-      pending.reject(normalizeAcpError(parsed["error"]));
-      return;
-    }
-    const activePrompt = entry.activePrompt;
-    if (activePrompt && activePrompt.requestId === rawId) {
-      const finalText = extractGeminiResultText(parsed["result"]);
-      if (finalText) {
-        const delta = getGeminiTextDelta(activePrompt.fullResponse, finalText);
-        if (delta) {
-          activePrompt.sawAssistantOutput = true;
-          activePrompt.fullResponse += delta;
-          activePrompt.callbacks.onToken(delta);
-        }
-      }
-    }
-    pending.resolve(parsed["result"]);
-  }
-  handleSessionUpdate(entry, params) {
-    entry.lastSessionUpdateAt = Date.now();
-    const activePrompt = entry.activePrompt;
-    if (!activePrompt || !entry.sessionId) {
-      return;
-    }
-    const sessionId = typeof params["sessionId"] === "string" ? params["sessionId"] : null;
-    if (!sessionId || sessionId !== entry.sessionId) {
-      return;
-    }
-    const rawUpdate = params["update"];
-    if (!rawUpdate || typeof rawUpdate !== "object") {
-      return;
-    }
-    const update = rawUpdate;
-    const sessionUpdate = typeof update["sessionUpdate"] === "string" ? update["sessionUpdate"] : "";
-    activePrompt.lastOutputAt = Date.now();
-    if (sessionUpdate === "agent_message_chunk") {
-      const candidate = extractUpdateText(update);
-      if (!candidate) {
-        return;
-      }
-      const delta = getGeminiTextDelta(activePrompt.fullResponse, candidate);
-      if (!delta) {
-        return;
-      }
-      activePrompt.sawAssistantOutput = true;
-      activePrompt.fullResponse += delta;
-      activePrompt.callbacks.onToken(delta);
-      return;
-    }
-    if (sessionUpdate === "agent_thought_chunk") {
-      activePrompt.callbacks.onThought?.();
-      return;
-    }
-    if (sessionUpdate === "tool_call" || sessionUpdate === "tool_call_update" || sessionUpdate === "plan") {
-      activePrompt.callbacks.onThought?.();
-      if (activePrompt.callbacks.onTraceEvent) {
-        const traceEvent = normalizeAcpUpdate(sessionUpdate, update, entry.activeToolTimers);
-        if (traceEvent) {
-          activePrompt.callbacks.onTraceEvent(traceEvent);
-        }
-      }
-    }
-  }
-  failPrompt(entry, error, evictAfter) {
-    const activePrompt = entry.activePrompt;
-    if (!activePrompt) {
-      return;
-    }
-    const pending = entry.pendingRequests.get(activePrompt.requestId);
-    if (pending) {
-      entry.pendingRequests.delete(activePrompt.requestId);
-      pending.reject(error);
-    } else {
-      clearInterval(activePrompt.timeoutHandle);
-      entry.activePrompt = null;
-      activePrompt.reject(error);
-    }
-    if (evictAfter) {
-      this.evict(entry.poolKey);
-    }
-  }
-  async sendRequest(entry, method, params, timeoutMs) {
-    const requestId = entry.nextRequestId++;
-    return new Promise((resolve2, reject2) => {
-      const timeoutHandle = setTimeout(() => {
-        entry.pendingRequests.delete(requestId);
-        reject2(new Error(`Gemini ACP ${method} timed out after ${Math.round(timeoutMs / 1e3)}s`));
-      }, timeoutMs);
-      entry.pendingRequests.set(requestId, {
-        resolve: (value) => {
-          clearTimeout(timeoutHandle);
-          resolve2(value);
-        },
-        reject: (error) => {
-          clearTimeout(timeoutHandle);
-          reject2(error);
-        }
-      });
-      try {
-        this.writeJsonLine(entry, {
-          jsonrpc: "2.0",
-          id: requestId,
-          method,
-          params
-        });
-      } catch (error) {
-        clearTimeout(timeoutHandle);
-        entry.pendingRequests.delete(requestId);
-        reject2(error instanceof Error ? error : new Error(String(error)));
-      }
-    });
-  }
-  writeJsonLine(entry, payload) {
-    if (!entry.proc.stdin || entry.proc.stdin.destroyed || !this.isAlive(entry)) {
-      throw new Error("Gemini ACP stdin is not writable.");
-    }
-    entry.proc.stdin.write(`${JSON.stringify(payload)}
-`);
-  }
-  rejectAllPending(entry, error) {
-    if (entry.activePrompt) {
-      clearInterval(entry.activePrompt.timeoutHandle);
-      entry.activePrompt = null;
-    }
-    for (const [requestId, pending] of entry.pendingRequests.entries()) {
-      entry.pendingRequests.delete(requestId);
-      pending.reject(error);
-    }
-  }
-  isAlive(entry) {
-    return entry.proc.exitCode === null && !entry.proc.killed;
-  }
-  resetIdleTimer(entry) {
-    if (entry.idleTimer) {
-      clearTimeout(entry.idleTimer);
-    }
-    entry.idleTimer = setTimeout(() => {
-      if (!entry.busy) {
-        log.info("CLI pool: evicting idle ACP process", {
-          poolKey: entry.poolKey,
-          sessionId: entry.sessionId
-        });
-        this.evict(entry.poolKey);
-      }
-    }, this.idleTimeoutMs);
-  }
-  evict(poolKey) {
-    const entry = this.pool.get(poolKey);
-    if (!entry) {
-      return;
-    }
-    if (entry.idleTimer) {
-      clearTimeout(entry.idleTimer);
-    }
-    this.rejectAllPending(entry, new Error(`CLI pool entry evicted: ${poolKey}`));
-    this.pool.delete(poolKey);
-    try {
-      if (this.isAlive(entry)) {
-        entry.proc.kill("SIGTERM");
-      }
-    } catch {
-    }
-    try {
-      entry.rl.close();
-    } catch {
-    }
-    entry.pendingRequests.clear();
-  }
-  evictOldestIdle() {
-    let oldest = null;
-    for (const entry of this.pool.values()) {
-      if (entry.busy) {
-        continue;
-      }
-      if (!oldest || entry.lastActivityAt < oldest.lastActivityAt) {
-        oldest = entry;
-      }
-    }
-    if (oldest) {
-      log.info("CLI pool: evicting oldest idle ACP process to make room", {
-        poolKey: oldest.poolKey
-      });
-      this.evict(oldest.poolKey);
-    }
-  }
-  kill(bindingKey) {
-    let killed = 0;
-    for (const [key] of this.pool) {
-      if (key.startsWith(bindingKey + ":")) {
-        this.evict(key);
-        killed++;
-      }
-    }
-    log.info("CLI pool: killed binding processes", { bindingKey, killed });
-  }
-  killAll() {
-    for (const [key] of this.pool) {
-      this.evict(key);
-    }
-  }
-  status() {
-    const now = Date.now();
-    const processes = [];
-    for (const entry of this.pool.values()) {
-      processes.push({
-        poolKey: entry.poolKey,
-        busy: entry.busy,
-        aliveMs: now - entry.spawnedAt,
-        lastActivityMs: now - entry.lastActivityAt,
-        allowedTools: entry.allowedTools
-      });
-    }
-    return {
-      total: this.pool.size,
-      busy: processes.filter((process2) => process2.busy).length,
-      idle: processes.filter((process2) => !process2.busy).length,
-      maxSize: this.maxSize,
-      processes
-    };
-  }
-};
-
-// src/daemon.ts
+init_cli_pool();
 init_runtime();
 
 // src/daemon/probe.ts
