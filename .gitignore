@@ -50,13 +50,7 @@ dist/*.map
 start-daemon.sh
 graphify-out/
 
-# BEADS runtime and local execution state
-.beads/beads.db
-.beads/daemon.lock
-.beads/daemon.pid
-.beads/daemon.log
-.beads/temp/
-.beads/context/
-.beads/plans/
+# Local Beads workflow state
+.beads/
 .dolt/
 .beads-credential-key
