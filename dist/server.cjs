@@ -22428,8 +22428,8 @@ function registerMessageTool(server2, config3) {
     "discord_message",
     [
       "Interact with Discord messages. Actions:",
-      '\u2022 "send" \u2014 send a new message to an explicit channel_id or channel_name (use silent:true to suppress notifications)',
-      '\u2022 "reply" \u2014 reply to a specific message ID',
+      '\u2022 "send" \u2014 send a message to a DIFFERENT channel or thread than the one you are currently responding in. Do NOT use send/reply for your normal response to the current conversation; your text output is already streamed to the origin channel automatically. Only use send when the user explicitly asks to post content to a specific other channel or thread (use silent:true to suppress notifications)',
+      '\u2022 "reply" \u2014 reply to a specific message ID in a DIFFERENT channel. Do NOT use for your normal response',
       '\u2022 "thread" \u2014 create a native Discord thread from a message or in a channel',
       '\u2022 "edit" \u2014 edit a bot-owned message',
       '\u2022 "delete" \u2014 delete a bot-owned message',
@@ -22454,7 +22454,7 @@ function registerMessageTool(server2, config3) {
         "unpin",
         "list_pins"
       ]).describe("Action to perform"),
-      content: external_exports.string().optional().describe('Message text. For "send"/"reply": optional text to accompany files (your normal conversational response streams automatically). For "edit": the new message content. For "thread": the thread name.'),
+      content: external_exports.string().optional().describe('Message text. For "send"/"reply": the text to deliver to the OTHER channel (never use this for your normal response \u2014 that streams automatically to the origin channel). For "edit": the new message content. For "thread": the thread name.'),
       channel_id: external_exports.string().optional().describe("Target channel ID. Required for send unless channel_name is provided. Required for most other actions."),
       channel_name: external_exports.string().optional().describe('Target channel name (only used for "send").'),
       message_id: external_exports.string().optional().describe("Message ID (required for reply/edit/delete/react/unreact/fetch_reactions/pin/unpin)."),

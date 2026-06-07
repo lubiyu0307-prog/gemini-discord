@@ -38,4 +38,18 @@ describe('resolveToolMode', () => {
     expect(resolveToolMode('use full tools and inspect the repo')).toBe('full');
     expect(resolveToolMode('edit the code and patch the project')).toBe('full');
   });
+
+  it('does NOT escalate to discord mode for casual mentions of "channel"', () => {
+    expect(resolveToolMode('what is a good YouTube channel for cooking')).toBe('chat');
+    expect(resolveToolMode('recommend a channel for learning Japanese')).toBe('chat');
+    expect(resolveToolMode('what are the best crossplay games between ps5 and pc')).toBe('chat');
+    expect(resolveToolMode('how does the channel selection algorithm work')).toBe('chat');
+  });
+
+  it('escalates to discord mode for explicit cross-channel action intent', () => {
+    expect(resolveToolMode('send this to the #general channel')).toBe('discord');
+    expect(resolveToolMode('post the summary in another channel')).toBe('discord');
+    expect(resolveToolMode('list the channels in this server')).toBe('discord');
+    expect(resolveToolMode('show channels')).toBe('discord');
+  });
 });
