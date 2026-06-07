@@ -5,6 +5,7 @@ import { daemonRequest } from './client.js';
 import { restartDaemon } from '../shared/daemon-runtime.js';
 import { resolveExtensionDir } from '../shared/config.js';
 import { authorizeMcpToolAction, formatPermissionDenial } from '../daemon/permissions.js';
+import { validateWorkflowTaskSummary, WorkflowTaskValidationError } from '../daemon/workflow/task-validation.js';
 import {
   clearPendingDelivery,
   pendingActionFailureText,
@@ -23,6 +24,8 @@ export function registerAdminTool(server: McpServer, config: Config): void {
       '• "restart" — restart the daemon process',
       '• "reset" — clear the current conversation and archive the session',
       '• "channels" — list discovered channels (optional query filter)',
+      '• "channel_allowlist_add" — add a channel to the allowed channels list',
+      '• "channel_allowlist_remove" — remove a channel from the allowed channels list',
       '• "users" — list discovered server users or resolve a user lookup hint (use when [Mentions] has no matching human, or the target is ambiguous)',
       '• "allowlist_add" — add a human user to the guest allowlist (never the bot itself; resolve with users discovery first)',
       '• "allowlist_remove" — remove a human user from the guest allowlist',
@@ -30,11 +33,14 @@ export function registerAdminTool(server: McpServer, config: Config): void {
       '• "kick" — remove a member from the server',
       '• "timeout" — apply a communication timeout (up to 28 days)',
       '• "remove_timeout" — remove an active timeout from a member',
+      '• "workflow" — start a monitored workflow thread for a task',
     ].join('\n'),
     {
-      action: z.enum(['status', 'restart', 'reset', 'channels', 'users', 'allowlist_add', 'allowlist_remove', 'set_presence', 'kick', 'timeout', 'remove_timeout']).describe('The administrative action to perform.'),
+      action: z.enum(['status', 'restart', 'reset', 'channels', 'channel_allowlist_add', 'channel_allowlist_remove', 'users', 'allowlist_add', 'allowlist_remove', 'set_presence', 'kick', 'timeout', 'remove_timeout', 'workflow']).describe('The administrative action to perform.'),
       query: z.string().optional().describe('Optional channel/user name, mention, ID, or partial string to filter discovery actions.'),
-      channel_id: z.string().optional().describe('Explicit Discord channel ID for reset actions.'),
+      task: z.string().optional().describe('Description of the task for the workflow (required for workflow action).'),
+      channel_id: z.string().optional().describe('Explicit Discord channel ID for reset, workflow, or channel allowlist actions.'),
+      all: z.boolean().optional().describe('If true, lists all channels in the guild, even those not currently allowlisted (only for channels action).'),
       status: z.enum(['online', 'idle', 'dnd', 'invisible']).optional().describe('Bot online status (only for set_presence).'),
       activity_type: z.enum(['playing', 'watching', 'listening', 'competing']).optional().describe('Activity type (only for set_presence).'),
       activity_name: z.string().optional().describe('Activity name, e.g. "with fire" (only for set_presence).'),
@@ -43,10 +49,10 @@ export function registerAdminTool(server: McpServer, config: Config): void {
       reason: z.string().optional().describe('Optional audit-log reason (only for kick/timeout/remove_timeout).'),
       duration_minutes: z.number().optional().describe('Timeout duration in minutes. Required for timeout. Maximum 40320 (28 days).'),
     },
-    async ({ action, query, channel_id, status, activity_type, activity_name, user_id, guild_id, reason, duration_minutes }) => {
+    async ({ action, query, task, channel_id, all, status, activity_type, activity_name, user_id, guild_id, reason, duration_minutes }) => {
       const permAction = action === 'status' ? 'status' as const
         : action === 'users' ? 'user_discovery' as const
-        : ['kick', 'timeout', 'remove_timeout', 'allowlist_add', 'allowlist_remove'].includes(action) ? 'moderation' as const
+        : ['kick', 'timeout', 'remove_timeout', 'allowlist_add', 'allowlist_remove', 'channel_allowlist_add', 'channel_allowlist_remove'].includes(action) ? 'moderation' as const
         : 'admin_command' as const;
       const gate = authorizeMcpToolAction(permAction, config);
       if (gate.decision !== 'allow') {
@@ -175,7 +181,14 @@ export function registerAdminTool(server: McpServer, config: Config): void {
         }
 
         case 'channels': {
-          const res = await daemonRequest({ method: 'GET', path: '/status', config });
+          const params = new URLSearchParams();
+          if (query?.trim()) params.set('query', query.trim());
+          if (all) params.set('all', 'true');
+          const res = await daemonRequest({
+            method: 'GET',
+            path: params.size > 0 ? `/channels?${params.toString()}` : '/channels',
+            config,
+          });
 
           if (res.data['error'] === 'daemon_offline') {
             return text('❌ Daemon is offline. Reopen Gemini CLI or run `npm run setup` in the extension directory if setup is incomplete.');
@@ -185,17 +198,37 @@ export function registerAdminTool(server: McpServer, config: Config): void {
             return text(`❌ Failed to fetch channels: ${JSON.stringify(res.data)}`);
           }
 
-          const status = res.data as unknown as DaemonStatus;
-          const channels = status.channels ?? [];
-          const needle = query?.trim().toLowerCase();
-          const filtered = needle ? channels.filter((c) => c.name.toLowerCase().includes(needle) || c.id.includes(needle)) : channels;
-
-          if (filtered.length === 0) {
-            return text(needle ? `No discovered channels matched "${query}".` : 'No channels have been discovered yet.');
+          const channels = (res.data['channels'] ?? []) as Array<{ id: string; name: string }>;
+          if (channels.length === 0) {
+            return text(query ? `No discovered channels matched "${query}".` : 'No channels have been discovered yet.');
           }
 
-          const lines = filtered.map((c) => `- #${c.name} → ${c.id}`);
+          const lines = channels.map((c) => `- #${c.name} → ${c.id}`);
           return text(lines.join('\n'));
+        }
+
+        case 'channel_allowlist_add':
+        case 'channel_allowlist_remove': {
+          if (!channel_id?.trim()) {
+            return text(`❌ Error: channel_id is required for ${action}.`, true);
+          }
+
+          const res = await daemonRequest({
+            method: 'POST',
+            path: '/channel-allowlist',
+            config,
+            body: {
+              action: action === 'channel_allowlist_add' ? 'add' : 'remove',
+              channel_id: channel_id.trim(),
+            },
+          });
+
+          if (!res.ok) {
+            return text(`❌ Channel allowlist update failed: ${res.data['error'] ?? 'unknown error'}`, true);
+          }
+
+          const verb = action === 'channel_allowlist_add' ? 'added to' : 'removed from';
+          return text(`✅ Channel \`${channel_id}\` was ${verb} the allowed channels list. Total allowed: ${res.data['count'] ?? '?'}`);
         }
 
         case 'users': {
@@ -335,6 +368,35 @@ export function registerAdminTool(server: McpServer, config: Config): void {
           if (action === 'kick') return text(`✅ Kicked user ${target}.`);
           if (action === 'timeout') return text(`✅ Timed out user ${target} for ${duration_minutes} minute${duration_minutes === 1 ? '' : 's'}.`);
           return text(`✅ Removed timeout for user ${target}.`);
+        }
+
+        case 'workflow': {
+          if (!task) {
+            return text('❌ Error: task is required for workflow.', true);
+          }
+          if (!channel_id?.trim()) {
+            return text('❌ Error: channel_id is required for workflow.', true);
+          }
+          let normalizedTask: string;
+          try {
+            normalizedTask = validateWorkflowTaskSummary(task);
+          } catch (error) {
+            const message = error instanceof WorkflowTaskValidationError ? error.message : String(error);
+            return text(`❌ Workflow creation failed: ${message}`, true);
+          }
+          const body: Record<string, unknown> = {
+            task: normalizedTask,
+            creator_user_id: config.discordBossUserId,
+            source_channel_id: channel_id.trim(),
+          };
+          const res = await daemonRequest({ method: 'POST', path: '/workflow', config, body });
+
+          if (!res.ok) {
+            const error = String(res.data['error'] ?? 'unknown error');
+            return text(`❌ Workflow creation failed: ${error}`, true);
+          }
+
+          return text(`✅ Monitored workflow thread created: <#${res.data['threadId']}> for task: "${normalizedTask}"`);
         }
 
         default:

@@ -14,6 +14,8 @@ This file tracks the real moving parts of `gemini-discord` so future work does n
 | Cron scheduler | `src/daemon/cron.ts` | Persist and deliver exact-message Discord cron jobs. | `initCron()`, `scheduleJob()`, `listJobs()`, `deleteJob()` |
 | Discovery maps | `src/daemon/channels.ts`, `src/daemon/users.ts` | Keep guild-scoped channel/user metadata for explicit lookups without granting authority. | `buildGuildChannelMap()`, `buildGuildUserMap()` |
 | MCP server | `src/server.ts` | Register Discord bridge tools for Gemini CLI and wake the daemon on demand. | `main()` |
+| Thread creator | `src/daemon/workflow/thread-creator.ts` | Create native threads for tasks and handle DM overflow routing. | `createWorkflowThread()` |
+| Workflow dispatcher | `src/daemon/workflow/trace-dispatcher.ts` | Statefully update active tool call status in Discord using edits. | `TraceDispatcher.dispatch()`, `dispatchRunHeader()` |
 
 ## Shared Modules
 
@@ -24,6 +26,10 @@ This file tracks the real moving parts of `gemini-discord` so future work does n
 | Tool mode resolver | `src/daemon/tool-mode.ts` | Decide when a turn is plain chat vs web vs Discord action vs full tool mode. |
 | Sender | `src/daemon/sender.ts` | Chunk and deliver Discord messages and attachments. |
 | Sanitizer | `src/daemon/sanitizer.ts` | Strip internal reasoning / unsafe output before Discord delivery. |
+| Thread manifest | `src/daemon/workflow/thread-manifest.ts` | Manage persistent workflow metadata under `.gemini-discord/threads/`. |
+| Redaction pipeline | `src/daemon/workflow/redaction.ts` | Strip secrets, system paths, and IP addresses from CLI trace logs. |
+| Trace normalizer | `src/daemon/workflow/trace-normalizer.ts` | Convert raw CLI tool execution stream logs into unified trace events. |
+| Trace renderer | `src/daemon/workflow/trace-renderer.ts` | Format normalized trace events into clean Discord markdown. |
 | Config loader | `src/shared/config.ts` | Merge `.env`, install settings, and the managed `.gemini-discord/config.json` file into the typed runtime config. |
 | Shared types | `src/shared/types.ts` | Define cross-process contracts for daemon/API/tool status. |
 

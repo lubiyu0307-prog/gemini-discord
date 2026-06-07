@@ -5,7 +5,10 @@ import {
   REST, 
   Routes, 
   PermissionFlagsBits,
-  AutocompleteInteraction
+  AutocompleteInteraction,
+  ApplicationIntegrationType,
+  InteractionContextType,
+  type ThreadChannel
 } from 'discord.js';
 import { log } from './log.js';
 import type { Config } from '../shared/types.js';
@@ -23,11 +26,22 @@ import {
   type PermissionAction,
   type RoleContext,
 } from './permissions.js';
+import { createWorkflowThread } from './workflow/thread-creator.js';
+import { validateWorkflowTaskSummary, WorkflowTaskValidationError } from './workflow/task-validation.js';
+import { buildGeminiProcessEnv } from './cli-pool.js';
+import { SUPPRESS_DISCORD_MENTIONS } from './mention-safety.js';
+
+export interface WorkflowThreadCreatedEvent {
+  interaction: CommandInteraction;
+  thread: ThreadChannel;
+  task: string;
+  roleContext: RoleContext;
+}
 
 /**
  * Slash command definitions.
  */
-const COMMANDS = [
+export const COMMANDS = [
   new SlashCommandBuilder()
     .setName('new')
     .setDescription('Start a fresh Gemini conversation for this channel.')
@@ -66,9 +80,66 @@ const COMMANDS = [
         .setDescription('Pool key to kill')
         .setRequired(true)
     ),
+
+  new SlashCommandBuilder()
+    .setName('workflow')
+    .setDescription('Create a monitored workflow thread for a task.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addStringOption(option =>
+      option.setName('task')
+        .setDescription('Description of the task to execute')
+        .setRequired(true)
+    )
+    .addStringOption(option =>
+      option.setName('message_id')
+        .setDescription('Optional ID of a message to promote to a thread')
+        .setRequired(false)
+    ),
 ];
 
-const AVAILABLE_MODELS = [
+export type CommandBuilder = (typeof COMMANDS)[number];
+
+const DM_COMMAND_NAMES = new Set([
+  'new',
+  'model',
+  'status',
+  'ping',
+  'pool',
+  'kill',
+  'workflow',
+]);
+
+export function buildGuildCommandPayloads(
+  commands: readonly CommandBuilder[] = COMMANDS
+) {
+  return commands.map(cmd => {
+    const { contexts, integration_types, ...guildCommand } = cmd.toJSON() as any;
+    return guildCommand;
+  });
+}
+
+export function buildDmOnlyGlobalCommandPayloads(
+  commands: readonly CommandBuilder[] = COMMANDS
+) {
+  return commands
+    .map((cmd) => cmd.toJSON() as any)
+    .filter((command) => DM_COMMAND_NAMES.has(command.name))
+    .map((command) => {
+      const {
+        contexts,
+        integration_types,
+        ...baseCommand
+      } = command;
+
+      return {
+        ...baseCommand,
+        contexts: [InteractionContextType.BotDM],
+        integration_types: [ApplicationIntegrationType.GuildInstall],
+      };
+    });
+}
+
+const DEFAULT_AVAILABLE_MODELS = [
   'gemini-3.1-pro-preview',
   'gemini-3-flash-preview',
   'gemini-3.1-flash-lite-preview',
@@ -81,12 +152,13 @@ const AVAILABLE_MODELS = [
  */
 export async function registerGuildCommands(client: Client, config: Config): Promise<void> {
   const rest = new REST({ version: '10' }).setToken(config.discordBotToken);
-  
-  // 1. Global registration (Required for DMs)
+
+  // 1. Global registration (DM scoped only)
   try {
+    const globalPayloads = buildDmOnlyGlobalCommandPayloads();
     await rest.put(
       Routes.applicationCommands(client.user!.id),
-      { body: COMMANDS.map(cmd => cmd.toJSON()) },
+      { body: globalPayloads },
     );
     log.info('Registered global slash commands (for DMs)');
   } catch (error) {
@@ -97,9 +169,10 @@ export async function registerGuildCommands(client: Client, config: Config): Pro
   const guilds = await client.guilds.fetch();
   for (const [guildId] of guilds) {
     try {
+      const guildPayloads = buildGuildCommandPayloads();
       await rest.put(
         Routes.applicationGuildCommands(client.user!.id, guildId),
-        { body: COMMANDS.map(cmd => cmd.toJSON()) },
+        { body: guildPayloads },
       );
       log.info(`Registered slash commands for guild: ${guildId}`);
     } catch (error) {
@@ -107,7 +180,6 @@ export async function registerGuildCommands(client: Client, config: Config): Pro
     }
   }
 }
-
 /**
  * Set up the interaction handler for slash commands and autocomplete.
  */
@@ -116,11 +188,12 @@ export function setupInteractionHandler(
   config: Config,
   state: DaemonState,
   memory: ConversationMemory,
-  extensionDir: string
+  extensionDir: string,
+  onWorkflowThreadCreated?: (event: WorkflowThreadCreatedEvent) => void,
 ): void {
   client.on('interactionCreate', async (interaction) => {
     if (interaction.isAutocomplete()) {
-      await handleAutocomplete(interaction);
+      await handleAutocomplete(interaction, config);
       return;
     }
 
@@ -131,9 +204,19 @@ export function setupInteractionHandler(
       displayLabel: interaction.user.tag,
     });
 
+    const isBossUser = isBoss(roleContext);
+
+    // Hard gate: DM commands are strictly for Boss management.
+    if (!interaction.guildId && !isBossUser) {
+      await interaction.reply({
+        content: 'You do not have permission to use DM bot management commands.',
+        ephemeral: true,
+      });
+      return;
+    }
+
     // Routing check: existing allowlists may permit command interaction, but
     // only DISCORD_BOSS_USER_ID can authorize privileged commands.
-    const isBossUser = isBoss(roleContext);
     const isAllowed = config.allowedUserIds.includes(interaction.user.id);
     const isOwner = config.ownerIds.includes(interaction.user.id);
     if (!isBossUser && !isOwner && !isAllowed) {
@@ -231,8 +314,12 @@ export function setupInteractionHandler(
       const newModel = interaction.options.getString('name', true);
       const oldModel = config.geminiModel;
 
-      if (!AVAILABLE_MODELS.includes(newModel)) {
-        await interaction.reply({ content: `Invalid model. Available: ${AVAILABLE_MODELS.join(', ')}`, ephemeral: true });
+      const models = config.geminiAvailableModels && config.geminiAvailableModels.length > 0
+        ? config.geminiAvailableModels
+        : DEFAULT_AVAILABLE_MODELS;
+
+      if (!models.includes(newModel)) {
+        await interaction.reply({ content: `Invalid model. Available: ${models.join(', ')}`, ephemeral: true });
         return;
       }
 
@@ -240,7 +327,7 @@ export function setupInteractionHandler(
 
       try {
         // Validate with a ping
-        const isValid = await validateModel(config.geminiPath, newModel);
+        const isValid = await validateModel(config, newModel);
         if (!isValid) {
           throw new Error(`Model \`${newModel}\` failed validation check.`);
         }
@@ -255,9 +342,56 @@ export function setupInteractionHandler(
 Confirmation: Gemini CLI verified connectivity.`);
       } catch (error) {
         log.error('Model switch failed', { error: error instanceof Error ? error.message : String(error) });
-        await interaction.editReply(`**Model switch failed.** 
+        await interaction.editReply(`**Model switch failed.**
 Error: \`${error instanceof Error ? error.message : String(error)}\`
 Action: Reverted to \`${oldModel}\`.`);
+      }
+      return;
+    }
+
+    if (commandName === 'workflow') {
+      if (!await authorizeInteraction(interaction, roleContext, 'admin_command')) return;
+
+      let task = interaction.options.getString('task', true);
+      const messageId = interaction.options.getString('message_id') ?? undefined;
+
+      try {
+        task = validateWorkflowTaskSummary(task);
+      } catch (error) {
+        const message = error instanceof WorkflowTaskValidationError ? error.message : String(error);
+        await interaction.reply({
+          content: `❌ ${message}`,
+          ephemeral: true,
+          allowedMentions: SUPPRESS_DISCORD_MENTIONS,
+        });
+        return;
+      }
+
+      await interaction.deferReply();
+
+      try {
+        const { threadId, thread } = await createWorkflowThread(
+          client,
+          config,
+          extensionDir,
+          {
+            taskSummary: task,
+            creatorUserId: interaction.user.id,
+            sourceChannelId: interaction.channelId,
+            sourceMessageId: messageId,
+          }
+        );
+        await interaction.editReply({
+          content: `🧹 **Monitored Workflow Thread Created:** <#${threadId}>`,
+          allowedMentions: SUPPRESS_DISCORD_MENTIONS,
+        });
+        onWorkflowThreadCreated?.({ interaction, thread, task, roleContext });
+      } catch (error) {
+        log.error('Failed to create workflow thread from slash command', { error: error instanceof Error ? error.message : String(error) });
+        await interaction.editReply({
+          content: `❌ **Failed to create workflow thread:** ${error instanceof Error ? error.message : String(error)}`,
+          allowedMentions: SUPPRESS_DISCORD_MENTIONS,
+        });
       }
       return;
     }
@@ -279,19 +413,22 @@ async function authorizeInteraction(
 }
 
 
-async function handleAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
+async function handleAutocomplete(interaction: AutocompleteInteraction, config: Config): Promise<void> {
   const focusedValue = interaction.options.getFocused();
-  const filtered = AVAILABLE_MODELS.filter(choice => choice.startsWith(focusedValue));
+  const models = config.geminiAvailableModels && config.geminiAvailableModels.length > 0
+    ? config.geminiAvailableModels
+    : DEFAULT_AVAILABLE_MODELS;
+  const filtered = models.filter(choice => choice.startsWith(focusedValue));
   await interaction.respond(
     filtered.map(choice => ({ name: choice, value: choice })),
   );
 }
 
-async function validateModel(geminiPath: string, model: string): Promise<boolean> {
+async function validateModel(config: Config, model: string): Promise<boolean> {
   return new Promise((resolve) => {
-    const proc = spawn(geminiPath, ['--model', model, '-p', 'ping', '--output-format', 'json'], {
+    const proc = spawn(config.geminiPath, ['--model', model, '-p', 'ping', '--output-format', 'json'], {
       timeout: 15000,
-      env: { ...process.env }
+      env: buildGeminiProcessEnv(config, resolveLocalValidationRoleContext(config)),
     });
 
     proc.on('close', (code) => {
@@ -302,4 +439,15 @@ async function validateModel(geminiPath: string, model: string): Promise<boolean
       resolve(false);
     });
   });
+}
+
+function resolveLocalValidationRoleContext(config: Config): RoleContext {
+  return {
+    role: 'BOSS',
+    senderDiscordId: config.discordBossUserId,
+    senderDisplayLabel: 'local model validation',
+    bossLabel: 'the boss',
+    bossConfigValid: Boolean(config.discordBossUserId),
+    bossConfigReason: config.discordBossUserId ? undefined : 'missing',
+  };
 }

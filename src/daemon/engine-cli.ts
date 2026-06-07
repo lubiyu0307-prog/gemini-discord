@@ -28,6 +28,7 @@ import { sanitizeFullResponse } from './sanitizer.js';
 import { getBackgroundOperationsContext } from './background-context.js';
 import { runtimeStore } from './runtime.js';
 import { log } from './log.js';
+import { SUPPRESS_DISCORD_MENTIONS, resolveAllowedMentions } from './mention-safety.js';
 import {
   authorizeAction,
   formatPermissionDenial,
@@ -40,6 +41,9 @@ import {
   resetGeminiBindingSession,
   resolveGeminiBindingKey,
 } from './binding.js';
+import { isWorkflowThread, loadThreadManifest } from './workflow/thread-manifest.js';
+import { buildWorkflowSeedContext } from './workflow/seed-context.js';
+import type { TraceEvent } from './workflow/trace-event.js';
 import {
   resolveBindingResumeSessionId,
   resolveGeminiProjectDir,
@@ -64,6 +68,8 @@ export async function processViaCli(
   geminiSemaphore: Semaphore,
   channel: TextChannel | DMChannel | NewsChannel,
   toolMode: ToolMode,
+  extensionDir: string,
+  traceCallbacks?: { onTraceEvent: (event: TraceEvent) => void },
 ): Promise<{ response: string; messageIds: string[]; attachments?: ConversationAttachment[]; sessionId?: string }> {
   let targetMessage = message;
 
@@ -84,10 +90,11 @@ export async function processViaCli(
   if ((targetMessage.attachments.size > 0 || attachmentMetadata.length > 0) && !isBoss(accepted.roleContext)) {
     const decision = authorizeAction('attachment_processing', accepted.roleContext);
     const responseText = formatPermissionDenial(decision);
-    const messageIds = await sendPreparedDisplayText(channel, responseText);
+    const messageIds = await sendPreparedDisplayText(channel, responseText, config);
     return { response: responseText, messageIds, attachments: [], sessionId: undefined };
   }
 
+  const isWorkflow = isWorkflowThread(extensionDir, message.channelId);
   const allowPersistentSession = isBoss(accepted.roleContext) && config.useGeminiCliSessions;
   const bindingState = loadGeminiBindingState(processingContext.bindingDir);
   const resumeSessionId = allowPersistentSession
@@ -140,6 +147,13 @@ export async function processViaCli(
     const immediateContext = shouldUseImmediateMentionContext(accepted.trigger, accepted.content)
       ? selectImmediateMentionContext(memory.snapshot(processingContext.sessionKey), incomingPrompt)
       : [];
+    let seedContextOverride: string | undefined;
+    if (isWorkflow && !resumeSessionId) {
+      const manifest = loadThreadManifest(extensionDir, message.channelId);
+      if (manifest) {
+        seedContextOverride = buildWorkflowSeedContext(manifest);
+      }
+    }
     prompt = buildSessionModePrompt({
       incoming: incomingPrompt,
       bossUserId: config.discordBossUserId,
@@ -148,6 +162,7 @@ export async function processViaCli(
       botUserId: message.client.user?.id ?? null,
       immediateContext,
       backgroundContext,
+      seedContextOverride,
     });
   } else {
     const fullHistorySnapshot = memory.snapshot(processingContext.sessionKey);
@@ -173,8 +188,9 @@ export async function processViaCli(
   let responseMessageIds: string[] = [];
   let currentSessionId: string | null = null;
 
-  const editor = config.streaming ? new LiveEditor({ placeholderDelayMs: null }) : null;
+  const editor = (config.streaming && !isWorkflow) ? new LiveEditor({ placeholderDelayMs: null }) : null;
   if (editor) await editor.init(channel);
+
 
   let feedbackMessageId: string | null = null;
   await geminiSemaphore.acquireWithTimeout(2000, () => {
@@ -189,7 +205,7 @@ export async function processViaCli(
       throw new Error('CLI pool not initialized');
     }
 
-    const sendViaCli = async (callbacks: { onToken: (token: string) => void; onThought: () => void }): Promise<string> => {
+    const sendViaCli = async (callbacks: { onToken: (token: string) => void; onThought: () => void; onTraceEvent?: (event: TraceEvent) => void }): Promise<string> => {
       const baseOptions = {
         cwd: processingContext.geminiProjectDir,
         useResume: allowPersistentSession,
@@ -230,16 +246,21 @@ export async function processViaCli(
         {
           onToken: (token) => editor.feed(token),
           onThought: () => editor.feedThought(),
+          onTraceEvent: traceCallbacks?.onTraceEvent,
         },
       );
 
-      const prepared = await finalizeAssistantResponse(response, message, isBoss(accepted.roleContext));
+      const prepared = await finalizeAssistantResponse(response, message, {
+        allowPrivilegedActions: isBoss(accepted.roleContext),
+      });
       response = prepared.responseText;
-      responseMessageIds = await editor.finalize(prepared.displayText, chunkMessage, {
+      const customChunkFn = (t: string) => chunkMessage(t, config.chunkerLimit);
+      responseMessageIds = await editor.finalize(prepared.displayText, customChunkFn, {
         allowEmpty: prepared.allowEmpty,
         rawText: response,
       });
       responseMessageIds.push(...prepared.actionMessageIds);
+
       if (allowPersistentSession) {
         recordGeminiBindingSession(processingContext.bindingDir, currentSessionId ?? bindingState.lastSessionId);
       }
@@ -261,14 +282,32 @@ export async function processViaCli(
           {
             onToken: () => {},
             onThought: () => {},
+            onTraceEvent: traceCallbacks?.onTraceEvent,
           },
         );
         clearInterval(typingInterval);
 
-        const prepared = await finalizeAssistantResponse(response, message, isBoss(accepted.roleContext));
+        if (isWorkflow) {
+          if (allowPersistentSession) {
+            recordGeminiBindingSession(processingContext.bindingDir, currentSessionId ?? bindingState.lastSessionId);
+          }
+          return {
+            response,
+            messageIds: [],
+            attachments: attachmentMetadata,
+            sessionId: currentSessionId ?? bindingState.lastSessionId ?? undefined,
+          };
+        }
+
+        const prepared = await finalizeAssistantResponse(response, message, {
+          allowPrivilegedActions: isBoss(accepted.roleContext),
+        });
         response = prepared.responseText;
-        responseMessageIds = await sendPreparedDisplayText(channel, prepared.displayText);
+        responseMessageIds = await sendPreparedDisplayText(channel, prepared.displayText, config, {
+          chunkerLimit: config.chunkerLimit,
+        });
         responseMessageIds.push(...prepared.actionMessageIds);
+
         if (allowPersistentSession) {
           recordGeminiBindingSession(processingContext.bindingDir, currentSessionId ?? bindingState.lastSessionId);
         }
@@ -284,10 +323,14 @@ export async function processViaCli(
       }
     }
   } catch (err) {
+    if (isWorkflow) {
+      throw err;
+    }
     if (editor) await editor.sendError(formatError(err));
     else await retrySend(() => channel.send(formatError(err))).catch(() => {});
     return { response: '', messageIds: [], sessionId: currentSessionId ?? bindingState.lastSessionId ?? undefined };
   } finally {
+
     geminiSemaphore.release();
     if (feedbackMessageId) {
       channel.messages.delete(feedbackMessageId).catch(() => {});
@@ -314,17 +357,21 @@ export interface FinalizedAssistantResponse {
   actionMessageIds: string[];
 }
 
+export interface FinalizeOptions {
+  allowPrivilegedActions: boolean;
+}
+
 export async function finalizeAssistantResponse(
   rawResponse: string,
   message: Message,
-  allowPrivilegedActions: boolean,
+  options: FinalizeOptions,
 ): Promise<FinalizedAssistantResponse> {
   // 1. Strip CoT and internal thinking blocks early
   const sanitized = sanitizeFullResponse(rawResponse);
 
   // 2. Handle cross-channel send directives
   const actionResult = await processCrossChannelSends(sanitized, message.client, {
-    allowPrivileged: allowPrivilegedActions,
+    allowPrivileged: options.allowPrivilegedActions,
   });
 
   return {
@@ -335,18 +382,23 @@ export async function finalizeAssistantResponse(
   };
 }
 
+
 export async function sendPreparedDisplayText(
   channel: TextChannel | DMChannel | NewsChannel,
   displayText: string,
+  config: ReturnType<typeof loadConfig>,
+  options: { suppressMentions?: boolean; chunkerLimit?: number } = {},
 ): Promise<string[]> {
   if (!displayText.trim()) {
     return [];
   }
 
   const messageIds: string[] = [];
-  const chunks = chunkMessage(displayText);
+  const chunks = chunkMessage(displayText, options.chunkerLimit);
+  const allowedMentions = options.suppressMentions ? SUPPRESS_DISCORD_MENTIONS : resolveAllowedMentions(config);
   for (const chunk of chunks) {
-    const sent = await retrySend(() => channel.send(chunk));
+    const payload = { content: chunk, allowedMentions };
+    const sent = await retrySend(() => channel.send(payload));
     messageIds.push(sent.id);
   }
   return messageIds;
@@ -358,6 +410,8 @@ export function resolveProcessingContext(
   accepted: AcceptedDiscordMessage,
   extensionDir: string,
 ): ProcessingContext {
+  const isWorkflow = isWorkflowThread(extensionDir, message.channelId);
+
   if (!isBoss(accepted.roleContext)) {
     const guestKey = message.guildId
       ? `guest:${message.author.id}:channel:${message.channelId}:message:${message.id}`
@@ -366,6 +420,18 @@ export function resolveProcessingContext(
     return {
       sessionKey: guestKey,
       bindingKey: guestKey,
+      bindingDir: bindingWorkspace.bindingDir,
+      attachmentsDir: bindingWorkspace.attachmentsDir,
+      geminiProjectDir: resolveGeminiProjectDir(extensionDir),
+    };
+  }
+
+  if (isWorkflow) {
+    const threadKey = `thread:${message.channelId}`;
+    const bindingWorkspace = ensureGeminiBindingWorkspace(extensionDir, threadKey);
+    return {
+      sessionKey: threadKey,
+      bindingKey: threadKey,
       bindingDir: bindingWorkspace.bindingDir,
       attachmentsDir: bindingWorkspace.attachmentsDir,
       geminiProjectDir: resolveGeminiProjectDir(extensionDir),

@@ -1,8 +1,14 @@
 import * as http from 'node:http';
 import { chunkMessage } from '../../shared/chunker.js';
 import { sendDiscordMessage } from '../sender.js';
+import { resolveAllowedMentions } from '../mention-safety.js';
 import { resolveDiscoveredChannel } from '../channels.js';
 import { log } from '../log.js';
+import { runtimeStore } from '../runtime.js';
+import { resolveDiscordRole } from '../permissions.js';
+import { validateWorkflowTaskSummary, WorkflowTaskValidationError } from '../workflow/task-validation.js';
+import { isWorkflowThread } from '../workflow/thread-manifest.js';
+import { isExplicitSendToCurrentThread } from '../workflow/policy.js';
 import {
   respond,
   authorizeApiAction,
@@ -12,6 +18,24 @@ import {
   isWritableTarget,
   type ApiDependencies,
 } from '../api-utils.js';
+
+function ensureWritableTarget(
+  res: http.ServerResponse,
+  channelId: string,
+  channel: Awaited<ReturnType<typeof fetchTextChannel>>,
+  config: ApiDependencies['config'],
+  action: string,
+): channel is NonNullable<typeof channel> {
+  if (!channel) {
+    respond(res, 400, { error: 'Channel is not text-based' });
+    return false;
+  }
+  if (!isWritableTarget(channelId, channel, config)) {
+    respond(res, 403, { error: `Channel ${channelId} is not allowed for ${action}`, channel_id: channelId });
+    return false;
+  }
+  return true;
+}
 
 export async function handleMessageRoutes(
   req: http.IncomingMessage,
@@ -73,7 +97,28 @@ export async function handleMessageRoutes(
       }
 
       const silent = parsed['silent'] === true;
-      const messageIds = await sendDiscordMessage(channel, content, chunkMessage, { files, silent });
+
+      if (channelId && isWorkflowThread(extensionDir, channelId)) {
+        const activeRun = runtimeStore.activeWorkflowRuns.get(channelId);
+        if (activeRun && !isExplicitSendToCurrentThread(activeRun.userContent)) {
+          // Intercept and bypass actual Discord send
+          const key = `${activeRun.requestMessageId}:${channelId}`;
+          runtimeStore.workflowResponseCandidates.set(key, content);
+          respond(res, 200, {
+            ok: true,
+            intercepted: true,
+            chunks: 0,
+            messageIds: [],
+            channel_id: channelId,
+            note: "Captured as final response candidate for current workflow thread; no Discord send was performed."
+          });
+          return true;
+        }
+      }
+
+      const allowedMentions = resolveAllowedMentions(config);
+      const messageIds = await sendDiscordMessage(channel, content, chunkMessage, { files, silent, allowedMentions });
+
 
       const sessionKey = resolveConversationSessionKey(
         config,
@@ -133,9 +178,30 @@ export async function handleMessageRoutes(
         return true;
       }
 
-      const msg = await channel.messages.fetch(messageId);
       const silent = parsed['silent'] === true;
-      const messageIds = await sendDiscordMessage(channel, content, chunkMessage, { replyTo: msg, files, silent });
+      const msg = await channel.messages.fetch(messageId);
+
+      if (channelId && isWorkflowThread(extensionDir, channelId)) {
+        const activeRun = runtimeStore.activeWorkflowRuns.get(channelId);
+        if (activeRun && !isExplicitSendToCurrentThread(activeRun.userContent)) {
+          // Intercept and bypass actual Discord send
+          const key = `${activeRun.requestMessageId}:${channelId}`;
+          runtimeStore.workflowResponseCandidates.set(key, content);
+          respond(res, 200, {
+            ok: true,
+            intercepted: true,
+            chunks: 0,
+            messageIds: [],
+            channel_id: channelId,
+            note: "Captured as final response candidate for current workflow thread; no Discord send was performed."
+          });
+          return true;
+        }
+      }
+
+      const allowedMentions = resolveAllowedMentions(config);
+      const messageIds = await sendDiscordMessage(channel, content, chunkMessage, { replyTo: msg, files, silent, allowedMentions });
+
 
       const sessionKey = resolveConversationSessionKey(
         config,
@@ -183,7 +249,7 @@ export async function handleMessageRoutes(
     try {
       if (!deps.client) { respond(res, 503, { error: 'Client not ready' }); return true; }
       const channel = await fetchTextChannel(deps.client, channelId);
-      if (!channel) { respond(res, 400, { error: 'Channel is not text-based' }); return true; }
+      if (!ensureWritableTarget(res, channelId, channel, config, 'reactions')) return true;
       const msg = await channel.messages.fetch(messageId);
       await msg.react(emoji);
       respond(res, 200, { ok: true });
@@ -205,7 +271,7 @@ export async function handleMessageRoutes(
     try {
       if (!deps.client) { respond(res, 503, { error: 'Client not ready' }); return true; }
       const channel = await fetchTextChannel(deps.client, channelId);
-      if (!channel) { respond(res, 400, { error: 'Channel is not text-based' }); return true; }
+      if (!ensureWritableTarget(res, channelId, channel, config, 'reaction removal')) return true;
       const msg = await channel.messages.fetch(messageId);
       if (emoji) {
         const reaction = msg.reactions.cache.find(
@@ -238,7 +304,7 @@ export async function handleMessageRoutes(
     try {
       if (!deps.client) { respond(res, 503, { error: 'Client not ready' }); return true; }
       const channel = await fetchTextChannel(deps.client, channelId);
-      if (!channel) { respond(res, 400, { error: 'Channel is not text-based' }); return true; }
+      if (!ensureWritableTarget(res, channelId, channel, config, 'message edits')) return true;
       const msg = await channel.messages.fetch(messageId);
       if (msg.author.id !== deps.client.user?.id) {
         respond(res, 403, { error: 'Can only edit own messages' });
@@ -263,7 +329,7 @@ export async function handleMessageRoutes(
     try {
       if (!deps.client) { respond(res, 503, { error: 'Client not ready' }); return true; }
       const channel = await fetchTextChannel(deps.client, channelId);
-      if (!channel) { respond(res, 400, { error: 'Channel is not text-based' }); return true; }
+      if (!ensureWritableTarget(res, channelId, channel, config, 'message deletion')) return true;
       const msg = await channel.messages.fetch(messageId);
       if (msg.author.id !== deps.client.user?.id) {
         respond(res, 403, { error: 'Can only delete own messages' });
@@ -288,7 +354,7 @@ export async function handleMessageRoutes(
     try {
       if (!deps.client) { respond(res, 503, { error: 'Client not ready' }); return true; }
       const channel = await fetchTextChannel(deps.client, channelId);
-      if (!channel) { respond(res, 400, { error: 'Channel is not text-based' }); return true; }
+      if (!ensureWritableTarget(res, channelId, channel, config, 'pinning')) return true;
       const msg = await channel.messages.fetch(messageId);
       await msg.pin();
       respond(res, 200, { ok: true });
@@ -309,7 +375,7 @@ export async function handleMessageRoutes(
     try {
       if (!deps.client) { respond(res, 503, { error: 'Client not ready' }); return true; }
       const channel = await fetchTextChannel(deps.client, channelId);
-      if (!channel) { respond(res, 400, { error: 'Channel is not text-based' }); return true; }
+      if (!ensureWritableTarget(res, channelId, channel, config, 'unpinning')) return true;
       const msg = await channel.messages.fetch(messageId);
       await msg.unpin();
       respond(res, 200, { ok: true });
@@ -356,6 +422,72 @@ export async function handleMessageRoutes(
       const error = err instanceof Error ? err.message : String(err);
       log.warn('Thread creation failed', { channelId, messageId: messageId || null, name, error });
       respond(res, 500, { error });
+    }
+    return true;
+  }
+
+  if (pathname === '/workflow') {
+    if (!authorizeApiAction(req, res, config, 'admin_command')) return true;
+    let task = String(parsed['task'] ?? '');
+    const creatorUserId = String(parsed['creator_user_id'] ?? '');
+    const sourceChannelId = String(parsed['source_channel_id'] ?? '');
+    const sourceMessageId = parsed['source_message_id'] == null ? undefined : String(parsed['source_message_id']);
+    const traceMode = (parsed['trace_mode'] as 'compact' | 'verbose' | undefined) ?? 'compact';
+
+    if (!task || !creatorUserId || !sourceChannelId) {
+      respond(res, 400, { error: 'task, creator_user_id, and source_channel_id are required' });
+      return true;
+    }
+    if (creatorUserId !== config.discordBossUserId) {
+      respond(res, 403, { error: 'creator_user_id must match the configured DISCORD_BOSS_USER_ID' });
+      return true;
+    }
+
+    try {
+      task = validateWorkflowTaskSummary(task);
+      const roleContext = resolveDiscordRole(config, {
+        discordUserId: config.discordBossUserId,
+        displayLabel: 'local-control-api',
+      });
+      if (!runtimeStore.enqueueWorkflowRun) {
+        respond(res, 503, { error: 'Workflow runner is not ready. Try again after the Discord gateway is ready.' });
+        return true;
+      }
+      if (!deps.client) { respond(res, 503, { error: 'Client not ready' }); return true; }
+      const { createWorkflowThread } = await import('../workflow/thread-creator.js');
+      const { threadId, thread } = await createWorkflowThread(
+        deps.client,
+        config,
+        extensionDir,
+        {
+          taskSummary: task,
+          creatorUserId,
+          sourceChannelId,
+          sourceMessageId,
+          traceMode,
+        }
+      );
+
+      const started = runtimeStore.enqueueWorkflowRun({
+        thread,
+        task,
+        creatorUserId,
+        sourceChannelId,
+        sourceMessageId,
+        roleContext,
+      });
+      if (!started) {
+        respond(res, 429, { error: 'Workflow thread was created but the processing queue is full. Retry inside the thread.', threadId, task });
+        return true;
+      }
+
+      respond(res, 200, { ok: true, threadId, task, started: true });
+    } catch (err) {
+      if (err instanceof WorkflowTaskValidationError) {
+        respond(res, 400, { error: err.message });
+        return true;
+      }
+      respond(res, 500, { error: err instanceof Error ? err.message : String(err) });
     }
     return true;
   }

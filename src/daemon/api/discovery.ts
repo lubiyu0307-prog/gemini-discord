@@ -1,6 +1,7 @@
 import * as http from 'node:http';
+import { ChannelType } from 'discord.js';
 import { buildGuildUserMap, getUserMapEntries, resolveDiscoveredUser } from '../users.js';
-import { resolveDiscoveredChannel } from '../channels.js';
+import { resolveDiscoveredChannel, buildGuildChannelMap, getChannelMapEntries } from '../channels.js';
 import {
   respond,
   authorizeApiAction,
@@ -44,6 +45,54 @@ export async function handleDiscoveryRoutes(
       resolved,
       bot_id: deps.client.user?.id ?? null,
     });
+    return true;
+  }
+
+  if (req.method === 'GET' && pathname === '/channels') {
+    if (!authorizeApiAction(req, res, config, 'status')) return true;
+    if (!deps.client) {
+      respond(res, 503, { error: 'Client not ready' });
+      return true;
+    }
+
+    const query = url.searchParams.get('query') ?? '';
+    const all = url.searchParams.get('all') === 'true';
+
+    let channelsList: Array<{ id: string; name: string; type: string }> = [];
+
+    if (all && config.discordServerId) {
+      try {
+        const guild = await deps.client.guilds.fetch(config.discordServerId);
+        const fetchedChannels = await guild.channels.fetch();
+        for (const [id, channel] of fetchedChannels) {
+          if (!channel) continue;
+          if (
+            channel.type === ChannelType.GuildText ||
+            channel.type === ChannelType.GuildAnnouncement ||
+            channel.type === ChannelType.GuildForum
+          ) {
+            let typeStr = 'text';
+            if (channel.type === ChannelType.GuildAnnouncement) typeStr = 'announcement';
+            if (channel.type === ChannelType.GuildForum) typeStr = 'forum';
+            channelsList.push({ id, name: channel.name, type: typeStr });
+          }
+        }
+      } catch (err) {
+        respond(res, 502, {
+          error: `Channel discovery failed: ${err instanceof Error ? err.message : String(err)}`,
+        });
+        return true;
+      }
+    } else {
+      channelsList = getChannelMapEntries().map(([name, { id }]) => ({ id, name, type: 'text' }));
+    }
+
+    if (query.trim()) {
+      const needle = query.trim().toLowerCase();
+      channelsList = channelsList.filter(c => c.name.toLowerCase().includes(needle) || c.id.includes(needle));
+    }
+
+    respond(res, 200, { ok: true, channels: channelsList });
     return true;
   }
 

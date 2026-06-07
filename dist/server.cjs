@@ -21165,6 +21165,11 @@ var ENV = {
   GEMINI_MODEL: "GEMINI_MODEL",
   GEMINI_TIMEOUT_MS: "GEMINI_TIMEOUT_MS",
   GEMINI_MAX_CONCURRENT: "GEMINI_MAX_CONCURRENT",
+  GEMINI_API_KEY: "GEMINI_API_KEY",
+  GOOGLE_API_KEY: "GOOGLE_API_KEY",
+  GOOGLE_GENAI_USE_VERTEXAI: "GOOGLE_GENAI_USE_VERTEXAI",
+  GOOGLE_CLOUD_PROJECT: "GOOGLE_CLOUD_PROJECT",
+  GOOGLE_CLOUD_LOCATION: "GOOGLE_CLOUD_LOCATION",
   CONVERSATION_HISTORY_LENGTH: "CONVERSATION_HISTORY_LENGTH",
   PROMPT_HISTORY_MAX_MESSAGES: "PROMPT_HISTORY_MAX_MESSAGES",
   PROMPT_HISTORY_MAX_CHARS: "PROMPT_HISTORY_MAX_CHARS",
@@ -21178,7 +21183,12 @@ var ENV = {
   USE_GEMINI_CLI_SESSIONS: "USE_GEMINI_CLI_SESSIONS",
   GEMINI_SESSION_BINDING_SCOPE: "GEMINI_SESSION_BINDING_SCOPE",
   CLI_IDLE_TIMEOUT_MS: "CLI_IDLE_TIMEOUT_MS",
-  SETUP_VALIDATION_PENDING: "SETUP_VALIDATION_PENDING"
+  SETUP_VALIDATION_PENDING: "SETUP_VALIDATION_PENDING",
+  WORKFLOW_PARENT_CHANNEL_ID: "WORKFLOW_PARENT_CHANNEL_ID",
+  CHUNKER_LIMIT: "CHUNKER_LIMIT",
+  GEMINI_AVAILABLE_MODELS: "GEMINI_AVAILABLE_MODELS",
+  DISCORD_ALLOWED_MENTIONS: "DISCORD_ALLOWED_MENTIONS",
+  DISCORD_PING_REPLIED_USER: "DISCORD_PING_REPLIED_USER"
 };
 var CONFIG_ENV_KEYS = [
   ENV.DISCORD_BOT_TOKEN,
@@ -21200,6 +21210,11 @@ var CONFIG_ENV_KEYS = [
   ENV.GEMINI_MODEL,
   ENV.GEMINI_TIMEOUT_MS,
   ENV.GEMINI_MAX_CONCURRENT,
+  ENV.GEMINI_API_KEY,
+  ENV.GOOGLE_API_KEY,
+  ENV.GOOGLE_GENAI_USE_VERTEXAI,
+  ENV.GOOGLE_CLOUD_PROJECT,
+  ENV.GOOGLE_CLOUD_LOCATION,
   ENV.CONVERSATION_HISTORY_LENGTH,
   ENV.PROMPT_HISTORY_MAX_MESSAGES,
   ENV.PROMPT_HISTORY_MAX_CHARS,
@@ -21213,7 +21228,12 @@ var CONFIG_ENV_KEYS = [
   ENV.USE_GEMINI_CLI_SESSIONS,
   ENV.GEMINI_SESSION_BINDING_SCOPE,
   ENV.CLI_IDLE_TIMEOUT_MS,
-  ENV.SETUP_VALIDATION_PENDING
+  ENV.SETUP_VALIDATION_PENDING,
+  ENV.WORKFLOW_PARENT_CHANNEL_ID,
+  ENV.CHUNKER_LIMIT,
+  ENV.GEMINI_AVAILABLE_MODELS,
+  ENV.DISCORD_ALLOWED_MENTIONS,
+  ENV.DISCORD_PING_REPLIED_USER
 ];
 var INSTALL_SETTING_ENV_KEYS = [
   ENV.DISCORD_BOT_TOKEN,
@@ -21230,13 +21250,20 @@ var SETUP_ENV_KEYS_TO_CLEAR = [
 ];
 var SETUP_RUNTIME_DEFAULTS = {
   [ENV.ENABLE_DMS]: "true",
-  [ENV.REQUIRE_MENTION]: "false",
+  [ENV.REQUIRE_MENTION]: "true",
   [ENV.AUTO_START_DAEMON]: "true",
   [ENV.DISCORD_ENABLE_GUESTS]: "false",
   [ENV.MEMORY_SCOPE]: "channel",
   [ENV.GEMINI_SESSION_BINDING_SCOPE]: "channel",
   [ENV.SETUP_VALIDATION_PENDING]: "true"
 };
+var GEMINI_CLI_AUTH_ENV_KEYS = [
+  ENV.GEMINI_API_KEY,
+  ENV.GOOGLE_API_KEY,
+  ENV.GOOGLE_GENAI_USE_VERTEXAI,
+  ENV.GOOGLE_CLOUD_PROJECT,
+  ENV.GOOGLE_CLOUD_LOCATION
+];
 
 // src/shared/config.ts
 var LEGACY_ENV_ALIASES = {
@@ -21272,7 +21299,7 @@ function parseBoolean(value, fallback) {
   return value.toLowerCase() === "true";
 }
 function parseMemoryScope(value) {
-  return value === "channel" ? "channel" : "global";
+  return value === "global" ? "global" : "channel";
 }
 function parseGeminiSessionBindingScope(value) {
   switch (value) {
@@ -21283,6 +21310,16 @@ function parseGeminiSessionBindingScope(value) {
     default:
       return "channel";
   }
+}
+function resolveGeminiCliEnv(envVars) {
+  const result = {};
+  for (const key of GEMINI_CLI_AUTH_ENV_KEYS) {
+    const value = envVars[key]?.trim();
+    if (value) {
+      result[key] = value;
+    }
+  }
+  return Object.keys(result).length > 0 ? result : void 0;
 }
 function resolveAdminId(explicitAdminId, ownerIds) {
   const explicit = explicitAdminId?.trim();
@@ -21395,6 +21432,7 @@ function loadConfig(extensionDir2) {
     geminiModel: get(ENV.GEMINI_MODEL, "gemini-3.1-flash-lite-preview"),
     geminiTimeoutMs: parseInt(get(ENV.GEMINI_TIMEOUT_MS, "900000"), 10),
     geminiMaxConcurrent: parseInt(get(ENV.GEMINI_MAX_CONCURRENT, "3"), 10),
+    geminiCliEnv: resolveGeminiCliEnv(envVars),
     conversationHistoryLength: parseInt(get(ENV.CONVERSATION_HISTORY_LENGTH, "30"), 10),
     promptHistoryMessageLimit: parseInt(get(ENV.PROMPT_HISTORY_MAX_MESSAGES, "12"), 10),
     promptHistoryCharBudget: parseInt(get(ENV.PROMPT_HISTORY_MAX_CHARS, "6000"), 10),
@@ -21404,7 +21442,7 @@ function loadConfig(extensionDir2) {
     enableGuests: parseBoolean(get(ENV.DISCORD_ENABLE_GUESTS), false),
     enableServerMembersIntent: parseBoolean(get(ENV.DISCORD_ENABLE_SERVER_MEMBERS_INTENT, "true"), true),
     requireMention: parseBoolean(get(ENV.REQUIRE_MENTION, "true"), true),
-    respondToReplies: parseBoolean(get(ENV.RESPOND_TO_REPLIES, "true"), true),
+    respondToReplies: parseBoolean(get(ENV.RESPOND_TO_REPLIES, "false"), false),
     memoryScope: parseMemoryScope(get(ENV.MEMORY_SCOPE, "channel")),
     autoStartDaemon: parseBoolean(get(ENV.AUTO_START_DAEMON, "true"), true),
     useGeminiCliSessions: parseBoolean(get(ENV.USE_GEMINI_CLI_SESSIONS, "true"), true),
@@ -21413,7 +21451,12 @@ function loadConfig(extensionDir2) {
     setupValidationPending: parseBoolean(
       get(ENV.SETUP_VALIDATION_PENDING, hasInstallSettings ? "true" : "false"),
       false
-    )
+    ),
+    workflowParentChannelId: get(ENV.WORKFLOW_PARENT_CHANNEL_ID, "").trim(),
+    chunkerLimit: parseInt(get(ENV.CHUNKER_LIMIT, "8000"), 10),
+    geminiAvailableModels: splitIds(get(ENV.GEMINI_AVAILABLE_MODELS, "")),
+    discordAllowedMentions: splitIds(get(ENV.DISCORD_ALLOWED_MENTIONS, "users")),
+    discordPingRepliedUser: parseBoolean(get(ENV.DISCORD_PING_REPLIED_USER, "true"), true)
   };
   return config3;
 }
@@ -21755,17 +21798,7 @@ function resolveLocalMcpBossContext(config3) {
   });
 }
 function resolveMcpToolRoleContext(config3) {
-  return resolveLocalMcpBossContext(config3) ?? resolveMcpRoleContextFromEnv(process.env, config3);
-}
-var DISCORD_ROLE_ENV_KEYS = [
-  "GEMINI_DISCORD_ROLE",
-  "GEMINI_DISCORD_SENDER_ID",
-  "GEMINI_DISCORD_SENDER_LABEL"
-];
-function clearInheritedDiscordRoleEnv(env = process.env) {
-  for (const key of DISCORD_ROLE_ENV_KEYS) {
-    delete env[key];
-  }
+  return resolveMcpRoleContextFromEnv(process.env, config3) ?? resolveLocalMcpBossContext(config3);
 }
 function authorizeMcpToolAction(action, config3) {
   const roleContext = resolveMcpToolRoleContext(config3);
@@ -21855,6 +21888,48 @@ function discordRoleHeaders(config3) {
     "X-Gemini-Discord-Sender-Id": roleContext.senderDiscordId,
     "X-Gemini-Discord-Sender-Label": roleContext.senderDisplayLabel
   };
+}
+
+// src/daemon/workflow/task-validation.ts
+var VAGUE_SINGLE_WORDS = /* @__PURE__ */ new Set([
+  "do",
+  "fix",
+  "help",
+  "issue",
+  "job",
+  "run",
+  "task",
+  "test",
+  "thing",
+  "this",
+  "that",
+  "todo",
+  "work"
+]);
+var WorkflowTaskValidationError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "WorkflowTaskValidationError";
+  }
+};
+function normalizeWorkflowTaskSummary(task) {
+  return task.trim().replace(/\s+/g, " ");
+}
+function validateWorkflowTaskSummary(task) {
+  const normalized = normalizeWorkflowTaskSummary(task);
+  if (!normalized) {
+    throw new WorkflowTaskValidationError("Workflow task is required. Please provide a specific task.");
+  }
+  const tokens = normalized.match(/[A-Za-z0-9][A-Za-z0-9_-]*/g) ?? [];
+  if (tokens.length === 1) {
+    const token = tokens[0].toLowerCase();
+    if (token.length < 4 || VAGUE_SINGLE_WORDS.has(token)) {
+      throw new WorkflowTaskValidationError(
+        `Workflow task "${normalized}" is too vague. Please provide a specific task, for example "fix CI failure" or "run tests".`
+      );
+    }
+  }
+  return normalized;
 }
 
 // src/tools/pending-delivery.ts
@@ -22004,18 +22079,23 @@ function registerAdminTool(server2, config3) {
       '\u2022 "restart" \u2014 restart the daemon process',
       '\u2022 "reset" \u2014 clear the current conversation and archive the session',
       '\u2022 "channels" \u2014 list discovered channels (optional query filter)',
+      '\u2022 "channel_allowlist_add" \u2014 add a channel to the allowed channels list',
+      '\u2022 "channel_allowlist_remove" \u2014 remove a channel from the allowed channels list',
       '\u2022 "users" \u2014 list discovered server users or resolve a user lookup hint (use when [Mentions] has no matching human, or the target is ambiguous)',
       '\u2022 "allowlist_add" \u2014 add a human user to the guest allowlist (never the bot itself; resolve with users discovery first)',
       '\u2022 "allowlist_remove" \u2014 remove a human user from the guest allowlist',
       `\u2022 "set_presence" \u2014 change the bot's online status and activity`,
       '\u2022 "kick" \u2014 remove a member from the server',
       '\u2022 "timeout" \u2014 apply a communication timeout (up to 28 days)',
-      '\u2022 "remove_timeout" \u2014 remove an active timeout from a member'
+      '\u2022 "remove_timeout" \u2014 remove an active timeout from a member',
+      '\u2022 "workflow" \u2014 start a monitored workflow thread for a task'
     ].join("\n"),
     {
-      action: external_exports.enum(["status", "restart", "reset", "channels", "users", "allowlist_add", "allowlist_remove", "set_presence", "kick", "timeout", "remove_timeout"]).describe("The administrative action to perform."),
+      action: external_exports.enum(["status", "restart", "reset", "channels", "channel_allowlist_add", "channel_allowlist_remove", "users", "allowlist_add", "allowlist_remove", "set_presence", "kick", "timeout", "remove_timeout", "workflow"]).describe("The administrative action to perform."),
       query: external_exports.string().optional().describe("Optional channel/user name, mention, ID, or partial string to filter discovery actions."),
-      channel_id: external_exports.string().optional().describe("Explicit Discord channel ID for reset actions."),
+      task: external_exports.string().optional().describe("Description of the task for the workflow (required for workflow action)."),
+      channel_id: external_exports.string().optional().describe("Explicit Discord channel ID for reset, workflow, or channel allowlist actions."),
+      all: external_exports.boolean().optional().describe("If true, lists all channels in the guild, even those not currently allowlisted (only for channels action)."),
       status: external_exports.enum(["online", "idle", "dnd", "invisible"]).optional().describe("Bot online status (only for set_presence)."),
       activity_type: external_exports.enum(["playing", "watching", "listening", "competing"]).optional().describe("Activity type (only for set_presence)."),
       activity_name: external_exports.string().optional().describe('Activity name, e.g. "with fire" (only for set_presence).'),
@@ -22024,8 +22104,8 @@ function registerAdminTool(server2, config3) {
       reason: external_exports.string().optional().describe("Optional audit-log reason (only for kick/timeout/remove_timeout)."),
       duration_minutes: external_exports.number().optional().describe("Timeout duration in minutes. Required for timeout. Maximum 40320 (28 days).")
     },
-    async ({ action, query, channel_id, status, activity_type, activity_name, user_id, guild_id, reason, duration_minutes }) => {
-      const permAction = action === "status" ? "status" : action === "users" ? "user_discovery" : ["kick", "timeout", "remove_timeout", "allowlist_add", "allowlist_remove"].includes(action) ? "moderation" : "admin_command";
+    async ({ action, query, task, channel_id, all, status, activity_type, activity_name, user_id, guild_id, reason, duration_minutes }) => {
+      const permAction = action === "status" ? "status" : action === "users" ? "user_discovery" : ["kick", "timeout", "remove_timeout", "allowlist_add", "allowlist_remove", "channel_allowlist_add", "channel_allowlist_remove"].includes(action) ? "moderation" : "admin_command";
       const gate = authorizeMcpToolAction(permAction, config3);
       if (gate.decision !== "allow") {
         return text(formatPermissionDenial(gate), true);
@@ -22139,22 +22219,46 @@ ${retryMessage}` : ""}` }]
           return text("\u2705 Started a fresh conversation. The active Discord transcript was archived and the bound Gemini CLI session was restarted for the current channel.");
         }
         case "channels": {
-          const res = await daemonRequest({ method: "GET", path: "/status", config: config3 });
+          const params = new URLSearchParams();
+          if (query?.trim()) params.set("query", query.trim());
+          if (all) params.set("all", "true");
+          const res = await daemonRequest({
+            method: "GET",
+            path: params.size > 0 ? `/channels?${params.toString()}` : "/channels",
+            config: config3
+          });
           if (res.data["error"] === "daemon_offline") {
             return text("\u274C Daemon is offline. Reopen Gemini CLI or run `npm run setup` in the extension directory if setup is incomplete.");
           }
           if (!res.ok) {
             return text(`\u274C Failed to fetch channels: ${JSON.stringify(res.data)}`);
           }
-          const status2 = res.data;
-          const channels = status2.channels ?? [];
-          const needle = query?.trim().toLowerCase();
-          const filtered = needle ? channels.filter((c) => c.name.toLowerCase().includes(needle) || c.id.includes(needle)) : channels;
-          if (filtered.length === 0) {
-            return text(needle ? `No discovered channels matched "${query}".` : "No channels have been discovered yet.");
+          const channels = res.data["channels"] ?? [];
+          if (channels.length === 0) {
+            return text(query ? `No discovered channels matched "${query}".` : "No channels have been discovered yet.");
           }
-          const lines = filtered.map((c) => `- #${c.name} \u2192 ${c.id}`);
+          const lines = channels.map((c) => `- #${c.name} \u2192 ${c.id}`);
           return text(lines.join("\n"));
+        }
+        case "channel_allowlist_add":
+        case "channel_allowlist_remove": {
+          if (!channel_id?.trim()) {
+            return text(`\u274C Error: channel_id is required for ${action}.`, true);
+          }
+          const res = await daemonRequest({
+            method: "POST",
+            path: "/channel-allowlist",
+            config: config3,
+            body: {
+              action: action === "channel_allowlist_add" ? "add" : "remove",
+              channel_id: channel_id.trim()
+            }
+          });
+          if (!res.ok) {
+            return text(`\u274C Channel allowlist update failed: ${res.data["error"] ?? "unknown error"}`, true);
+          }
+          const verb = action === "channel_allowlist_add" ? "added to" : "removed from";
+          return text(`\u2705 Channel \`${channel_id}\` was ${verb} the allowed channels list. Total allowed: ${res.data["count"] ?? "?"}`);
         }
         case "users": {
           const params = new URLSearchParams();
@@ -22269,6 +22373,32 @@ ${retryMessage}` : ""}` }]
           if (action === "kick") return text(`\u2705 Kicked user ${target}.`);
           if (action === "timeout") return text(`\u2705 Timed out user ${target} for ${duration_minutes} minute${duration_minutes === 1 ? "" : "s"}.`);
           return text(`\u2705 Removed timeout for user ${target}.`);
+        }
+        case "workflow": {
+          if (!task) {
+            return text("\u274C Error: task is required for workflow.", true);
+          }
+          if (!channel_id?.trim()) {
+            return text("\u274C Error: channel_id is required for workflow.", true);
+          }
+          let normalizedTask;
+          try {
+            normalizedTask = validateWorkflowTaskSummary(task);
+          } catch (error2) {
+            const message = error2 instanceof WorkflowTaskValidationError ? error2.message : String(error2);
+            return text(`\u274C Workflow creation failed: ${message}`, true);
+          }
+          const body = {
+            task: normalizedTask,
+            creator_user_id: config3.discordBossUserId,
+            source_channel_id: channel_id.trim()
+          };
+          const res = await daemonRequest({ method: "POST", path: "/workflow", config: config3, body });
+          if (!res.ok) {
+            const error2 = String(res.data["error"] ?? "unknown error");
+            return text(`\u274C Workflow creation failed: ${error2}`, true);
+          }
+          return text(`\u2705 Monitored workflow thread created: <#${res.data["threadId"]}> for task: "${normalizedTask}"`);
         }
         default:
           return text(`\u274C Error: Unknown action ${action}`, true);
@@ -22784,7 +22914,6 @@ function registerCronTools(server2, config3) {
 }
 
 // src/server.ts
-clearInheritedDiscordRoleEnv();
 var tmpDir = process.cwd();
 try {
   tmpDir = __dirname;
@@ -22794,7 +22923,7 @@ var extensionDir = resolveExtensionDir(tmpDir);
 var config2 = loadConfig(extensionDir);
 var server = new McpServer({
   name: "discord-bridge",
-  version: "0.1.0"
+  version: "0.1.1"
 });
 registerAdminTool(server, config2);
 registerMessageTool(server, config2);

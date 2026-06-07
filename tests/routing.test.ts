@@ -36,6 +36,7 @@ const baseConfig: Config = {
   geminiSessionBindingScope: 'server',
   cliIdleTimeoutMs: 300000,
   setupValidationPending: false,
+  workflowParentChannelId: '',
 };
 
 function route(overrides: Partial<Parameters<typeof shouldAcceptMessage>[0]> = {}, config: Config = baseConfig) {
@@ -188,6 +189,32 @@ describe('shouldAcceptMessage', () => {
       accept: true,
       trigger: 'mention',
       content: 'hello',
+    });
+  });
+
+  it('does not accept server replies as mention triggers unless opted in', () => {
+    const config: Config = {
+      ...baseConfig,
+      requireMention: true,
+      respondToReplies: false,
+    };
+
+    expect(route({
+      authorId: 'owner-1',
+      repliedToBot: true,
+      replyToMessageId: 'bot-message-1',
+    }, config)).toMatchObject({
+      accept: false,
+      trackOnly: true,
+    });
+
+    expect(route({
+      authorId: 'owner-1',
+      repliedToBot: true,
+      replyToMessageId: 'bot-message-1',
+    }, { ...config, respondToReplies: true })).toMatchObject({
+      accept: true,
+      trigger: 'reply',
     });
   });
 

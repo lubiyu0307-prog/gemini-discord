@@ -194,6 +194,11 @@ var ENV = {
   GEMINI_MODEL: "GEMINI_MODEL",
   GEMINI_TIMEOUT_MS: "GEMINI_TIMEOUT_MS",
   GEMINI_MAX_CONCURRENT: "GEMINI_MAX_CONCURRENT",
+  GEMINI_API_KEY: "GEMINI_API_KEY",
+  GOOGLE_API_KEY: "GOOGLE_API_KEY",
+  GOOGLE_GENAI_USE_VERTEXAI: "GOOGLE_GENAI_USE_VERTEXAI",
+  GOOGLE_CLOUD_PROJECT: "GOOGLE_CLOUD_PROJECT",
+  GOOGLE_CLOUD_LOCATION: "GOOGLE_CLOUD_LOCATION",
   CONVERSATION_HISTORY_LENGTH: "CONVERSATION_HISTORY_LENGTH",
   PROMPT_HISTORY_MAX_MESSAGES: "PROMPT_HISTORY_MAX_MESSAGES",
   PROMPT_HISTORY_MAX_CHARS: "PROMPT_HISTORY_MAX_CHARS",
@@ -207,7 +212,12 @@ var ENV = {
   USE_GEMINI_CLI_SESSIONS: "USE_GEMINI_CLI_SESSIONS",
   GEMINI_SESSION_BINDING_SCOPE: "GEMINI_SESSION_BINDING_SCOPE",
   CLI_IDLE_TIMEOUT_MS: "CLI_IDLE_TIMEOUT_MS",
-  SETUP_VALIDATION_PENDING: "SETUP_VALIDATION_PENDING"
+  SETUP_VALIDATION_PENDING: "SETUP_VALIDATION_PENDING",
+  WORKFLOW_PARENT_CHANNEL_ID: "WORKFLOW_PARENT_CHANNEL_ID",
+  CHUNKER_LIMIT: "CHUNKER_LIMIT",
+  GEMINI_AVAILABLE_MODELS: "GEMINI_AVAILABLE_MODELS",
+  DISCORD_ALLOWED_MENTIONS: "DISCORD_ALLOWED_MENTIONS",
+  DISCORD_PING_REPLIED_USER: "DISCORD_PING_REPLIED_USER"
 };
 var CONFIG_ENV_KEYS = [
   ENV.DISCORD_BOT_TOKEN,
@@ -229,6 +239,11 @@ var CONFIG_ENV_KEYS = [
   ENV.GEMINI_MODEL,
   ENV.GEMINI_TIMEOUT_MS,
   ENV.GEMINI_MAX_CONCURRENT,
+  ENV.GEMINI_API_KEY,
+  ENV.GOOGLE_API_KEY,
+  ENV.GOOGLE_GENAI_USE_VERTEXAI,
+  ENV.GOOGLE_CLOUD_PROJECT,
+  ENV.GOOGLE_CLOUD_LOCATION,
   ENV.CONVERSATION_HISTORY_LENGTH,
   ENV.PROMPT_HISTORY_MAX_MESSAGES,
   ENV.PROMPT_HISTORY_MAX_CHARS,
@@ -242,7 +257,12 @@ var CONFIG_ENV_KEYS = [
   ENV.USE_GEMINI_CLI_SESSIONS,
   ENV.GEMINI_SESSION_BINDING_SCOPE,
   ENV.CLI_IDLE_TIMEOUT_MS,
-  ENV.SETUP_VALIDATION_PENDING
+  ENV.SETUP_VALIDATION_PENDING,
+  ENV.WORKFLOW_PARENT_CHANNEL_ID,
+  ENV.CHUNKER_LIMIT,
+  ENV.GEMINI_AVAILABLE_MODELS,
+  ENV.DISCORD_ALLOWED_MENTIONS,
+  ENV.DISCORD_PING_REPLIED_USER
 ];
 var INSTALL_SETTING_ENV_KEYS = [
   ENV.DISCORD_BOT_TOKEN,
@@ -259,13 +279,20 @@ var SETUP_ENV_KEYS_TO_CLEAR = [
 ];
 var SETUP_RUNTIME_DEFAULTS = {
   [ENV.ENABLE_DMS]: "true",
-  [ENV.REQUIRE_MENTION]: "false",
+  [ENV.REQUIRE_MENTION]: "true",
   [ENV.AUTO_START_DAEMON]: "true",
   [ENV.DISCORD_ENABLE_GUESTS]: "false",
   [ENV.MEMORY_SCOPE]: "channel",
   [ENV.GEMINI_SESSION_BINDING_SCOPE]: "channel",
   [ENV.SETUP_VALIDATION_PENDING]: "true"
 };
+var GEMINI_CLI_AUTH_ENV_KEYS = [
+  ENV.GEMINI_API_KEY,
+  ENV.GOOGLE_API_KEY,
+  ENV.GOOGLE_GENAI_USE_VERTEXAI,
+  ENV.GOOGLE_CLOUD_PROJECT,
+  ENV.GOOGLE_CLOUD_LOCATION
+];
 
 // src/shared/config.ts
 var LEGACY_ENV_ALIASES = {
@@ -301,7 +328,7 @@ function parseBoolean(value, fallback) {
   return value.toLowerCase() === "true";
 }
 function parseMemoryScope(value) {
-  return value === "channel" ? "channel" : "global";
+  return value === "global" ? "global" : "channel";
 }
 function parseGeminiSessionBindingScope(value) {
   switch (value) {
@@ -312,6 +339,16 @@ function parseGeminiSessionBindingScope(value) {
     default:
       return "channel";
   }
+}
+function resolveGeminiCliEnv(envVars) {
+  const result = {};
+  for (const key of GEMINI_CLI_AUTH_ENV_KEYS) {
+    const value = envVars[key]?.trim();
+    if (value) {
+      result[key] = value;
+    }
+  }
+  return Object.keys(result).length > 0 ? result : void 0;
 }
 function resolveAdminId(explicitAdminId, ownerIds) {
   const explicit = explicitAdminId?.trim();
@@ -424,6 +461,7 @@ function loadConfig(extensionDir) {
     geminiModel: get(ENV.GEMINI_MODEL, "gemini-3.1-flash-lite-preview"),
     geminiTimeoutMs: parseInt(get(ENV.GEMINI_TIMEOUT_MS, "900000"), 10),
     geminiMaxConcurrent: parseInt(get(ENV.GEMINI_MAX_CONCURRENT, "3"), 10),
+    geminiCliEnv: resolveGeminiCliEnv(envVars),
     conversationHistoryLength: parseInt(get(ENV.CONVERSATION_HISTORY_LENGTH, "30"), 10),
     promptHistoryMessageLimit: parseInt(get(ENV.PROMPT_HISTORY_MAX_MESSAGES, "12"), 10),
     promptHistoryCharBudget: parseInt(get(ENV.PROMPT_HISTORY_MAX_CHARS, "6000"), 10),
@@ -433,7 +471,7 @@ function loadConfig(extensionDir) {
     enableGuests: parseBoolean(get(ENV.DISCORD_ENABLE_GUESTS), false),
     enableServerMembersIntent: parseBoolean(get(ENV.DISCORD_ENABLE_SERVER_MEMBERS_INTENT, "true"), true),
     requireMention: parseBoolean(get(ENV.REQUIRE_MENTION, "true"), true),
-    respondToReplies: parseBoolean(get(ENV.RESPOND_TO_REPLIES, "true"), true),
+    respondToReplies: parseBoolean(get(ENV.RESPOND_TO_REPLIES, "false"), false),
     memoryScope: parseMemoryScope(get(ENV.MEMORY_SCOPE, "channel")),
     autoStartDaemon: parseBoolean(get(ENV.AUTO_START_DAEMON, "true"), true),
     useGeminiCliSessions: parseBoolean(get(ENV.USE_GEMINI_CLI_SESSIONS, "true"), true),
@@ -442,7 +480,12 @@ function loadConfig(extensionDir) {
     setupValidationPending: parseBoolean(
       get(ENV.SETUP_VALIDATION_PENDING, hasInstallSettings ? "true" : "false"),
       false
-    )
+    ),
+    workflowParentChannelId: get(ENV.WORKFLOW_PARENT_CHANNEL_ID, "").trim(),
+    chunkerLimit: parseInt(get(ENV.CHUNKER_LIMIT, "8000"), 10),
+    geminiAvailableModels: splitIds(get(ENV.GEMINI_AVAILABLE_MODELS, "")),
+    discordAllowedMentions: splitIds(get(ENV.DISCORD_ALLOWED_MENTIONS, "users")),
+    discordPingRepliedUser: parseBoolean(get(ENV.DISCORD_PING_REPLIED_USER, "true"), true)
   };
   return config;
 }

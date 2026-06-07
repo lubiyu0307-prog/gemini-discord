@@ -1,14 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { loadConfig } from '../src/shared/config.js';
 import { readManagedConfigFile, writeManagedConfigFile } from '../src/shared/managed-config.js';
+import { ENV } from '../src/shared/config-vars.js';
 import { resolveRuntimePaths } from '../src/shared/runtime-paths.js';
-
-afterEach(() => {
-  vi.unstubAllEnvs();
-});
 
 describe('loadConfig', () => {
   it('prefers extension process settings over local .env development defaults', () => {
@@ -48,6 +45,44 @@ describe('loadConfig', () => {
 
       expect(config.memoryScope).toBe('channel');
       expect(config.geminiSessionBindingScope).toBe('channel');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('allows explicit global Discord memory scope', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-'));
+
+    try {
+      fs.writeFileSync(path.join(tmpDir, '.env'), [
+        'DISCORD_BOT_TOKEN=test-token',
+        'DISCORD_SERVER_ID=server-1',
+        'DISCORD_OWNER_IDS=owner-1',
+        'MEMORY_SCOPE=global',
+      ].join('\n'));
+
+      const config = loadConfig(tmpDir);
+
+      expect(config.memoryScope).toBe('global');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('falls back to channel memory scope for invalid values', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-'));
+
+    try {
+      fs.writeFileSync(path.join(tmpDir, '.env'), [
+        'DISCORD_BOT_TOKEN=test-token',
+        'DISCORD_SERVER_ID=server-1',
+        'DISCORD_OWNER_IDS=owner-1',
+        'MEMORY_SCOPE=server',
+      ].join('\n'));
+
+      const config = loadConfig(tmpDir);
+
+      expect(config.memoryScope).toBe('channel');
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -246,6 +281,53 @@ describe('loadConfig', () => {
 
       expect(config.discordChannelId).toBe('remembered-channel');
       expect(config.ownerIds).toEqual(['owner-1']);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('defaults server routing to mention-only when unset', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-mention-'));
+    try {
+      fs.writeFileSync(path.join(tmpDir, '.env'), 'DISCORD_BOT_TOKEN=token\n');
+      const config = loadConfig(tmpDir);
+      expect(config.requireMention).toBe(true);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('does not treat replies as server triggers by default', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-replies-'));
+    try {
+      fs.writeFileSync(path.join(tmpDir, '.env'), 'DISCORD_BOT_TOKEN=token\n');
+      const config = loadConfig(tmpDir);
+      expect(config.respondToReplies).toBe(false);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('loads Gemini CLI auth env for child processes without blank values', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-auth-'));
+    try {
+      fs.writeFileSync(path.join(tmpDir, '.env'), [
+        'DISCORD_BOT_TOKEN=token',
+        'GEMINI_API_KEY=api-key-from-env',
+        'GOOGLE_GENAI_USE_VERTEXAI=true',
+        'GOOGLE_API_KEY=vertex-key',
+        'GOOGLE_CLOUD_PROJECT=project-1',
+        'GOOGLE_CLOUD_LOCATION=',
+      ].join('\n'));
+
+      const config = loadConfig(tmpDir);
+
+      expect(config.geminiCliEnv).toEqual({
+        [ENV.GEMINI_API_KEY]: 'api-key-from-env',
+        [ENV.GOOGLE_GENAI_USE_VERTEXAI]: 'true',
+        [ENV.GOOGLE_API_KEY]: 'vertex-key',
+        [ENV.GOOGLE_CLOUD_PROJECT]: 'project-1',
+      });
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }

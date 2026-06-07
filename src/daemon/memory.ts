@@ -471,6 +471,7 @@ export function buildSessionModePrompt(options: {
   immediateContext?: ConversationMessage[];
   allowedAgentIds?: string[];
   botUserId?: string | null;
+  seedContextOverride?: string;
 }): string {
   const immediateContextBlock = formatImmediateMentionContextBlock(options.immediateContext, {
     bossUserId: options.bossUserId,
@@ -478,7 +479,11 @@ export function buildSessionModePrompt(options: {
     botUserId: options.botUserId,
   });
 
-  return `${buildDiscordAdapterInstruction(options.incoming, { bossUserId: options.bossUserId, ownerIds: options.ownerIds, backgroundContext: options.backgroundContext })}
+  const instructionBlock = options.seedContextOverride
+    ? options.seedContextOverride
+    : buildDiscordAdapterInstruction(options.incoming, { bossUserId: options.bossUserId, ownerIds: options.ownerIds, backgroundContext: options.backgroundContext });
+
+  return `${instructionBlock}
 ${immediateContextBlock}
 
 [Message]

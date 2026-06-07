@@ -7,6 +7,7 @@ import type { Config } from '../shared/types.js';
 import { chunkMessage } from '../shared/chunker.js';
 import { sendDiscordMessage, type SendableChannel } from './sender.js';
 import { resolveRuntimePaths } from '../shared/runtime-paths.js';
+import { resolveAllowedMentions } from './mention-safety.js';
 
 export interface CronJob {
   id: string;
@@ -16,6 +17,7 @@ export interface CronJob {
   authorId: string;
   nextRun: number;
   runOnce: boolean;
+  attempts?: number;
 }
 
 export interface ScheduleJobInput {
@@ -37,11 +39,14 @@ export interface ScheduleReminderInput {
 const MIN_REMINDER_DELAY_MS = 60_000;
 
 let jobs: Map<string, CronJob> = new Map();
+const runningJobs = new Set<string>();
 let storePath: string = '';
 let discordClient: Client | null = null;
 let poller: NodeJS.Timeout | null = null;
+let systemConfig: Config | null = null;
 
 export function initCron(config: Config, client: Client, extensionDir: string) {
+  systemConfig = config;
   storePath = resolveRuntimePaths(extensionDir).cronFile;
   discordClient = client;
   loadJobs();
@@ -142,36 +147,53 @@ async function checkJobs() {
 
   for (const job of [...jobs.values()]) {
     if (now >= job.nextRun) {
-      log.info('Executing cron job', { id: job.id });
+      if (runningJobs.has(job.id)) {
+        continue;
+      }
+      runningJobs.add(job.id);
 
-      let nextRun: number | null = null;
-      if (!job.runOnce) {
-        try {
-          const interval = CronExpressionParser.parse(job.cronExpression);
-          nextRun = interval.next().getTime();
-        } catch (err) {
-          log.error('Failed to parse cron for next run, deleting job', { id: job.id });
-          jobs.delete(job.id);
+      try {
+        log.info('Executing cron job', { id: job.id });
+
+        let nextRun: number | null = null;
+        if (!job.runOnce) {
+          try {
+            const interval = CronExpressionParser.parse(job.cronExpression);
+            nextRun = interval.next().getTime();
+          } catch (err) {
+            log.error('Failed to parse cron for next run, deleting job', { id: job.id });
+            jobs.delete(job.id);
+            updated = true;
+            continue;
+          }
+        }
+
+        const delivered = await deliverCronJob(job);
+
+        if (job.runOnce) {
+          if (delivered) {
+            jobs.delete(job.id);
+          } else {
+            const remaining = job.attempts ?? 5;
+            if (remaining > 1) {
+              job.attempts = remaining - 1;
+              job.nextRun = now + 60_000;
+              log.warn('Rescheduling failed one-time cron job', { id: job.id, remainingAttempts: job.attempts });
+            } else {
+              log.error('Discarding failed one-time cron job after maximum attempts', { id: job.id });
+              jobs.delete(job.id);
+            }
+          }
           updated = true;
           continue;
         }
-      }
 
-      const delivered = await deliverCronJob(job);
-
-      if (job.runOnce) {
-        if (delivered) {
-          jobs.delete(job.id);
-        } else {
-          job.nextRun = now + 60_000;
+        if (nextRun !== null) {
+          job.nextRun = nextRun;
+          updated = true;
         }
-        updated = true;
-        continue;
-      }
-
-      if (nextRun !== null) {
-        job.nextRun = nextRun;
-        updated = true;
+      } finally {
+        runningJobs.delete(job.id);
       }
     }
   }
@@ -209,7 +231,8 @@ async function deliverCronJob(job: CronJob): Promise<boolean> {
       return false;
     }
 
-    await sendDiscordMessage(channel as SendableChannel, job.message, chunkMessage);
+    const allowedMentions = systemConfig ? resolveAllowedMentions(systemConfig) : undefined;
+    await sendDiscordMessage(channel as SendableChannel, job.message, chunkMessage, { allowedMentions });
     return true;
   } catch (err) {
     log.error('Failed to deliver cron job', {
@@ -233,6 +256,7 @@ function coerceCronJob(value: Record<string, unknown>): CronJob | null {
   const authorId = typeof value.authorId === 'string' ? value.authorId : '';
   const nextRun = typeof value.nextRun === 'number' ? value.nextRun : 0;
   const runOnce = value.runOnce === undefined ? true : value.runOnce === true;
+  const attempts = typeof value.attempts === 'number' ? value.attempts : undefined;
 
   if (!id || !cronExpression || !message || !channelId || !authorId || !nextRun) {
     return null;
@@ -246,6 +270,7 @@ function coerceCronJob(value: Record<string, unknown>): CronJob | null {
     authorId,
     nextRun,
     runOnce,
+    attempts,
   };
 }
 

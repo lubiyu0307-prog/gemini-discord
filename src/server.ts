@@ -14,10 +14,6 @@ import { registerHistoryTool } from './tools/history.js';
 import { registerFindMediaTool } from './tools/find-media.js';
 import { registerCronTools } from './tools/cron.js';
 import { ensureDaemonRunning } from './shared/daemon-runtime.js';
-import { clearInheritedDiscordRoleEnv } from './daemon/permissions.js';
-
-// Local MCP is the operator control plane — never inherit guest markers from CLI.
-clearInheritedDiscordRoleEnv();
 
 // Resolve extension directory
 let tmpDir = process.cwd();
@@ -27,7 +23,7 @@ const config = loadConfig(extensionDir);
 
 const server = new McpServer({
   name: 'discord-bridge',
-  version: '0.1.0',
+  version: '0.1.1',
 });
 
 // Register all tools

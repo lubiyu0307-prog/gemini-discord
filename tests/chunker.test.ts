@@ -30,6 +30,13 @@ describe('chunkMessage', () => {
     expect(lastChunk).toContain('truncated');
   });
 
+  it('truncates responses over custom limits when specified', () => {
+    const msg = 'x'.repeat(500);
+    const result = chunkMessage(msg, 300);
+    const lastChunk = result[result.length - 1];
+    expect(lastChunk).toContain('truncated');
+  });
+
   it('preserves code fences across chunks', () => {
     // Build a message with a code fence that spans the chunk boundary
     const before = 'a'.repeat(1800) + '\n';

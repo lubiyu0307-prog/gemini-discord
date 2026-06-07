@@ -21,33 +21,52 @@ function pairingsPath(extensionDir: string): string {
   return resolveRuntimePaths(extensionDir).dmPairingsFile;
 }
 
+const pairingsCacheMap = new Map<string, Map<string, StoredDmPairing>>();
+
 function ensureParentDir(filePath: string): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
 }
 
 function loadPairingMap(extensionDir: string): Map<string, StoredDmPairing> {
+  let cache = pairingsCacheMap.get(extensionDir);
+  if (cache) {
+    return cache;
+  }
   const filePath = pairingsPath(extensionDir);
   try {
+    if (!fs.existsSync(filePath)) {
+      cache = new Map();
+      pairingsCacheMap.set(extensionDir, cache);
+      return cache;
+    }
     const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as Partial<DmPairingFile>;
     const pairings = Array.isArray(parsed.pairings) ? parsed.pairings : [];
-    return new Map(
+    cache = new Map(
       pairings
         .filter((entry): entry is StoredDmPairing => Boolean(entry && typeof entry.userId === 'string' && typeof entry.channelId === 'string'))
         .map((entry) => [entry.userId, entry]),
     );
+    pairingsCacheMap.set(extensionDir, cache);
+    return cache;
   } catch {
-    return new Map();
+    cache = new Map();
+    pairingsCacheMap.set(extensionDir, cache);
+    return cache;
   }
 }
 
 function savePairingMap(extensionDir: string, pairings: Map<string, StoredDmPairing>): void {
+  pairingsCacheMap.set(extensionDir, pairings);
   const filePath = pairingsPath(extensionDir);
   ensureParentDir(filePath);
   const payload: DmPairingFile = {
     version: 1,
     pairings: [...pairings.values()].sort((left, right) => left.userId.localeCompare(right.userId)),
   };
-  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), { mode: 0o600 });
+  fs.promises.writeFile(filePath, JSON.stringify(payload, null, 2), { encoding: 'utf-8', mode: 0o600 })
+    .catch((err) => {
+      log.error('Failed to save DM pairing map asynchronously', { error: err });
+    });
 }
 
 export function resolveDmPairingKey(userId: string): string {

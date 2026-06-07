@@ -1,84 +1,59 @@
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
+These instructions are for automated coding agents and contributors working on
+`gemini-discord`. The goal is useful, reviewable maintenance, not activity for
+its own sake.
 
-## Quick Reference
+## Scope Discipline
 
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work atomically
-bd close <id>         # Complete work
-bd dolt push          # Push beads data to remote
-```
+- Work from an assigned GitHub issue, maintainer request, or clearly stated bug.
+- Keep each PR focused on one problem. Avoid bundled refactors, formatting churn,
+  dependency churn, or broad cleanup unless the issue explicitly asks for it.
+- Do not open PRs that only rename things, reshuffle prose, chase contribution
+  graphs, or add low-value "improvements" without a concrete user or maintainer
+  benefit.
+- Fix root causes. Do not hide failures, weaken safety defaults, or add
+  configuration switches just to avoid understanding the problem.
+- Preserve existing behavior unless the task explicitly changes it.
 
-## Non-Interactive Shell Commands
+## Required Workflow
 
-**ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.
+1. Read the relevant code and docs before editing.
+2. State the intended behavior in the issue or PR description.
+3. Add or update focused tests for behavior changes and bug fixes.
+4. Make the smallest code/doc change that satisfies the task.
+5. Update README, docs, examples, or configuration reference whenever setup,
+   runtime behavior, commands, APIs, or safety defaults change.
+6. Run the relevant checks before claiming the work is ready.
 
-Shell commands like `cp`, `mv`, and `rm` may be aliased to include `-i` (interactive) mode on some systems, causing the agent to hang indefinitely waiting for y/n input.
-
-**Use these forms instead:**
-```bash
-# Force overwrite without prompting
-cp -f source dest           # NOT: cp source dest
-mv -f source dest           # NOT: mv source dest
-rm -f file                  # NOT: rm file
-
-# For recursive operations
-rm -rf directory            # NOT: rm -r directory
-cp -rf source dest          # NOT: cp -r source dest
-```
-
-**Other commands that may prompt:**
-- `scp` - use `-o BatchMode=yes` for non-interactive
-- `ssh` - use `-o BatchMode=yes` to fail instead of prompting
-- `apt-get` - use `-y` flag
-- `brew` - use `HOMEBREW_NO_AUTO_UPDATE=1` env var
-
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
-## Beads Issue Tracker
-
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
-
-### Quick Reference
+## Quality Gates
 
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
+npm ci
+npm run typecheck
+npm run build
+npm test
 ```
 
-### Rules
+If a check is not relevant or cannot be run, say exactly why in the PR. The
+release package includes `dist/`, so rebuild and commit `dist/` when source
+changes affect bundled outputs.
 
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
+## Safety And Privacy
 
-## Session Completion
+- Never commit real Discord IDs, bot tokens, API keys, `.env`, logs, databases,
+  `.gemini-discord/`, or runtime state.
+- Keep the default posture conservative: boss-only authority, guests disabled,
+  mention-only server responses, and no fallback target channel.
+- Do not expose new shell, filesystem, network, moderation, or outbound Discord
+  powers without explicit authorization and tests for the permission boundary.
+- Treat public contributors respectfully, but do not reward noisy or low-signal
+  PRs with extra scope.
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+## Release Boundaries
 
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   bd dolt push
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
-
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-<!-- END BEADS INTEGRATION -->
+- Do not push branches, create releases, move tags, or publish packages unless a
+  maintainer explicitly asks for that action.
+- Version bumps should keep `package.json`, `package-lock.json`,
+  `gemini-extension.json`, and runtime client metadata aligned.
+- Existing tags are immutable unless maintainers explicitly decide otherwise.

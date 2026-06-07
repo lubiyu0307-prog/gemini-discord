@@ -14,7 +14,12 @@ import {
   type ManagedConfigFile,
   type ManagedDiscordMetadata,
 } from './managed-config.js';
-import { CONFIG_ENV_KEYS, ENV, type ConfigEnvKey } from './config-vars.js';
+import {
+  CONFIG_ENV_KEYS,
+  ENV,
+  GEMINI_CLI_AUTH_ENV_KEYS,
+  type ConfigEnvKey,
+} from './config-vars.js';
 
 const LEGACY_ENV_ALIASES: Partial<Record<ConfigEnvKey, string[]>> = {
   [ENV.DISCORD_ALLOWED_CHANNEL_IDS]: ['ALLOWED_CHANNEL_IDS'],
@@ -75,7 +80,7 @@ function parseBoolean(value: string | undefined, fallback: boolean): boolean {
 }
 
 function parseMemoryScope(value: string | undefined): MemoryScope {
-  return value === 'channel' ? 'channel' : 'global';
+  return value === 'global' ? 'global' : 'channel';
 }
 
 function parseGeminiSessionBindingScope(value: string | undefined): GeminiSessionBindingScope {
@@ -87,6 +92,18 @@ function parseGeminiSessionBindingScope(value: string | undefined): GeminiSessio
     default:
       return 'channel';
   }
+}
+
+function resolveGeminiCliEnv(envVars: Record<string, string>): Record<string, string> | undefined {
+  const result: Record<string, string> = {};
+  for (const key of GEMINI_CLI_AUTH_ENV_KEYS) {
+    const value = envVars[key]?.trim();
+    if (value) {
+      result[key] = value;
+    }
+  }
+
+  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 function resolveAdminId(explicitAdminId: string | undefined, ownerIds: string[]): string {
@@ -229,6 +246,7 @@ export function loadConfig(extensionDir: string): Config {
     geminiModel: get(ENV.GEMINI_MODEL, 'gemini-3.1-flash-lite-preview'),
     geminiTimeoutMs: parseInt(get(ENV.GEMINI_TIMEOUT_MS, '900000'), 10),
     geminiMaxConcurrent: parseInt(get(ENV.GEMINI_MAX_CONCURRENT, '3'), 10),
+    geminiCliEnv: resolveGeminiCliEnv(envVars),
     conversationHistoryLength: parseInt(get(ENV.CONVERSATION_HISTORY_LENGTH, '30'), 10),
     promptHistoryMessageLimit: parseInt(get(ENV.PROMPT_HISTORY_MAX_MESSAGES, '12'), 10),
     promptHistoryCharBudget: parseInt(get(ENV.PROMPT_HISTORY_MAX_CHARS, '6000'), 10),
@@ -238,7 +256,7 @@ export function loadConfig(extensionDir: string): Config {
     enableGuests: parseBoolean(get(ENV.DISCORD_ENABLE_GUESTS), false),
     enableServerMembersIntent: parseBoolean(get(ENV.DISCORD_ENABLE_SERVER_MEMBERS_INTENT, 'true'), true),
     requireMention: parseBoolean(get(ENV.REQUIRE_MENTION, 'true'), true),
-    respondToReplies: parseBoolean(get(ENV.RESPOND_TO_REPLIES, 'true'), true),
+    respondToReplies: parseBoolean(get(ENV.RESPOND_TO_REPLIES, 'false'), false),
     memoryScope: parseMemoryScope(get(ENV.MEMORY_SCOPE, 'channel')),
     autoStartDaemon: parseBoolean(get(ENV.AUTO_START_DAEMON, 'true'), true),
     useGeminiCliSessions: parseBoolean(get(ENV.USE_GEMINI_CLI_SESSIONS, 'true'), true),
@@ -248,6 +266,11 @@ export function loadConfig(extensionDir: string): Config {
       get(ENV.SETUP_VALIDATION_PENDING, hasInstallSettings ? 'true' : 'false'),
       false,
     ),
+    workflowParentChannelId: get(ENV.WORKFLOW_PARENT_CHANNEL_ID, '').trim(),
+    chunkerLimit: parseInt(get(ENV.CHUNKER_LIMIT, '8000'), 10),
+    geminiAvailableModels: splitIds(get(ENV.GEMINI_AVAILABLE_MODELS, '')),
+    discordAllowedMentions: splitIds(get(ENV.DISCORD_ALLOWED_MENTIONS, 'users')),
+    discordPingRepliedUser: parseBoolean(get(ENV.DISCORD_PING_REPLIED_USER, 'true'), true),
   };
 
   return config;

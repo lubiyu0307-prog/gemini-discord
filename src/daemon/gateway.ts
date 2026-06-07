@@ -1,4 +1,11 @@
-import { type Message, type TextChannel, type DMChannel, type NewsChannel } from 'discord.js';
+import {
+  type CommandInteraction,
+  type Message,
+  type TextChannel,
+  type DMChannel,
+  type NewsChannel,
+  type ThreadChannel,
+} from 'discord.js';
 import { createClient, setupReconnectHandlers, setupMessageHandler, type AcceptedDiscordMessage } from './bot.js';
 import { type DaemonState } from './api.js';
 import {
@@ -12,13 +19,13 @@ import { log } from './log.js';
 import { registerGuildCommands, setupInteractionHandler } from './commands.js';
 import { buildGuildChannelMap } from './channels.js';
 import { buildGuildUserMap } from './users.js';
-import { processViaCli, resolveProcessingContext, formatError, type ProcessingContext } from './engine-cli.js';
+import { processViaCli, resolveProcessingContext, formatError, type ProcessingContext, finalizeAssistantResponse } from './engine-cli.js';
 import { retrySend } from './retry.js';
-import { resolveToolMode } from './tool-mode.js';
+import { resolveToolMode, type ToolMode } from './tool-mode.js';
 import { getSupportedAttachmentMetadata } from './attachments.js';
 import { persistConfigEnvUpdates, type loadConfig } from '../shared/config.js';
 import { ENV } from '../shared/config-vars.js';
-import { runtimeStore } from './runtime.js';
+import { runtimeStore, type WorkflowRuntimeRunRequest } from './runtime.js';
 import { type Semaphore } from './semaphore.js';
 import type { ExchangeLog } from '../shared/types.js';
 import type { ConversationAuthorBridgeRole } from '../shared/types.js';
@@ -39,6 +46,14 @@ import {
   rememberPrimaryChannelFromMessage,
 } from './onboarding.js';
 import { sanitizeAllowedUserIds } from '../shared/config-sanitize.js';
+import { isWorkflowThread, loadThreadManifest } from './workflow/thread-manifest.js';
+import { createWorkflowThread } from './workflow/thread-creator.js';
+import { validateWorkflowTaskSummary, WorkflowTaskValidationError } from './workflow/task-validation.js';
+import { TraceRendererRegistry } from './workflow/trace-renderer.js';
+import { TraceDispatcher } from './workflow/trace-dispatcher.js';
+import type { TraceEvent } from './workflow/trace-event.js';
+import { SUPPRESS_DISCORD_MENTIONS } from './mention-safety.js';
+import { formatWorkflowFinalDisplay } from './workflow/final-display.js';
 
 const MAX_AGENT_EXCHANGES = 6;
 
@@ -52,8 +67,27 @@ export async function initGateway(
 ): Promise<void> {
   const client = createClient(config);
   runtimeStore.client = client;
+  runtimeStore.enqueueWorkflowRun = (request) => enqueueInitialWorkflowApiRun({
+    ...request,
+    client,
+    config,
+    memory,
+    state,
+    extensionDir,
+  });
 
-  setupInteractionHandler(client, config, state, memory, extensionDir);
+  setupInteractionHandler(client, config, state, memory, extensionDir, ({ interaction, thread, task, roleContext }) => {
+    enqueueInitialWorkflowInteractionRun({
+      interaction,
+      thread,
+      task,
+      roleContext,
+      config,
+      memory,
+      state,
+      extensionDir,
+    });
+  });
 
   setupReconnectHandlers(client, config, (status) => {
     state.status = status;
@@ -125,6 +159,54 @@ export async function initGateway(
   setupMessageHandler(client, config, {
     onMessage: (message: Message, accepted: AcceptedDiscordMessage) => {
       runtimeStore.lastInteractiveMessageAt = Date.now();
+      
+      const contentTrimmed = message.content.trim();
+      const isWorkflowTextCmd = contentTrimmed.startsWith('!thread ') || contentTrimmed.startsWith('!workflow ');
+      if (isWorkflowTextCmd && isBoss(accepted.roleContext)) {
+        const prefix = contentTrimmed.startsWith('!thread ') ? '!thread ' : '!workflow ';
+        let task = contentTrimmed.slice(prefix.length).trim();
+        if (task) {
+          try {
+            task = validateWorkflowTaskSummary(task);
+          } catch (err) {
+            const validationMessage = err instanceof WorkflowTaskValidationError ? err.message : String(err);
+            retrySend(() => message.reply({
+              content: `❌ ${validationMessage}`,
+              allowedMentions: SUPPRESS_DISCORD_MENTIONS,
+            })).catch(() => {});
+            return;
+          }
+          createWorkflowThread(client, config, extensionDir, {
+            taskSummary: task,
+            creatorUserId: message.author.id,
+            sourceChannelId: message.channelId,
+            sourceMessageId: message.id,
+          }).then(({ threadId, thread }) => {
+            retrySend(() => message.reply({
+              content: `🧹 **Monitored Workflow Thread Created:** <#${threadId}>`,
+              allowedMentions: SUPPRESS_DISCORD_MENTIONS,
+            })).catch(() => {});
+            enqueueInitialWorkflowRun({
+              message,
+              accepted,
+              thread,
+              task,
+              config,
+              memory,
+              state,
+              extensionDir,
+            });
+          }).catch((err) => {
+            log.error('Failed to create workflow thread from text command', { error: String(err) });
+            retrySend(() => message.reply({
+              content: `❌ **Failed to create workflow thread:** ${err instanceof Error ? err.message : String(err)}`,
+              allowedMentions: SUPPRESS_DISCORD_MENTIONS,
+            })).catch(() => {});
+          });
+          return;
+        }
+      }
+
       if (!message.guildId) {
         touchDmPairing(extensionDir, message.author.id, message.channelId);
       } else if (accepted.speakerKind === 'human' && isBoss(accepted.roleContext)) {
@@ -164,21 +246,15 @@ export async function initGateway(
         runtimeStore.agentExchangeCount.set(message.channelId, 0);
       }
 
-      const queueKeys = [
-        `binding:${processingContext.bindingKey}`,
-        `memory:${processingContext.sessionKey}`,
-      ];
-      const enqueued = runtimeStore.queue?.enqueue(queueKeys, async () => {
-        await processMessage(
-          message,
-          accepted,
-          config,
-          memory,
-          state,
-          processingContext,
-          runtimeStore.geminiSemaphore!,
-        );
-      }) ?? false;
+      const enqueued = enqueueProcessingTurn({
+        message,
+        accepted,
+        config,
+        memory,
+        state,
+        processingContext,
+        extensionDir,
+      });
 
       if (!enqueued) {
         retrySend(() => chan.send('⏳ Too many pending messages for this conversation. Please wait a moment and retry.'))
@@ -234,6 +310,301 @@ export async function initGateway(
 
   await client.login(config.discordBotToken);
   log.info('Discord login initiated');
+}
+
+function enqueueInitialWorkflowRun(opts: {
+  message: Message;
+  accepted: AcceptedDiscordMessage;
+  thread: ThreadChannel;
+  task: string;
+  config: ReturnType<typeof loadConfig>;
+  memory: ConversationMemory;
+  state: DaemonState;
+  extensionDir: string;
+}): void {
+  const workflowMessage = buildWorkflowRunMessage(opts.message, opts.thread, opts.task);
+  const workflowAccepted = buildWorkflowRunAccepted(opts.accepted, opts.message, opts.thread, opts.task);
+  enqueueWorkflowRun({
+    message: workflowMessage,
+    accepted: workflowAccepted,
+    thread: opts.thread,
+    sourceMessageId: opts.message.id,
+    config: opts.config,
+    memory: opts.memory,
+    state: opts.state,
+    extensionDir: opts.extensionDir,
+  });
+}
+
+function enqueueInitialWorkflowInteractionRun(opts: {
+  interaction: CommandInteraction;
+  thread: ThreadChannel;
+  task: string;
+  roleContext: RoleContext;
+  config: ReturnType<typeof loadConfig>;
+  memory: ConversationMemory;
+  state: DaemonState;
+  extensionDir: string;
+}): void {
+  const workflowMessage = buildWorkflowInteractionRunMessage(opts.interaction, opts.thread, opts.task);
+  const workflowAccepted = buildWorkflowInteractionRunAccepted(opts.interaction, opts.thread, opts.task, opts.roleContext);
+  enqueueWorkflowRun({
+    message: workflowMessage,
+    accepted: workflowAccepted,
+    thread: opts.thread,
+    sourceMessageId: opts.interaction.id,
+    config: opts.config,
+    memory: opts.memory,
+    state: opts.state,
+    extensionDir: opts.extensionDir,
+  });
+}
+
+function enqueueInitialWorkflowApiRun(opts: WorkflowRuntimeRunRequest & {
+  client: Awaited<ReturnType<typeof createClient>>;
+  config: ReturnType<typeof loadConfig>;
+  memory: ConversationMemory;
+  state: DaemonState;
+  extensionDir: string;
+}): boolean {
+  const roleContext = opts.roleContext ?? resolveDiscordRole(opts.config, {
+    discordUserId: opts.creatorUserId,
+    displayLabel: opts.creatorUserId,
+  });
+  const workflowMessage = buildWorkflowApiRunMessage(opts, roleContext, opts.client);
+  const workflowAccepted = buildWorkflowApiRunAccepted(opts, roleContext);
+  return enqueueWorkflowRun({
+    message: workflowMessage,
+    accepted: workflowAccepted,
+    thread: opts.thread,
+    sourceMessageId: opts.sourceMessageId ?? workflowMessage.id,
+    config: opts.config,
+    memory: opts.memory,
+    state: opts.state,
+    extensionDir: opts.extensionDir,
+  });
+}
+
+function enqueueWorkflowRun(opts: {
+  message: Message;
+  accepted: AcceptedDiscordMessage;
+  thread: ThreadChannel;
+  sourceMessageId: string;
+  config: ReturnType<typeof loadConfig>;
+  memory: ConversationMemory;
+  state: DaemonState;
+  extensionDir: string;
+}): boolean {
+  const processingContext = resolveProcessingContext(opts.config, opts.message, opts.accepted, opts.extensionDir);
+
+  runtimeStore.agentExchangeCount.set(opts.thread.id, 0);
+
+  const enqueued = enqueueProcessingTurn({
+    message: opts.message,
+    accepted: opts.accepted,
+    config: opts.config,
+    memory: opts.memory,
+    state: opts.state,
+    processingContext,
+    extensionDir: opts.extensionDir,
+  });
+
+  if (!enqueued) {
+    retrySend(() => opts.thread.send({
+      content: '⏳ Too many pending messages for this workflow. Please wait a moment and retry in the thread.',
+      allowedMentions: SUPPRESS_DISCORD_MENTIONS,
+    }))
+      .catch(() => {});
+    return false;
+  }
+
+  log.info('Initial workflow task enqueued', {
+    sourceMessageId: opts.sourceMessageId,
+    threadId: opts.thread.id,
+    sessionKey: processingContext.sessionKey,
+  });
+  return true;
+}
+
+function enqueueProcessingTurn(opts: {
+  message: Message;
+  accepted: AcceptedDiscordMessage;
+  config: ReturnType<typeof loadConfig>;
+  memory: ConversationMemory;
+  state: DaemonState;
+  processingContext: ProcessingContext;
+  extensionDir: string;
+}): boolean {
+  const queueKeys = [
+    `binding:${opts.processingContext.bindingKey}`,
+    `memory:${opts.processingContext.sessionKey}`,
+  ];
+
+  return runtimeStore.queue?.enqueue(queueKeys, async () => {
+    await processMessage(
+      opts.message,
+      opts.accepted,
+      opts.config,
+      opts.memory,
+      opts.state,
+      opts.processingContext,
+      runtimeStore.geminiSemaphore!,
+      opts.extensionDir,
+    );
+  }) ?? false;
+}
+
+export function buildWorkflowRunMessage(message: Message, thread: ThreadChannel, task: string): Message {
+  return new Proxy(message, {
+    get(target, prop, receiver) {
+      if (prop === 'channel') return thread;
+      if (prop === 'channelId') return thread.id;
+      if (prop === 'content') return task;
+      if (prop === 'guildId') return thread.guildId ?? target.guildId;
+      return Reflect.get(target, prop, receiver);
+    },
+  }) as Message;
+}
+
+export function buildWorkflowRunAccepted(
+  accepted: AcceptedDiscordMessage,
+  message: Message,
+  thread: ThreadChannel,
+  task: string,
+): AcceptedDiscordMessage {
+  return {
+    ...accepted,
+    content: task,
+    trigger: 'workflow',
+    origin: {
+      ...accepted.origin,
+      guildId: thread.guildId ?? message.guildId ?? null,
+      channelId: thread.id,
+      threadId: thread.id,
+      targetChannelId: thread.id,
+      messageId: message.id,
+      userId: message.author.id,
+    },
+    channelName: thread.name,
+    guildName: message.guild?.name ?? accepted.guildName,
+    replyToMessageId: null,
+    replyToAuthorId: null,
+    replyToAuthorName: null,
+    replyToContent: null,
+    replyToAttachments: [],
+    mentionContext: null,
+  };
+}
+
+export function buildWorkflowInteractionRunMessage(
+  interaction: CommandInteraction,
+  thread: ThreadChannel,
+  task: string,
+): Message {
+  const emptyAttachments = {
+    size: 0,
+    values: function* values() {
+      return;
+    },
+  };
+
+  return {
+    id: interaction.id,
+    content: task,
+    channel: thread,
+    channelId: thread.id,
+    guildId: thread.guildId ?? interaction.guildId ?? null,
+    guild: interaction.guild ?? null,
+    author: interaction.user,
+    client: interaction.client,
+    attachments: emptyAttachments,
+    reference: null,
+  } as unknown as Message;
+}
+
+export function buildWorkflowInteractionRunAccepted(
+  interaction: CommandInteraction,
+  thread: ThreadChannel,
+  task: string,
+  roleContext: RoleContext,
+): AcceptedDiscordMessage {
+  return {
+    content: task,
+    speakerKind: 'human',
+    trigger: 'workflow',
+    origin: {
+      guildId: thread.guildId ?? interaction.guildId ?? null,
+      channelId: thread.id,
+      threadId: thread.id,
+      targetChannelId: thread.id,
+      messageId: interaction.id,
+      userId: interaction.user.id,
+    },
+    channelName: thread.name,
+    guildName: interaction.guild?.name ?? null,
+    replyToMessageId: null,
+    replyToAuthorId: null,
+    replyToAuthorName: null,
+    replyToContent: null,
+    replyToAttachments: [],
+    mentionContext: null,
+    roleContext,
+  };
+}
+
+export function buildWorkflowApiRunMessage(
+  opts: Pick<WorkflowRuntimeRunRequest, 'thread' | 'task' | 'creatorUserId' | 'sourceMessageId'>,
+  roleContext: RoleContext,
+  client: Awaited<ReturnType<typeof createClient>>,
+): Message {
+  const emptyAttachments = {
+    size: 0,
+    values: function* values() {
+      return;
+    },
+  };
+  const authorTag = roleContext.senderDisplayLabel || opts.creatorUserId;
+
+  return {
+    id: opts.sourceMessageId ?? `workflow-api-${opts.thread.id}`,
+    content: opts.task,
+    channel: opts.thread,
+    channelId: opts.thread.id,
+    guildId: opts.thread.guildId ?? null,
+    guild: (opts.thread as { guild?: unknown }).guild ?? null,
+    author: { id: opts.creatorUserId, tag: authorTag, bot: false },
+    client,
+    attachments: emptyAttachments,
+    reference: null,
+  } as unknown as Message;
+}
+
+export function buildWorkflowApiRunAccepted(
+  opts: Pick<WorkflowRuntimeRunRequest, 'thread' | 'task' | 'creatorUserId' | 'sourceMessageId'>,
+  roleContext: RoleContext,
+): AcceptedDiscordMessage {
+  return {
+    content: opts.task,
+    speakerKind: 'human',
+    trigger: 'workflow',
+    origin: {
+      guildId: opts.thread.guildId ?? null,
+      channelId: opts.thread.id,
+      threadId: opts.thread.id,
+      targetChannelId: opts.thread.id,
+      messageId: opts.sourceMessageId ?? `workflow-api-${opts.thread.id}`,
+      userId: opts.creatorUserId,
+    },
+    channelName: opts.thread.name,
+    guildName: ((opts.thread as { guild?: { name?: string } }).guild?.name) ?? null,
+    replyToMessageId: null,
+    replyToAuthorId: null,
+    replyToAuthorName: null,
+    replyToContent: null,
+    replyToAttachments: [],
+    mentionContext: null,
+    roleContext,
+  };
 }
 
 function resolveConversationAuthorBridgeRole(
@@ -322,10 +693,19 @@ async function processMessage(
   state: DaemonState,
   processingContext: ProcessingContext,
   geminiSemaphore: Semaphore,
+  extensionDir: string,
 ): Promise<void> {
   const channel = message.channel as TextChannel | DMChannel | NewsChannel;
   const startTime = Date.now();
-  let requestedToolMode = accepted.trigger === 'cron' ? 'discord' : resolveToolMode(accepted.content);
+  let requestedToolMode: ToolMode;
+  if (accepted.trigger === 'cron') {
+    requestedToolMode = 'discord';
+  } else if (accepted.trigger === 'workflow') {
+    requestedToolMode = 'full';
+  } else {
+    requestedToolMode = resolveToolMode(accepted.content);
+  }
+
   if (requestedToolMode === 'chat' && shouldUseImmediateMentionContext(accepted.trigger, accepted.content)) {
     const immediateContext = selectImmediateMentionContext(memory.snapshot(processingContext.sessionKey), {
       channelId: message.channelId,
@@ -349,6 +729,8 @@ async function processMessage(
   let response = '';
   let responseMessageIds: string[] = [];
   let geminiSessionId: string | undefined;
+  let traceDispatcher: TraceDispatcher | undefined;
+  const isWorkflow = isWorkflowThread(extensionDir, message.channelId);
 
   try {
     if (turnDecision.decision !== 'allow') {
@@ -367,13 +749,70 @@ async function processMessage(
       return;
     }
 
-    const result = await processViaCli(
-      message, accepted, config, memory, processingContext, geminiSemaphore, channel, toolMode,
-    );
-    response = result.response;
-    responseMessageIds = result.messageIds;
-    effectiveAttachmentMetadata = result.attachments ?? attachmentMetadata;
-    geminiSessionId = result.sessionId;
+    if (isWorkflow) {
+      const registry = new TraceRendererRegistry();
+      traceDispatcher = new TraceDispatcher(channel as any, registry);
+      
+      const manifest = loadThreadManifest(extensionDir, message.channelId);
+      if (manifest) {
+        await traceDispatcher.dispatchRunHeader(manifest);
+      }
+
+      runtimeStore.activeWorkflowRuns.set(message.channelId, {
+        requestMessageId: message.id,
+        channelId: message.channelId,
+        userContent: accepted.content,
+        startedAt: Date.now(),
+      });
+    }
+
+    const traceCallbacks = traceDispatcher ? {
+      onTraceEvent: (event: TraceEvent) => {
+        traceDispatcher!.dispatch(event).catch(() => {});
+      }
+    } : undefined;
+
+    try {
+      const result = await processViaCli(
+        message, accepted, config, memory, processingContext, geminiSemaphore, channel, toolMode, extensionDir, traceCallbacks,
+      );
+      response = result.response;
+      responseMessageIds = result.messageIds;
+      effectiveAttachmentMetadata = result.attachments ?? attachmentMetadata;
+      geminiSessionId = result.sessionId;
+
+      if (traceDispatcher) {
+        await traceDispatcher.dispatchRunComplete();
+      }
+
+      const candidateKey = `${message.id}:${message.channelId}`;
+      const candidate = runtimeStore.workflowResponseCandidates.get(candidateKey);
+      if (isWorkflow) {
+        if (!response.trim() && candidate) {
+          response = candidate;
+        }
+        runtimeStore.workflowResponseCandidates.delete(candidateKey);
+
+        if (response.trim().length > 0) {
+          const prepared = await finalizeAssistantResponse(response, message, {
+            allowPrivilegedActions: isBoss(accepted.roleContext),
+          });
+          response = prepared.responseText;
+          const displayText = formatWorkflowFinalDisplay(prepared.displayText);
+          const finalMsgIds = await traceDispatcher!.dispatchFinalResponse(displayText);
+          responseMessageIds.push(...finalMsgIds);
+          responseMessageIds.push(...prepared.actionMessageIds);
+        }
+      }
+    } catch (err) {
+      const candidateKey = `${message.id}:${message.channelId}`;
+      runtimeStore.workflowResponseCandidates.delete(candidateKey);
+      throw err;
+    } finally {
+      if (isWorkflow) {
+        runtimeStore.activeWorkflowRuns.delete(message.channelId);
+      }
+    }
 
     if (response.trim().length > 0 || responseMessageIds.length > 0) {
       await persistExchange();
@@ -387,8 +826,13 @@ async function processMessage(
     }
   } catch (err) {
     state.lastError = err instanceof Error ? err.message : String(err);
+    if (traceDispatcher) {
+      await traceDispatcher.dispatchRunFailed(err);
+    }
     const errorMsg = formatError(err);
-    await retrySend(() => channel.send(errorMsg)).catch(() => {});
+    await retrySend(() => isWorkflow
+      ? channel.send({ content: errorMsg, allowedMentions: SUPPRESS_DISCORD_MENTIONS })
+      : channel.send(errorMsg)).catch(() => {});
     log.error('Message processing failed', {
       channelId: message.channelId,
       error: state.lastError,

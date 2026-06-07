@@ -1,6 +1,6 @@
 # gemini-discord
 
-Your local Gemini CLI agent, reachable from Discord.
+Discord bridge for Gemini CLI / ACP agent workflows.
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Gemini CLI](https://img.shields.io/badge/Gemini%20CLI-extension-4285F4.svg)](https://github.com/google-gemini/gemini-cli)
@@ -31,7 +31,15 @@ You need a bot application before installing:
 
 ## Install
 
-Requires [Gemini CLI](https://github.com/google-gemini/gemini-cli) installed and authenticated, Node.js 22+, and a Discord bot token.
+Requires [Gemini CLI](https://github.com/google-gemini/gemini-cli), Node.js 22+, and a Discord bot token.
+
+For this bridge workflow, authenticate Gemini CLI with non-interactive credentials that the daemon can pass to child processes:
+
+```bash
+export GEMINI_API_KEY="YOUR_API_KEY"
+```
+
+Vertex AI is also supported through Gemini CLI's `GOOGLE_GENAI_USE_VERTEXAI`, `GOOGLE_API_KEY`, `GOOGLE_CLOUD_PROJECT`, and `GOOGLE_CLOUD_LOCATION` environment variables. Browser OAuth is not recommended for unattended bridge sessions.
 
 ```bash
 gemini extensions install https://github.com/Yamato-main/gemini-discord
@@ -94,6 +102,7 @@ npm run setup
 | `/model` | Switch Gemini model (boss only) |
 | `/pool` | Process pool state (boss only) |
 | `/kill` | Kill a pooled process (boss only) |
+| `/workflow` | Create and start a monitored workflow thread for a task (boss only) |
 | `/ping` | Round-trip latency |
 
 ---
@@ -106,7 +115,7 @@ Two roles: `BOSS` and `GUEST`.
 
 **Guests** are globally disabled by default. Human users in `DISCORD_ALLOWED_USER_IDS` can chat in allowed channels even when `DISCORD_ENABLE_GUESTS=false`; other human users can chat only when `DISCORD_ENABLE_GUESTS=true`. When available, simple public Google Search may be allowed for guests. They cannot use MCP tools, shell access, filesystem access, attachment processing, history, discovery, cron, admin, moderation, or outbound Discord actions. Peer bots remain separate and must be listed in `DISCORD_ALLOWED_AGENT_IDS`.
 
-All message sends require an explicit target. If a target can't be proven, the action fails — there is no fallback channel.
+Server replies require an explicit mention by default; set `RESPOND_TO_REPLIES=true` only if you want direct replies to bot messages to trigger responses. All message sends require an explicit target. If a target can't be proven, the action fails — there is no fallback channel.
 
 Credentials and runtime state stay local. Do not commit `.env`, `.gemini-discord/`, logs, databases, tokens, or real Discord IDs.
 
@@ -137,7 +146,7 @@ gemini extensions config gemini-discord
 ```bash
 git clone https://github.com/Yamato-main/gemini-discord
 cd gemini-discord
-npm install && npm run setup && npm run build
+npm ci && npm run setup && npm run build
 ```
 
 Install a local path:
@@ -155,7 +164,7 @@ npm run start:server    # Start MCP server
 npm run install-service # Install as system service
 ```
 
-Before releasing: run typecheck + tests + build, commit `dist/`, keep `.env` and `.gemini-discord/` untracked, use placeholder IDs in examples, add the `gemini-cli-extension` GitHub topic.
+Before releasing: run `npm ci`, `npm run typecheck`, `npm run build`, and `npm test`; commit `dist/`; keep `.env` and `.gemini-discord/` untracked; use placeholder IDs in examples; add the `gemini-cli-extension` GitHub topic.
 
 ## Contributing
 

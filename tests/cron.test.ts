@@ -50,12 +50,100 @@ describe('cron jobs', () => {
     expect(job.cronExpression).toBe('once:2026-05-01T10:15:00.000Z');
     expect(job.nextRun).toBe(new Date('2026-05-01T10:15:00.000Z').getTime());
   });
+
+  it('prevents overlapping runs of the same job', async () => {
+    vi.useFakeTimers();
+    let resolveSend: any;
+    const mockSend = vi.fn().mockImplementation(() => new Promise(resolve => {
+      resolveSend = resolve;
+    }));
+    const mockClient = {
+      channels: {
+        fetch: vi.fn().mockResolvedValue({
+          isTextBased: () => true,
+          send: mockSend,
+        }),
+      },
+    } as any;
+
+    initCron(createConfig(), mockClient, tmpDir);
+
+    scheduleReminder({
+      message: 'Slow job',
+      channelId: '123',
+      authorId: 'owner',
+      delayMinutes: 1,
+    });
+
+    const [job] = listJobs();
+    job.nextRun = Date.now() - 1000;
+
+    // Trigger checkJobs by advancing timer by 60s
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    // mockSend should have been called once
+    expect(mockSend).toHaveBeenCalledTimes(1);
+
+    // Trigger checkJobs again while first is still running
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    // mockSend should STILL only have been called once because of the lock
+    expect(mockSend).toHaveBeenCalledTimes(1);
+
+    // Resolve the send call
+    resolveSend();
+    // Allow promises to resolve
+    await vi.advanceTimersByTimeAsync(0);
+  });
+
+  it('decrements attempts on failed delivery and deletes after attempts expire', async () => {
+    vi.useFakeTimers();
+    const mockClient = {
+      channels: {
+        fetch: vi.fn().mockRejectedValue(new Error('Channel deleted')),
+      },
+    } as any;
+
+    initCron(createConfig(), mockClient, tmpDir);
+
+    scheduleReminder({
+      message: 'Broken channel job',
+      channelId: '999',
+      authorId: 'owner',
+      delayMinutes: 1,
+    });
+
+    const [job] = listJobs();
+    job.nextRun = Date.now() - 1000;
+    job.attempts = 3; // set to 3 for faster test
+
+    // Run 1: fails, reschedules (attempts becomes 2)
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(listJobs().length).toBe(1);
+    expect(listJobs()[0].attempts).toBe(2);
+
+    // Move nextRun back to trigger it again
+    listJobs()[0].nextRun = Date.now() - 1000;
+
+    // Run 2: fails, reschedules (attempts becomes 1)
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(listJobs().length).toBe(1);
+    expect(listJobs()[0].attempts).toBe(1);
+
+    // Move nextRun back to trigger it again
+    listJobs()[0].nextRun = Date.now() - 1000;
+
+    // Run 3: fails, discards (attempts becomes 0/deleted)
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(listJobs().length).toBe(0);
+  });
 });
 
 function createConfig(): Config {
   return {
     discordBotToken: '',
     discordChannelId: '123',
+    workflowParentChannelId: '',
     discordServerId: '',
     discordServerName: '',
     discordBossUserId: '111111111111111111',

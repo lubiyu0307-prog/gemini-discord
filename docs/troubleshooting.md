@@ -6,6 +6,20 @@ Use this page when `gemini-discord` does not come online after setup.
 
 Check `.gemini-discord/daemon.log` in the extension installation directory.
 
+## Channel Discovery and Allowlist
+
+The daemon can discover text, announcement, and forum channels in the configured Discord server. The channel allowlist controls where the bot is allowed to read and respond, so adding a channel now requires the daemon to verify that the channel belongs to the configured server.
+
+Use this flow when the bot is online but does not respond in the expected channel:
+
+1. Confirm `DISCORD_SERVER_ID` is set for the server where the bot is installed.
+2. Call the control API `GET /channels?all=true` with boss credentials to list available channels.
+3. Find the intended channel ID in the response.
+4. Call `POST /channel-allowlist` with `{"action":"add","channel_id":"<channel id>"}` to allow the bot to operate there.
+5. To remove a channel, call `POST /channel-allowlist` with `{"action":"remove","channel_id":"<channel id>"}`.
+
+If `GET /channels?all=true` returns a channel discovery error, check that the bot is still in the server and has permission to view channels. If adding to `/channel-allowlist` fails, verify that the channel ID came from the same configured Discord server; IDs from other servers or channels the bot cannot verify are rejected.
+
 ## Port Conflicts
 
 The daemon treats `DAEMON_PORT` as a preferred port, not a hard requirement. If the configured port is already occupied, it tries subsequent ports and records the active port in `.gemini-discord/daemon.port` so MCP tools can reconnect automatically.
@@ -15,6 +29,15 @@ Fix:
 2. Check `.gemini-discord/daemon.port` to confirm the active control API port.
 3. If MCP tools still report the daemon as offline, restart Gemini CLI so the extension process reloads runtime state.
 4. Only change `DAEMON_PORT` manually if you need a stable preferred port; do not edit `gemini-extension.json` for routine conflicts.
+
+## Duplicate Discord Replies
+
+For branch testing, start the daemon with `GEMINI_DISCORD_DAEMON_SINGLETON=1` to allow only one daemon per Discord bot token and OS user. With the guard enabled, startup takes a token-scoped lock in the system temp directory. During upgrades it also checks for older same-user `gemini-discord/dist/daemon.cjs` processes that predate the lock. If startup reports that another daemon is already running, stop the older install or test process before starting the branch you want to use.
+
+Fix:
+1. Run `pgrep -af "gemini-discord.*dist/daemon.cjs"` to find duplicate daemons.
+2. Stop the process for the install or branch you are not testing.
+3. Start only the branch daemon you want Discord to receive events from.
 
 ## Disallowed Intents (4014)
 
@@ -56,6 +79,15 @@ If thread creation fails:
 1. Check `.gemini-discord/daemon.log` for `Thread creation requested`, `Thread created`, or `Thread creation failed`.
 2. Confirm the target channel is included in `DISCORD_ALLOWED_CHANNEL_IDS`, or that the server-wide allow mode is active.
 3. Confirm the bot has Discord permissions to create threads in that channel.
+
+## Workflow Thread Trace Visibility
+
+Workflow trace cards are rendered from Gemini CLI ACP `tool_call`, `tool_call_update`, and `plan` events. A newly enqueued workflow should always edit its header to `Running` and refresh elapsed time while it is waiting for the first tool event.
+
+If a workflow completes with `0 tool calls`, Discord was not silently stuck. It means the agent run did not emit tool events that the daemon observed. Check:
+1. The task was specific enough to start. Low-information tasks such as `job` are rejected before thread creation.
+2. `.gemini-discord/daemon.log` for ACP updates and trace dispatch warnings.
+3. The Gemini CLI version and output mode. The daemon supports current top-level ACP tool fields (`toolCallId`, `title`, `status`, `kind`, `content`, `rawInput`, `rawOutput`) and older nested `toolCall` payloads.
 
 ## Session Reset
 

@@ -195,6 +195,7 @@ export function setupMessageHandler(
       mentionedBot,
       repliedToBot,
       replyToMessageId,
+      parentChannelId: origin.channelId,
     }, config);
 
     if (!decision.accept) {
@@ -338,6 +339,10 @@ async function notifyOwner(client: Client, config: Config, message: string): Pro
 
 function isAllowedGuildChannel(message: Message, config: Config): boolean {
   if (config.allowedChannelIds.includes(message.channelId)) {
+    return true;
+  }
+  const parentId = (message.channel as { parentId?: string | null }).parentId ?? null;
+  if (parentId && config.allowedChannelIds.includes(parentId)) {
     return true;
   }
 

@@ -8,6 +8,7 @@ import {
 } from '../api-utils.js';
 import { persistConfigEnvUpdates } from '../../shared/config.js';
 import { ENV } from '../../shared/config-vars.js';
+import { buildGuildChannelMap } from '../channels.js';
 
 const DISCORD_SNOWFLAKE_RE = /^\d{15,25}$/;
 
@@ -95,6 +96,61 @@ export async function handleModerationRoutes(
     return true;
   }
 
+  if (pathname === '/channel-allowlist') {
+    if (!authorizeApiAction(req, res, config, 'moderation')) return true;
+    const action = String(parsed['action'] ?? '');
+    const channelId = String(parsed['channel_id'] ?? '').trim();
+
+    if (!['add', 'remove'].includes(action)) {
+      respond(res, 400, { error: 'action must be add or remove' });
+      return true;
+    }
+    if (!channelId || !DISCORD_SNOWFLAKE_RE.test(channelId)) {
+      respond(res, 400, {
+        error: 'channel_id must be a stable numeric Discord channel ID.',
+      });
+      return true;
+    }
+
+    if (action === 'add' && deps.client && config.discordServerId) {
+      try {
+        const channel = await deps.client.channels.fetch(channelId);
+        if (!channel || !('guildId' in channel) || channel.guildId !== config.discordServerId) {
+          respond(res, 400, { error: 'Refusing to allowlist a channel that is not in the configured Discord server.' });
+          return true;
+        }
+      } catch (err) {
+        respond(res, 400, {
+          error: `Cannot verify channel belongs to the configured server: ${err instanceof Error ? err.message : String(err)}`,
+        });
+        return true;
+      }
+    }
+
+    const current = new Set(config.allowedChannelIds);
+    if (action === 'add') {
+      current.add(channelId);
+    } else {
+      current.delete(channelId);
+    }
+
+    const next = [...current];
+    config.allowedChannelIds = next;
+
+    try {
+      persistConfigEnvUpdates(extensionDir, {
+        [ENV.DISCORD_ALLOWED_CHANNEL_IDS]: next.join(','),
+      });
+      if (deps.client) {
+        await buildGuildChannelMap(deps.client, config);
+      }
+      respond(res, 200, { ok: true, action, channel_id: channelId, count: next.length });
+    } catch (err) {
+      respond(res, 500, { error: `Failed to persist config: ${err instanceof Error ? err.message : String(err)}` });
+    }
+    return true;
+  }
+
   if (pathname === '/moderation') {
     if (!authorizeApiAction(req, res, config, 'moderation')) return true;
     const action = String(parsed['action'] ?? '');
@@ -117,6 +173,10 @@ export async function handleModerationRoutes(
     }
     if (!guildId) {
       respond(res, 400, { error: 'guild_id is required because no Discord server is configured' });
+      return true;
+    }
+    if (config.discordServerId && guildId !== config.discordServerId) {
+      respond(res, 403, { error: `Guild ${guildId} is not allowed for moderation` });
       return true;
     }
     if (userId === deps.client?.user?.id) {

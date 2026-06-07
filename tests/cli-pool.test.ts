@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Config } from '../src/shared/types.js';
-import { CliProcessPool } from '../src/daemon/cli-pool.js';
+import { buildGeminiProcessEnv, CliProcessPool } from '../src/daemon/cli-pool.js';
 
 describe('CliProcessPool', () => {
   it('retries once after a Gemini ACP code 1 crash before any assistant output', async () => {
@@ -54,9 +54,57 @@ describe('CliProcessPool', () => {
     expect(ensureSession).toHaveBeenCalledTimes(2);
     expect(promptWithAcp).toHaveBeenCalledTimes(2);
   });
+
+  it('prevents deletion of a new process by an old closing process', () => {
+    const pool = new CliProcessPool(createConfig());
+    const entry1 = createEntry('key-1') as any;
+    const entry2 = createEntry('key-1') as any;
+
+    // Register entry2 (the new process) under key-1
+    pool['pool'].set('key-1', entry2);
+
+    // Simulate entry1 close handler running
+    const closeHandler = (entry: any) => {
+      if (pool['pool'].get(entry.poolKey) === entry) {
+        pool['pool'].delete(entry.poolKey);
+      }
+    };
+
+    closeHandler(entry1);
+
+    // key-1 should still point to entry2
+    expect(pool['pool'].get('key-1')).toBe(entry2);
+
+    // Simulate entry2 close handler running
+    closeHandler(entry2);
+
+    // key-1 should now be deleted
+    expect(pool['pool'].get('key-1')).toBeUndefined();
+  });
+
+  it('passes configured Gemini auth env to spawned CLI processes', () => {
+    const config = createConfig({
+      geminiCliEnv: {
+        GEMINI_API_KEY: 'configured-api-key',
+        GOOGLE_GENAI_USE_VERTEXAI: 'true',
+      },
+    });
+
+    const env = buildGeminiProcessEnv(config, {
+      role: 'GUEST',
+      senderDiscordId: '222222222222222222',
+      senderDisplayLabel: 'Guest#0001',
+      bossLabel: 'the boss',
+      bossConfigValid: true,
+    }, { GEMINI_API_KEY: 'process-api-key' });
+
+    expect(env.GEMINI_API_KEY).toBe('configured-api-key');
+    expect(env.GOOGLE_GENAI_USE_VERTEXAI).toBe('true');
+    expect(env.GEMINI_DISCORD_ROLE).toBe('GUEST');
+  });
 });
 
-function createConfig(): Config {
+function createConfig(overrides: Partial<Config> = {}): Config {
   return {
     discordBotToken: 'test-token',
     discordChannelId: 'channel-1',
@@ -91,6 +139,8 @@ function createConfig(): Config {
     geminiSessionBindingScope: 'global',
     cliIdleTimeoutMs: 300000,
     setupValidationPending: false,
+    workflowParentChannelId: '',
+    ...overrides,
   };
 }
 

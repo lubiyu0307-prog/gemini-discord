@@ -80,12 +80,12 @@ var init_runtime_paths = __esm({
 });
 
 // src/shared/managed-config.ts
-function readManagedConfigFile(filePath) {
-  if (!fs2.existsSync(filePath)) {
+function readManagedConfigFile(filePath2) {
+  if (!fs2.existsSync(filePath2)) {
     return createManagedConfigFile();
   }
   try {
-    const parsed = JSON.parse(fs2.readFileSync(filePath, "utf-8"));
+    const parsed = JSON.parse(fs2.readFileSync(filePath2, "utf-8"));
     if (parsed.version === 1 && typeof parsed.values === "object" && parsed.values !== null) {
       return createManagedConfigFile(coerceStringMap(parsed.values));
     }
@@ -101,20 +101,20 @@ function readManagedConfigFile(filePath) {
   }
   return createManagedConfigFile();
 }
-function writeManagedConfigFile(filePath, config) {
+function writeManagedConfigFile(filePath2, config) {
   const payload = {
     version: MANAGED_CONFIG_VERSION,
     updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
     env: coerceStringMap(config.env),
     discord: coerceDiscordMetadata(config.discord)
   };
-  fs2.mkdirSync(path2.dirname(filePath), { recursive: true });
-  fs2.writeFileSync(filePath, JSON.stringify(payload, null, 2), { mode: 384 });
-  fs2.chmodSync(filePath, 384);
+  fs2.mkdirSync(path2.dirname(filePath2), { recursive: true });
+  fs2.writeFileSync(filePath2, JSON.stringify(payload, null, 2), { mode: 384 });
+  fs2.chmodSync(filePath2, 384);
 }
-function updateManagedConfigFile(filePath, updater) {
-  const next = updater(readManagedConfigFile(filePath));
-  writeManagedConfigFile(filePath, next);
+function updateManagedConfigFile(filePath2, updater) {
+  const next = updater(readManagedConfigFile(filePath2));
+  writeManagedConfigFile(filePath2, next);
   return next;
 }
 function createManagedConfigFile(env = {}) {
@@ -172,7 +172,7 @@ var init_managed_config = __esm({
 });
 
 // src/shared/config-vars.ts
-var ENV, CONFIG_ENV_KEYS, INSTALL_SETTING_ENV_KEYS, REQUIRED_DAEMON_ENV_KEYS, SETUP_ENV_KEYS_TO_CLEAR, SETUP_RUNTIME_DEFAULTS;
+var ENV, CONFIG_ENV_KEYS, INSTALL_SETTING_ENV_KEYS, REQUIRED_DAEMON_ENV_KEYS, SETUP_ENV_KEYS_TO_CLEAR, SETUP_RUNTIME_DEFAULTS, GEMINI_CLI_AUTH_ENV_KEYS;
 var init_config_vars = __esm({
   "src/shared/config-vars.ts"() {
     "use strict";
@@ -196,6 +196,11 @@ var init_config_vars = __esm({
       GEMINI_MODEL: "GEMINI_MODEL",
       GEMINI_TIMEOUT_MS: "GEMINI_TIMEOUT_MS",
       GEMINI_MAX_CONCURRENT: "GEMINI_MAX_CONCURRENT",
+      GEMINI_API_KEY: "GEMINI_API_KEY",
+      GOOGLE_API_KEY: "GOOGLE_API_KEY",
+      GOOGLE_GENAI_USE_VERTEXAI: "GOOGLE_GENAI_USE_VERTEXAI",
+      GOOGLE_CLOUD_PROJECT: "GOOGLE_CLOUD_PROJECT",
+      GOOGLE_CLOUD_LOCATION: "GOOGLE_CLOUD_LOCATION",
       CONVERSATION_HISTORY_LENGTH: "CONVERSATION_HISTORY_LENGTH",
       PROMPT_HISTORY_MAX_MESSAGES: "PROMPT_HISTORY_MAX_MESSAGES",
       PROMPT_HISTORY_MAX_CHARS: "PROMPT_HISTORY_MAX_CHARS",
@@ -209,7 +214,12 @@ var init_config_vars = __esm({
       USE_GEMINI_CLI_SESSIONS: "USE_GEMINI_CLI_SESSIONS",
       GEMINI_SESSION_BINDING_SCOPE: "GEMINI_SESSION_BINDING_SCOPE",
       CLI_IDLE_TIMEOUT_MS: "CLI_IDLE_TIMEOUT_MS",
-      SETUP_VALIDATION_PENDING: "SETUP_VALIDATION_PENDING"
+      SETUP_VALIDATION_PENDING: "SETUP_VALIDATION_PENDING",
+      WORKFLOW_PARENT_CHANNEL_ID: "WORKFLOW_PARENT_CHANNEL_ID",
+      CHUNKER_LIMIT: "CHUNKER_LIMIT",
+      GEMINI_AVAILABLE_MODELS: "GEMINI_AVAILABLE_MODELS",
+      DISCORD_ALLOWED_MENTIONS: "DISCORD_ALLOWED_MENTIONS",
+      DISCORD_PING_REPLIED_USER: "DISCORD_PING_REPLIED_USER"
     };
     CONFIG_ENV_KEYS = [
       ENV.DISCORD_BOT_TOKEN,
@@ -231,6 +241,11 @@ var init_config_vars = __esm({
       ENV.GEMINI_MODEL,
       ENV.GEMINI_TIMEOUT_MS,
       ENV.GEMINI_MAX_CONCURRENT,
+      ENV.GEMINI_API_KEY,
+      ENV.GOOGLE_API_KEY,
+      ENV.GOOGLE_GENAI_USE_VERTEXAI,
+      ENV.GOOGLE_CLOUD_PROJECT,
+      ENV.GOOGLE_CLOUD_LOCATION,
       ENV.CONVERSATION_HISTORY_LENGTH,
       ENV.PROMPT_HISTORY_MAX_MESSAGES,
       ENV.PROMPT_HISTORY_MAX_CHARS,
@@ -244,7 +259,12 @@ var init_config_vars = __esm({
       ENV.USE_GEMINI_CLI_SESSIONS,
       ENV.GEMINI_SESSION_BINDING_SCOPE,
       ENV.CLI_IDLE_TIMEOUT_MS,
-      ENV.SETUP_VALIDATION_PENDING
+      ENV.SETUP_VALIDATION_PENDING,
+      ENV.WORKFLOW_PARENT_CHANNEL_ID,
+      ENV.CHUNKER_LIMIT,
+      ENV.GEMINI_AVAILABLE_MODELS,
+      ENV.DISCORD_ALLOWED_MENTIONS,
+      ENV.DISCORD_PING_REPLIED_USER
     ];
     INSTALL_SETTING_ENV_KEYS = [
       ENV.DISCORD_BOT_TOKEN,
@@ -261,21 +281,28 @@ var init_config_vars = __esm({
     ];
     SETUP_RUNTIME_DEFAULTS = {
       [ENV.ENABLE_DMS]: "true",
-      [ENV.REQUIRE_MENTION]: "false",
+      [ENV.REQUIRE_MENTION]: "true",
       [ENV.AUTO_START_DAEMON]: "true",
       [ENV.DISCORD_ENABLE_GUESTS]: "false",
       [ENV.MEMORY_SCOPE]: "channel",
       [ENV.GEMINI_SESSION_BINDING_SCOPE]: "channel",
       [ENV.SETUP_VALIDATION_PENDING]: "true"
     };
+    GEMINI_CLI_AUTH_ENV_KEYS = [
+      ENV.GEMINI_API_KEY,
+      ENV.GOOGLE_API_KEY,
+      ENV.GOOGLE_GENAI_USE_VERTEXAI,
+      ENV.GOOGLE_CLOUD_PROJECT,
+      ENV.GOOGLE_CLOUD_LOCATION
+    ];
   }
 });
 
 // src/shared/config.ts
-function parseEnvFile(filePath) {
+function parseEnvFile(filePath2) {
   const result = {};
-  if (!fs3.existsSync(filePath)) return result;
-  const content = fs3.readFileSync(filePath, "utf-8");
+  if (!fs3.existsSync(filePath2)) return result;
+  const content = fs3.readFileSync(filePath2, "utf-8");
   for (const line of content.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
@@ -302,7 +329,7 @@ function parseBoolean(value, fallback) {
   return value.toLowerCase() === "true";
 }
 function parseMemoryScope(value) {
-  return value === "channel" ? "channel" : "global";
+  return value === "global" ? "global" : "channel";
 }
 function parseGeminiSessionBindingScope(value) {
   switch (value) {
@@ -313,6 +340,16 @@ function parseGeminiSessionBindingScope(value) {
     default:
       return "channel";
   }
+}
+function resolveGeminiCliEnv(envVars) {
+  const result = {};
+  for (const key of GEMINI_CLI_AUTH_ENV_KEYS) {
+    const value = envVars[key]?.trim();
+    if (value) {
+      result[key] = value;
+    }
+  }
+  return Object.keys(result).length > 0 ? result : void 0;
 }
 function resolveAdminId(explicitAdminId, ownerIds) {
   const explicit = explicitAdminId?.trim();
@@ -425,6 +462,7 @@ function loadConfig(extensionDir2) {
     geminiModel: get(ENV.GEMINI_MODEL, "gemini-3.1-flash-lite-preview"),
     geminiTimeoutMs: parseInt(get(ENV.GEMINI_TIMEOUT_MS, "900000"), 10),
     geminiMaxConcurrent: parseInt(get(ENV.GEMINI_MAX_CONCURRENT, "3"), 10),
+    geminiCliEnv: resolveGeminiCliEnv(envVars),
     conversationHistoryLength: parseInt(get(ENV.CONVERSATION_HISTORY_LENGTH, "30"), 10),
     promptHistoryMessageLimit: parseInt(get(ENV.PROMPT_HISTORY_MAX_MESSAGES, "12"), 10),
     promptHistoryCharBudget: parseInt(get(ENV.PROMPT_HISTORY_MAX_CHARS, "6000"), 10),
@@ -434,7 +472,7 @@ function loadConfig(extensionDir2) {
     enableGuests: parseBoolean(get(ENV.DISCORD_ENABLE_GUESTS), false),
     enableServerMembersIntent: parseBoolean(get(ENV.DISCORD_ENABLE_SERVER_MEMBERS_INTENT, "true"), true),
     requireMention: parseBoolean(get(ENV.REQUIRE_MENTION, "true"), true),
-    respondToReplies: parseBoolean(get(ENV.RESPOND_TO_REPLIES, "true"), true),
+    respondToReplies: parseBoolean(get(ENV.RESPOND_TO_REPLIES, "false"), false),
     memoryScope: parseMemoryScope(get(ENV.MEMORY_SCOPE, "channel")),
     autoStartDaemon: parseBoolean(get(ENV.AUTO_START_DAEMON, "true"), true),
     useGeminiCliSessions: parseBoolean(get(ENV.USE_GEMINI_CLI_SESSIONS, "true"), true),
@@ -443,7 +481,12 @@ function loadConfig(extensionDir2) {
     setupValidationPending: parseBoolean(
       get(ENV.SETUP_VALIDATION_PENDING, hasInstallSettings ? "true" : "false"),
       false
-    )
+    ),
+    workflowParentChannelId: get(ENV.WORKFLOW_PARENT_CHANNEL_ID, "").trim(),
+    chunkerLimit: parseInt(get(ENV.CHUNKER_LIMIT, "8000"), 10),
+    geminiAvailableModels: splitIds(get(ENV.GEMINI_AVAILABLE_MODELS, "")),
+    discordAllowedMentions: splitIds(get(ENV.DISCORD_ALLOWED_MENTIONS, "users")),
+    discordPingRepliedUser: parseBoolean(get(ENV.DISCORD_PING_REPLIED_USER, "true"), true)
   };
   return config;
 }
@@ -508,8 +551,8 @@ function persistDiscordMetadata(extensionDir2, updates) {
     }
   }));
 }
-function persistManagedConfig(filePath, current, values) {
-  updateManagedConfigFile(filePath, () => ({
+function persistManagedConfig(filePath2, current, values) {
+  updateManagedConfigFile(filePath2, () => ({
     ...current,
     env: normalizeConfigMap(values)
   }));
@@ -1392,13 +1435,13 @@ function __disposeResources(env) {
   }
   return next();
 }
-function __rewriteRelativeImportExtension(path13, preserveJsx) {
-  if (typeof path13 === "string" && /^\.\.?\//.test(path13)) {
-    return path13.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
+function __rewriteRelativeImportExtension(path15, preserveJsx) {
+  if (typeof path15 === "string" && /^\.\.?\//.test(path15)) {
+    return path15.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
       return tsx ? preserveJsx ? ".jsx" : ".js" : d && (!ext || !cm) ? m : d + ext + "." + cm.toLowerCase() + "js";
     });
   }
-  return path13;
+  return path15;
 }
 var extendStatics, __assign, __createBinding, __setModuleDefault, ownKeys, _SuppressedError, tslib_es6_default;
 var init_tslib_es6 = __esm({
@@ -1447,9 +1490,9 @@ var init_tslib_es6 = __esm({
       };
       return ownKeys(o);
     };
-    _SuppressedError = typeof SuppressedError === "function" ? SuppressedError : function(error, suppressed, message) {
+    _SuppressedError = typeof SuppressedError === "function" ? SuppressedError : function(error, suppressed2, message) {
       var e = new Error(message);
-      return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed, e;
+      return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed2, e;
     };
     tslib_es6_default = {
       __extends,
@@ -2290,14 +2333,14 @@ var require_util = __commonJS({
         }
         const port = url.port != null ? url.port : url.protocol === "https:" ? 443 : 80;
         let origin = url.origin != null ? url.origin : `${url.protocol || ""}//${url.hostname || ""}:${port}`;
-        let path13 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
+        let path15 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
         if (origin[origin.length - 1] === "/") {
           origin = origin.slice(0, origin.length - 1);
         }
-        if (path13 && path13[0] !== "/") {
-          path13 = `/${path13}`;
+        if (path15 && path15[0] !== "/") {
+          path15 = `/${path15}`;
         }
-        return new URL(`${origin}${path13}`);
+        return new URL(`${origin}${path15}`);
       }
       if (!isHttpOrHttpsPrefixed(url.origin || url.protocol)) {
         throw new InvalidArgumentError("Invalid URL protocol: the URL must start with `http:` or `https:`.");
@@ -2748,39 +2791,39 @@ var require_diagnostics = __commonJS({
       });
       diagnosticsChannel.channel("undici:client:sendHeaders").subscribe((evt) => {
         const {
-          request: { method, path: path13, origin }
+          request: { method, path: path15, origin }
         } = evt;
-        debuglog("sending request to %s %s/%s", method, origin, path13);
+        debuglog("sending request to %s %s/%s", method, origin, path15);
       });
       diagnosticsChannel.channel("undici:request:headers").subscribe((evt) => {
         const {
-          request: { method, path: path13, origin },
+          request: { method, path: path15, origin },
           response: { statusCode }
         } = evt;
         debuglog(
           "received response to %s %s/%s - HTTP %d",
           method,
           origin,
-          path13,
+          path15,
           statusCode
         );
       });
       diagnosticsChannel.channel("undici:request:trailers").subscribe((evt) => {
         const {
-          request: { method, path: path13, origin }
+          request: { method, path: path15, origin }
         } = evt;
-        debuglog("trailers received from %s %s/%s", method, origin, path13);
+        debuglog("trailers received from %s %s/%s", method, origin, path15);
       });
       diagnosticsChannel.channel("undici:request:error").subscribe((evt) => {
         const {
-          request: { method, path: path13, origin },
+          request: { method, path: path15, origin },
           error
         } = evt;
         debuglog(
           "request to %s %s/%s errored - %s",
           method,
           origin,
-          path13,
+          path15,
           error.message
         );
       });
@@ -2829,9 +2872,9 @@ var require_diagnostics = __commonJS({
         });
         diagnosticsChannel.channel("undici:client:sendHeaders").subscribe((evt) => {
           const {
-            request: { method, path: path13, origin }
+            request: { method, path: path15, origin }
           } = evt;
-          debuglog("sending request to %s %s/%s", method, origin, path13);
+          debuglog("sending request to %s %s/%s", method, origin, path15);
         });
       }
       diagnosticsChannel.channel("undici:websocket:open").subscribe((evt) => {
@@ -2894,7 +2937,7 @@ var require_request = __commonJS({
     var kHandler = Symbol("handler");
     var Request = class {
       constructor(origin, {
-        path: path13,
+        path: path15,
         method,
         body,
         headers,
@@ -2909,11 +2952,11 @@ var require_request = __commonJS({
         expectContinue,
         servername
       }, handler) {
-        if (typeof path13 !== "string") {
+        if (typeof path15 !== "string") {
           throw new InvalidArgumentError("path must be a string");
-        } else if (path13[0] !== "/" && !(path13.startsWith("http://") || path13.startsWith("https://")) && method !== "CONNECT") {
+        } else if (path15[0] !== "/" && !(path15.startsWith("http://") || path15.startsWith("https://")) && method !== "CONNECT") {
           throw new InvalidArgumentError("path must be an absolute URL or start with a slash");
-        } else if (invalidPathRegex.test(path13)) {
+        } else if (invalidPathRegex.test(path15)) {
           throw new InvalidArgumentError("invalid request path");
         }
         if (typeof method !== "string") {
@@ -2979,7 +3022,7 @@ var require_request = __commonJS({
         this.completed = false;
         this.aborted = false;
         this.upgrade = upgrade || null;
-        this.path = query ? buildURL(path13, query) : path13;
+        this.path = query ? buildURL(path15, query) : path15;
         this.origin = origin;
         this.idempotent = idempotent == null ? method === "HEAD" || method === "GET" : idempotent;
         this.blocking = blocking == null ? false : blocking;
@@ -7498,7 +7541,7 @@ var require_client_h1 = __commonJS({
       return method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && method !== "TRACE" && method !== "CONNECT";
     }
     function writeH1(client, request) {
-      const { method, path: path13, host, upgrade, blocking, reset } = request;
+      const { method, path: path15, host, upgrade, blocking, reset } = request;
       let { body, headers, contentLength } = request;
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH" || method === "QUERY" || method === "PROPFIND" || method === "PROPPATCH";
       if (util.isFormDataLike(body)) {
@@ -7564,7 +7607,7 @@ var require_client_h1 = __commonJS({
       if (blocking) {
         socket[kBlocking] = true;
       }
-      let header = `${method} ${path13} HTTP/1.1\r
+      let header = `${method} ${path15} HTTP/1.1\r
 `;
       if (typeof host === "string") {
         header += `host: ${host}\r
@@ -8090,7 +8133,7 @@ var require_client_h2 = __commonJS({
     }
     function writeH2(client, request) {
       const session = client[kHTTP2Session];
-      const { method, path: path13, host, upgrade, expectContinue, signal, headers: reqHeaders } = request;
+      const { method, path: path15, host, upgrade, expectContinue, signal, headers: reqHeaders } = request;
       let { body } = request;
       if (upgrade) {
         util.errorRequest(client, request, new Error("Upgrade not supported for H2"));
@@ -8157,7 +8200,7 @@ var require_client_h2 = __commonJS({
         });
         return true;
       }
-      headers[HTTP2_HEADER_PATH] = path13;
+      headers[HTTP2_HEADER_PATH] = path15;
       headers[HTTP2_HEADER_SCHEME] = "https";
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH";
       if (body && typeof body.read === "function") {
@@ -8510,9 +8553,9 @@ var require_redirect_handler = __commonJS({
           return this.handler.onHeaders(statusCode, headers, resume, statusText);
         }
         const { origin, pathname, search } = util.parseURL(new URL(this.location, this.opts.origin && new URL(this.opts.path, this.opts.origin)));
-        const path13 = search ? `${pathname}${search}` : pathname;
+        const path15 = search ? `${pathname}${search}` : pathname;
         this.opts.headers = cleanRequestHeaders(this.opts.headers, statusCode === 303, this.opts.origin !== origin);
-        this.opts.path = path13;
+        this.opts.path = path15;
         this.opts.origin = origin;
         this.opts.maxRedirections = 0;
         this.opts.query = null;
@@ -9746,10 +9789,10 @@ var require_proxy_agent = __commonJS({
         };
         const {
           origin,
-          path: path13 = "/",
+          path: path15 = "/",
           headers = {}
         } = opts;
-        opts.path = origin + path13;
+        opts.path = origin + path15;
         if (!("host" in headers) && !("Host" in headers)) {
           const { host } = new URL2(origin);
           headers.host = host;
@@ -11670,20 +11713,20 @@ var require_mock_utils = __commonJS({
       }
       return true;
     }
-    function safeUrl(path13) {
-      if (typeof path13 !== "string") {
-        return path13;
+    function safeUrl(path15) {
+      if (typeof path15 !== "string") {
+        return path15;
       }
-      const pathSegments = path13.split("?");
+      const pathSegments = path15.split("?");
       if (pathSegments.length !== 2) {
-        return path13;
+        return path15;
       }
       const qp = new URLSearchParams(pathSegments.pop());
       qp.sort();
       return [...pathSegments, qp.toString()].join("?");
     }
-    function matchKey(mockDispatch2, { path: path13, method, body, headers }) {
-      const pathMatch = matchValue(mockDispatch2.path, path13);
+    function matchKey(mockDispatch2, { path: path15, method, body, headers }) {
+      const pathMatch = matchValue(mockDispatch2.path, path15);
       const methodMatch = matchValue(mockDispatch2.method, method);
       const bodyMatch = typeof mockDispatch2.body !== "undefined" ? matchValue(mockDispatch2.body, body) : true;
       const headersMatch = matchHeaders(mockDispatch2, headers);
@@ -11705,7 +11748,7 @@ var require_mock_utils = __commonJS({
     function getMockDispatch(mockDispatches, key) {
       const basePath = key.query ? buildURL(key.path, key.query) : key.path;
       const resolvedPath = typeof basePath === "string" ? safeUrl(basePath) : basePath;
-      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path13 }) => matchValue(safeUrl(path13), resolvedPath));
+      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path15 }) => matchValue(safeUrl(path15), resolvedPath));
       if (matchedMockDispatches.length === 0) {
         throw new MockNotMatchedError(`Mock dispatch not matched for path '${resolvedPath}'`);
       }
@@ -11743,9 +11786,9 @@ var require_mock_utils = __commonJS({
       }
     }
     function buildKey(opts) {
-      const { path: path13, method, body, headers, query } = opts;
+      const { path: path15, method, body, headers, query } = opts;
       return {
-        path: path13,
+        path: path15,
         method,
         body,
         headers,
@@ -12208,10 +12251,10 @@ var require_pending_interceptors_formatter = __commonJS({
       }
       format(pendingInterceptors) {
         const withPrettyHeaders = pendingInterceptors.map(
-          ({ method, path: path13, data: { statusCode }, persist, times, timesInvoked, origin }) => ({
+          ({ method, path: path15, data: { statusCode }, persist, times, timesInvoked, origin }) => ({
             Method: method,
             Origin: origin,
-            Path: path13,
+            Path: path15,
             "Status code": statusCode,
             Persistent: persist ? PERSISTENT : NOT_PERSISTENT,
             Invocations: timesInvoked,
@@ -17092,9 +17135,9 @@ var require_util6 = __commonJS({
         }
       }
     }
-    function validateCookiePath(path13) {
-      for (let i = 0; i < path13.length; ++i) {
-        const code = path13.charCodeAt(i);
+    function validateCookiePath(path15) {
+      for (let i = 0; i < path15.length; ++i) {
+        const code = path15.charCodeAt(i);
         if (code < 32 || // exclude CTLs (0-31)
         code === 127 || // DEL
         code === 59) {
@@ -19734,11 +19777,11 @@ var require_undici = __commonJS({
           if (typeof opts.path !== "string") {
             throw new InvalidArgumentError("invalid opts.path");
           }
-          let path13 = opts.path;
+          let path15 = opts.path;
           if (!opts.path.startsWith("/")) {
-            path13 = `/${path13}`;
+            path15 = `/${path15}`;
           }
-          url = new URL(util.parseOrigin(url).origin + path13);
+          url = new URL(util.parseOrigin(url).origin + path15);
         } else {
           if (!opts) {
             opts = typeof url === "object" ? url : {};
@@ -20552,26 +20595,26 @@ var require_channel = __commonJS({
       ForumLayoutType2[ForumLayoutType2["ListView"] = 1] = "ListView";
       ForumLayoutType2[ForumLayoutType2["GalleryView"] = 2] = "GalleryView";
     })(ForumLayoutType || (exports2.ForumLayoutType = ForumLayoutType = {}));
-    var ChannelType3;
-    (function(ChannelType4) {
-      ChannelType4[ChannelType4["GuildText"] = 0] = "GuildText";
-      ChannelType4[ChannelType4["DM"] = 1] = "DM";
-      ChannelType4[ChannelType4["GuildVoice"] = 2] = "GuildVoice";
-      ChannelType4[ChannelType4["GroupDM"] = 3] = "GroupDM";
-      ChannelType4[ChannelType4["GuildCategory"] = 4] = "GuildCategory";
-      ChannelType4[ChannelType4["GuildAnnouncement"] = 5] = "GuildAnnouncement";
-      ChannelType4[ChannelType4["AnnouncementThread"] = 10] = "AnnouncementThread";
-      ChannelType4[ChannelType4["PublicThread"] = 11] = "PublicThread";
-      ChannelType4[ChannelType4["PrivateThread"] = 12] = "PrivateThread";
-      ChannelType4[ChannelType4["GuildStageVoice"] = 13] = "GuildStageVoice";
-      ChannelType4[ChannelType4["GuildDirectory"] = 14] = "GuildDirectory";
-      ChannelType4[ChannelType4["GuildForum"] = 15] = "GuildForum";
-      ChannelType4[ChannelType4["GuildMedia"] = 16] = "GuildMedia";
-      ChannelType4[ChannelType4["GuildNews"] = 5] = "GuildNews";
-      ChannelType4[ChannelType4["GuildNewsThread"] = 10] = "GuildNewsThread";
-      ChannelType4[ChannelType4["GuildPublicThread"] = 11] = "GuildPublicThread";
-      ChannelType4[ChannelType4["GuildPrivateThread"] = 12] = "GuildPrivateThread";
-    })(ChannelType3 || (exports2.ChannelType = ChannelType3 = {}));
+    var ChannelType4;
+    (function(ChannelType5) {
+      ChannelType5[ChannelType5["GuildText"] = 0] = "GuildText";
+      ChannelType5[ChannelType5["DM"] = 1] = "DM";
+      ChannelType5[ChannelType5["GuildVoice"] = 2] = "GuildVoice";
+      ChannelType5[ChannelType5["GroupDM"] = 3] = "GroupDM";
+      ChannelType5[ChannelType5["GuildCategory"] = 4] = "GuildCategory";
+      ChannelType5[ChannelType5["GuildAnnouncement"] = 5] = "GuildAnnouncement";
+      ChannelType5[ChannelType5["AnnouncementThread"] = 10] = "AnnouncementThread";
+      ChannelType5[ChannelType5["PublicThread"] = 11] = "PublicThread";
+      ChannelType5[ChannelType5["PrivateThread"] = 12] = "PrivateThread";
+      ChannelType5[ChannelType5["GuildStageVoice"] = 13] = "GuildStageVoice";
+      ChannelType5[ChannelType5["GuildDirectory"] = 14] = "GuildDirectory";
+      ChannelType5[ChannelType5["GuildForum"] = 15] = "GuildForum";
+      ChannelType5[ChannelType5["GuildMedia"] = 16] = "GuildMedia";
+      ChannelType5[ChannelType5["GuildNews"] = 5] = "GuildNews";
+      ChannelType5[ChannelType5["GuildNewsThread"] = 10] = "GuildNewsThread";
+      ChannelType5[ChannelType5["GuildPublicThread"] = 11] = "GuildPublicThread";
+      ChannelType5[ChannelType5["GuildPrivateThread"] = 12] = "GuildPrivateThread";
+    })(ChannelType4 || (exports2.ChannelType = ChannelType4 = {}));
     var VideoQualityMode;
     (function(VideoQualityMode2) {
       VideoQualityMode2[VideoQualityMode2["Auto"] = 1] = "Auto";
@@ -20968,17 +21011,17 @@ var require_applicationCommands = __commonJS({
       ApplicationCommandType2[ApplicationCommandType2["Message"] = 3] = "Message";
       ApplicationCommandType2[ApplicationCommandType2["PrimaryEntryPoint"] = 4] = "PrimaryEntryPoint";
     })(ApplicationCommandType || (exports2.ApplicationCommandType = ApplicationCommandType = {}));
-    var ApplicationIntegrationType;
-    (function(ApplicationIntegrationType2) {
-      ApplicationIntegrationType2[ApplicationIntegrationType2["GuildInstall"] = 0] = "GuildInstall";
-      ApplicationIntegrationType2[ApplicationIntegrationType2["UserInstall"] = 1] = "UserInstall";
-    })(ApplicationIntegrationType || (exports2.ApplicationIntegrationType = ApplicationIntegrationType = {}));
-    var InteractionContextType;
-    (function(InteractionContextType2) {
-      InteractionContextType2[InteractionContextType2["Guild"] = 0] = "Guild";
-      InteractionContextType2[InteractionContextType2["BotDM"] = 1] = "BotDM";
-      InteractionContextType2[InteractionContextType2["PrivateChannel"] = 2] = "PrivateChannel";
-    })(InteractionContextType || (exports2.InteractionContextType = InteractionContextType = {}));
+    var ApplicationIntegrationType2;
+    (function(ApplicationIntegrationType3) {
+      ApplicationIntegrationType3[ApplicationIntegrationType3["GuildInstall"] = 0] = "GuildInstall";
+      ApplicationIntegrationType3[ApplicationIntegrationType3["UserInstall"] = 1] = "UserInstall";
+    })(ApplicationIntegrationType2 || (exports2.ApplicationIntegrationType = ApplicationIntegrationType2 = {}));
+    var InteractionContextType2;
+    (function(InteractionContextType3) {
+      InteractionContextType3[InteractionContextType3["Guild"] = 0] = "Guild";
+      InteractionContextType3[InteractionContextType3["BotDM"] = 1] = "BotDM";
+      InteractionContextType3[InteractionContextType3["PrivateChannel"] = 2] = "PrivateChannel";
+    })(InteractionContextType2 || (exports2.InteractionContextType = InteractionContextType2 = {}));
     var EntryPointCommandHandlerType;
     (function(EntryPointCommandHandlerType2) {
       EntryPointCommandHandlerType2[EntryPointCommandHandlerType2["AppHandler"] = 1] = "AppHandler";
@@ -26841,11 +26884,11 @@ Emitted 'error' event${ctorInfo} at:
         return this._eventCount > 0 ? Reflect.ownKeys(this._events) : [];
       }
       async waitForAllListenersToComplete() {
-        const promises = [...this._internalPromiseMap.values()];
-        if (promises.length === 0) {
+        const promises2 = [...this._internalPromiseMap.values()];
+        if (promises2.length === 0) {
           return false;
         }
-        await Promise.all(promises);
+        await Promise.all(promises2);
         return true;
       }
       _addListener(eventName, wrappedListener, prepend) {
@@ -27040,23 +27083,23 @@ Emitted 'error' event${ctorInfo} at:
       return signal?.reason;
     }
     __name(getReason, "getReason");
-    function eventTargetAgnosticRemoveListener(emitter, name, listener, flags) {
+    function eventTargetAgnosticRemoveListener(emitter, name, listener, flags2) {
       if (typeof emitter.off === "function") {
         emitter.off(name, listener);
       } else if (typeof emitter.removeEventListener === "function") {
-        emitter.removeEventListener(name, listener, flags);
+        emitter.removeEventListener(name, listener, flags2);
       }
     }
     __name(eventTargetAgnosticRemoveListener, "eventTargetAgnosticRemoveListener");
-    function eventTargetAgnosticAddListener(emitter, name, listener, flags) {
+    function eventTargetAgnosticAddListener(emitter, name, listener, flags2) {
       if (typeof emitter.on === "function") {
-        if (flags?.once) {
+        if (flags2?.once) {
           emitter.once(name, listener);
         } else {
           emitter.on(name, listener);
         }
       } else if (typeof emitter.addEventListener === "function") {
-        emitter.addEventListener(name, listener, flags);
+        emitter.addEventListener(name, listener, flags2);
       }
     }
     __name(eventTargetAgnosticAddListener, "eventTargetAgnosticAddListener");
@@ -27142,13 +27185,13 @@ var require_tree2 = __commonJS({
       mime: leaf.info.mime,
       extension: leaf.info.extension
     });
-    var isLeafNode = (tree, path13) => tree && path13.length === 0;
+    var isLeafNode = (tree, path15) => tree && path15.length === 0;
     var merge = (node, tree) => {
       if (node.bytes.length === 0)
         return tree;
-      const [currentByte, ...path13] = node.bytes;
+      const [currentByte, ...path15] = node.bytes;
       const currentTree = tree.bytes[currentByte];
-      if (isLeafNode(currentTree, path13)) {
+      if (isLeafNode(currentTree, path15)) {
         const matchingNode = tree.bytes[currentByte];
         tree.bytes[currentByte] = {
           ...matchingNode,
@@ -27160,9 +27203,9 @@ var require_tree2 = __commonJS({
         return tree;
       }
       if (tree.bytes[currentByte]) {
-        tree.bytes[currentByte] = exports2.merge(exports2.createNode(node.typename, path13, node.info), tree.bytes[currentByte]);
+        tree.bytes[currentByte] = exports2.merge(exports2.createNode(node.typename, path15, node.info), tree.bytes[currentByte]);
       } else {
-        tree.bytes[currentByte] = exports2.createComplexNode(node.typename, path13, node.info);
+        tree.bytes[currentByte] = exports2.createComplexNode(node.typename, path15, node.info);
       }
       return tree;
     };
@@ -27176,7 +27219,7 @@ var require_tree2 = __commonJS({
         bytes: {},
         matches: void 0
       };
-      const [currentKey, ...path13] = bytes;
+      const [currentKey, ...path15] = bytes;
       if (bytes.length === 0) {
         return {
           matches: [
@@ -27188,7 +27231,7 @@ var require_tree2 = __commonJS({
           bytes: {}
         };
       }
-      obj.bytes[currentKey] = exports2.createComplexNode(typename, path13, info);
+      obj.bytes[currentKey] = exports2.createComplexNode(typename, path15, info);
       return obj;
     };
     exports2.createComplexNode = createComplexNode;
@@ -31427,7 +31470,7 @@ var require_Attachment = __commonJS({
   "node_modules/discord.js/src/structures/Attachment.js"(exports2, module2) {
     "use strict";
     var AttachmentFlagsBitField = require_AttachmentFlagsBitField();
-    var { basename: basename4, flatten } = require_Util();
+    var { basename: basename5, flatten } = require_Util();
     var Attachment = class {
       constructor(data) {
         this.attachment = data.url;
@@ -31493,7 +31536,7 @@ var require_Attachment = __commonJS({
        * @readonly
        */
       get spoiler() {
-        return basename4(this.url ?? this.name).startsWith("SPOILER_");
+        return basename5(this.url ?? this.name).startsWith("SPOILER_");
       }
       toJSON() {
         return flatten(this);
@@ -31710,7 +31753,7 @@ var require_dist7 = __commonJS({
       channelLink: () => channelLink,
       channelMention: () => channelMention,
       chatInputApplicationCommandMention: () => chatInputApplicationCommandMention,
-      codeBlock: () => codeBlock,
+      codeBlock: () => codeBlock2,
       email: () => email,
       escapeBold: () => escapeBold,
       escapeBulletedList: () => escapeBulletedList,
@@ -31729,7 +31772,7 @@ var require_dist7 = __commonJS({
       heading: () => heading,
       hideLinkEmbed: () => hideLinkEmbed,
       hyperlink: () => hyperlink,
-      inlineCode: () => inlineCode,
+      inlineCode: () => inlineCode2,
       italic: () => italic,
       linkedRoleMention: () => linkedRoleMention,
       messageLink: () => messageLink,
@@ -31750,8 +31793,8 @@ var require_dist7 = __commonJS({
     module2.exports = __toCommonJS2(index_exports);
     function escapeMarkdown(text, options = {}) {
       const {
-        codeBlock: codeBlock2 = true,
-        inlineCode: inlineCode2 = true,
+        codeBlock: codeBlock22 = true,
+        inlineCode: inlineCode22 = true,
         bold: bold2 = true,
         italic: italic2 = true,
         underline: underline2 = true,
@@ -31769,7 +31812,7 @@ var require_dist7 = __commonJS({
         return text.split("```").map((subString, index, array) => {
           if (index % 2 && index !== array.length - 1) return subString;
           return escapeMarkdown(subString, {
-            inlineCode: inlineCode2,
+            inlineCode: inlineCode22,
             bold: bold2,
             italic: italic2,
             underline: underline2,
@@ -31782,13 +31825,13 @@ var require_dist7 = __commonJS({
             numberedList,
             maskedLink
           });
-        }).join(codeBlock2 ? "\\`\\`\\`" : "```");
+        }).join(codeBlock22 ? "\\`\\`\\`" : "```");
       }
       if (!inlineCodeContent) {
         return text.split(/(?<=^|[^`])`(?=[^`]|$)/g).map((subString, index, array) => {
           if (index % 2 && index !== array.length - 1) return subString;
           return escapeMarkdown(subString, {
-            codeBlock: codeBlock2,
+            codeBlock: codeBlock22,
             bold: bold2,
             italic: italic2,
             underline: underline2,
@@ -31800,12 +31843,12 @@ var require_dist7 = __commonJS({
             numberedList,
             maskedLink
           });
-        }).join(inlineCode2 ? "\\`" : "`");
+        }).join(inlineCode22 ? "\\`" : "`");
       }
       let res = text;
       if (escape2) res = escapeEscape(res);
-      if (inlineCode2) res = escapeInlineCode(res);
-      if (codeBlock2) res = escapeCodeBlock(res);
+      if (inlineCode22) res = escapeInlineCode(res);
+      if (codeBlock22) res = escapeCodeBlock(res);
       if (italic2) res = escapeItalic(res);
       if (bold2) res = escapeBold(res);
       if (underline2) res = escapeUnderline(res);
@@ -31889,18 +31932,18 @@ var require_dist7 = __commonJS({
       return text.replaceAll(/\[.+]\(.+\)/gm, "\\$&");
     }
     __name(escapeMaskedLink, "escapeMaskedLink");
-    function codeBlock(language, content) {
+    function codeBlock2(language, content) {
       return content === void 0 ? `\`\`\`
 ${language}
 \`\`\`` : `\`\`\`${language}
 ${content}
 \`\`\``;
     }
-    __name(codeBlock, "codeBlock");
-    function inlineCode(content) {
+    __name(codeBlock2, "codeBlock");
+    function inlineCode2(content) {
       return `\`${content}\``;
     }
-    __name(inlineCode, "inlineCode");
+    __name(inlineCode2, "inlineCode");
     function italic(content) {
       return `_${content}_`;
     }
@@ -32196,7 +32239,7 @@ var require_ChannelFlagsBitField = __commonJS({
 var require_Constants = __commonJS({
   "node_modules/discord.js/src/util/Constants.js"(exports2) {
     "use strict";
-    var { ChannelType: ChannelType3, MessageType, ComponentType, ImageFormat, StickerFormatType } = require_v106();
+    var { ChannelType: ChannelType4, MessageType, ComponentType, ImageFormat, StickerFormatType } = require_v106();
     exports2.MaxBulkDeletableMessageAge = 12096e5;
     exports2.SweeperKeys = [
       "autoModerationRules",
@@ -32223,18 +32266,18 @@ var require_Constants = __commonJS({
       MessageType.ContextMenuCommand
     ];
     exports2.GuildTextBasedChannelTypes = [
-      ChannelType3.GuildText,
-      ChannelType3.GuildAnnouncement,
-      ChannelType3.AnnouncementThread,
-      ChannelType3.PublicThread,
-      ChannelType3.PrivateThread,
-      ChannelType3.GuildVoice,
-      ChannelType3.GuildStageVoice
+      ChannelType4.GuildText,
+      ChannelType4.GuildAnnouncement,
+      ChannelType4.AnnouncementThread,
+      ChannelType4.PublicThread,
+      ChannelType4.PrivateThread,
+      ChannelType4.GuildVoice,
+      ChannelType4.GuildStageVoice
     ];
-    exports2.TextBasedChannelTypes = [...exports2.GuildTextBasedChannelTypes, ChannelType3.DM, ChannelType3.GroupDM];
-    exports2.SendableChannels = [...exports2.GuildTextBasedChannelTypes, ChannelType3.DM];
-    exports2.ThreadChannelTypes = [ChannelType3.AnnouncementThread, ChannelType3.PublicThread, ChannelType3.PrivateThread];
-    exports2.VoiceBasedChannelTypes = [ChannelType3.GuildVoice, ChannelType3.GuildStageVoice];
+    exports2.TextBasedChannelTypes = [...exports2.GuildTextBasedChannelTypes, ChannelType4.DM, ChannelType4.GroupDM];
+    exports2.SendableChannels = [...exports2.GuildTextBasedChannelTypes, ChannelType4.DM];
+    exports2.ThreadChannelTypes = [ChannelType4.AnnouncementThread, ChannelType4.PublicThread, ChannelType4.PrivateThread];
+    exports2.VoiceBasedChannelTypes = [ChannelType4.GuildVoice, ChannelType4.GuildStageVoice];
     exports2.SelectMenuTypes = [
       ComponentType.StringSelect,
       ComponentType.UserSelect,
@@ -32293,7 +32336,7 @@ var require_BaseChannel = __commonJS({
     "use strict";
     var { channelLink, channelMention } = require_dist7();
     var { DiscordSnowflake } = require_cjs3();
-    var { ChannelType: ChannelType3, Routes: Routes3 } = require_v106();
+    var { ChannelType: ChannelType4, Routes: Routes3 } = require_v106();
     var Base = require_Base();
     var ChannelFlagsBitField = require_ChannelFlagsBitField();
     var { ThreadChannelTypes } = require_Constants();
@@ -32394,7 +32437,7 @@ var require_BaseChannel = __commonJS({
        * @returns {boolean}
        */
       isDMBased() {
-        return [ChannelType3.DM, ChannelType3.GroupDM].includes(this.type);
+        return [ChannelType4.DM, ChannelType4.GroupDM].includes(this.type);
       }
       /**
        * Indicates whether this channel is {@link BaseGuildVoiceChannel voice-based}.
@@ -33340,7 +33383,7 @@ var require_GuildChannel = __commonJS({
   "node_modules/discord.js/src/structures/GuildChannel.js"(exports2, module2) {
     "use strict";
     var { Snowflake } = require_cjs3();
-    var { PermissionFlagsBits: PermissionFlagsBits2, ChannelType: ChannelType3 } = require_v106();
+    var { PermissionFlagsBits: PermissionFlagsBits2, ChannelType: ChannelType4 } = require_v106();
     var { BaseChannel } = require_BaseChannel();
     var { DiscordjsError: DiscordjsError2, ErrorCodes: ErrorCodes2 } = require_errors2();
     var PermissionOverwriteManager = require_PermissionOverwriteManager();
@@ -33417,7 +33460,7 @@ var require_GuildChannel = __commonJS({
        * @readonly
        */
       get position() {
-        const selfIsCategory = this.type === ChannelType3.GuildCategory;
+        const selfIsCategory = this.type === ChannelType4.GuildCategory;
         const types = getSortableGroupTypes(this.type);
         let count = 0;
         for (const channel of this.guild.channels.cache.values()) {
@@ -33736,7 +33779,7 @@ var require_Util = __commonJS({
     var { parse } = require("node:path");
     var process2 = require("node:process");
     var { Collection: Collection2 } = require_dist6();
-    var { ChannelType: ChannelType3, RouteBases, Routes: Routes3 } = require_v106();
+    var { ChannelType: ChannelType4, RouteBases, Routes: Routes3 } = require_v106();
     var { fetch: fetch2 } = require_undici();
     var Colors = require_Colors();
     var { DiscordjsError: DiscordjsError2, DiscordjsRangeError: DiscordjsRangeError2, DiscordjsTypeError: DiscordjsTypeError2, ErrorCodes: ErrorCodes2 } = require_errors2();
@@ -33805,24 +33848,24 @@ var require_Util = __commonJS({
       };
     }
     var TextSortableGroupTypes = [
-      ChannelType3.GuildText,
-      ChannelType3.GuildAnnouncement,
-      ChannelType3.GuildForum,
-      ChannelType3.GuildMedia
+      ChannelType4.GuildText,
+      ChannelType4.GuildAnnouncement,
+      ChannelType4.GuildForum,
+      ChannelType4.GuildMedia
     ];
-    var VoiceSortableGroupTypes = [ChannelType3.GuildVoice, ChannelType3.GuildStageVoice];
-    var CategorySortableGroupTypes = [ChannelType3.GuildCategory];
+    var VoiceSortableGroupTypes = [ChannelType4.GuildVoice, ChannelType4.GuildStageVoice];
+    var CategorySortableGroupTypes = [ChannelType4.GuildCategory];
     function getSortableGroupTypes(type) {
       switch (type) {
-        case ChannelType3.GuildText:
-        case ChannelType3.GuildAnnouncement:
-        case ChannelType3.GuildForum:
-        case ChannelType3.GuildMedia:
+        case ChannelType4.GuildText:
+        case ChannelType4.GuildAnnouncement:
+        case ChannelType4.GuildForum:
+        case ChannelType4.GuildMedia:
           return TextSortableGroupTypes;
-        case ChannelType3.GuildVoice:
-        case ChannelType3.GuildStageVoice:
+        case ChannelType4.GuildVoice:
+        case ChannelType4.GuildStageVoice:
           return VoiceSortableGroupTypes;
-        case ChannelType3.GuildCategory:
+        case ChannelType4.GuildCategory:
           return CategorySortableGroupTypes;
         default:
           return [type];
@@ -33875,8 +33918,8 @@ var require_Util = __commonJS({
       await client.rest.patch(route, { body: updatedItems, reason });
       return updatedItems;
     }
-    function basename4(path13, ext) {
-      const res = parse(path13);
+    function basename5(path15, ext) {
+      const res = parse(path15);
       return ext && res.ext.startsWith(ext) ? res.name : res.base.split("?")[0];
     }
     function cleanContent(str, channel) {
@@ -33897,7 +33940,7 @@ var require_Util = __commonJS({
               return user ? `@${user.displayName}` : match;
             }
             case "@&": {
-              if (channel.type === ChannelType3.DM) return match;
+              if (channel.type === ChannelType4.DM) return match;
               const role = channel.guild.roles.cache.get(id);
               return role ? `@${role.name}` : match;
             }
@@ -33998,7 +34041,7 @@ var require_Util = __commonJS({
       resolveColor,
       discordSort,
       setPosition,
-      basename: basename4,
+      basename: basename5,
       cleanContent,
       cleanCodeBlockContent,
       parseWebhookURL,
@@ -36358,8 +36401,8 @@ var require_DataResolver = __commonJS({
   "node_modules/discord.js/src/util/DataResolver.js"(exports2, module2) {
     "use strict";
     var { Buffer: Buffer2 } = require("node:buffer");
-    var fs12 = require("node:fs/promises");
-    var path13 = require("node:path");
+    var fs14 = require("node:fs/promises");
+    var path15 = require("node:path");
     var { fetch: fetch2 } = require_undici();
     var { DiscordjsError: DiscordjsError2, DiscordjsTypeError: DiscordjsTypeError2, ErrorCodes: ErrorCodes2 } = require_errors2();
     var Invite2 = require_Invite();
@@ -36385,10 +36428,10 @@ var require_DataResolver = __commonJS({
           const res = await fetch2(resource);
           return { data: Buffer2.from(await res.arrayBuffer()), contentType: res.headers.get("content-type") };
         }
-        const file = path13.resolve(resource);
-        const stats = await fs12.stat(file);
+        const file = path15.resolve(resource);
+        const stats = await fs14.stat(file);
         if (!stats.isFile()) throw new DiscordjsError2(ErrorCodes2.FileNotFound, file);
-        return { data: await fs12.readFile(file) };
+        return { data: await fs14.readFile(file) };
       }
       throw new DiscordjsTypeError2(ErrorCodes2.ReqResourceType);
     }
@@ -38673,7 +38716,7 @@ var require_ClientApplication = __commonJS({
         description,
         roleConnectionsVerificationURL,
         installParams,
-        flags,
+        flags: flags2,
         icon,
         coverImage,
         interactionsEndpointURL,
@@ -38688,7 +38731,7 @@ var require_ClientApplication = __commonJS({
             description,
             role_connections_verification_url: roleConnectionsVerificationURL,
             install_params: installParams,
-            flags: flags === void 0 ? void 0 : ApplicationFlagsBitField.resolve(flags),
+            flags: flags2 === void 0 ? void 0 : ApplicationFlagsBitField.resolve(flags2),
             icon: icon && await resolveImage(icon),
             cover_image: coverImage && await resolveImage(coverImage),
             interactions_endpoint_url: interactionsEndpointURL,
@@ -39539,11 +39582,11 @@ var require_baseGet = __commonJS({
   "node_modules/lodash/_baseGet.js"(exports2, module2) {
     var castPath = require_castPath();
     var toKey = require_toKey();
-    function baseGet(object, path13) {
-      path13 = castPath(path13, object);
-      var index = 0, length = path13.length;
+    function baseGet(object, path15) {
+      path15 = castPath(path15, object);
+      var index = 0, length = path15.length;
       while (object != null && index < length) {
-        object = object[toKey(path13[index++])];
+        object = object[toKey(path15[index++])];
       }
       return index && index == length ? object : void 0;
     }
@@ -39555,8 +39598,8 @@ var require_baseGet = __commonJS({
 var require_get = __commonJS({
   "node_modules/lodash/get.js"(exports2, module2) {
     var baseGet = require_baseGet();
-    function get(object, path13, defaultValue) {
-      var result = object == null ? void 0 : baseGet(object, path13);
+    function get(object, path15, defaultValue) {
+      var result = object == null ? void 0 : baseGet(object, path15);
       return result === void 0 ? defaultValue : result;
     }
     module2.exports = get;
@@ -43032,10 +43075,10 @@ var require_proxy = __commonJS({
       while (protosAreLeftToSearch) {
         protosAreLeftToSearch = false;
         for (let i = ingredients.length - 1; i >= 0; i--) {
-          const searchTarget = protoChains[i][protoDepth];
-          if (searchTarget !== void 0 && searchTarget !== null) {
+          const searchTarget2 = protoChains[i][protoDepth];
+          if (searchTarget2 !== void 0 && searchTarget2 !== null) {
             protosAreLeftToSearch = true;
-            if (Object.getOwnPropertyDescriptor(searchTarget, prop) != void 0) {
+            if (Object.getOwnPropertyDescriptor(searchTarget2, prop) != void 0) {
               return protoChains[i][0];
             }
           }
@@ -50168,7 +50211,7 @@ var require_Message = __commonJS({
     var { DiscordSnowflake } = require_cjs3();
     var {
       InteractionType,
-      ChannelType: ChannelType3,
+      ChannelType: ChannelType4,
       MessageType,
       MessageFlags: MessageFlags2,
       PermissionFlagsBits: PermissionFlagsBits2,
@@ -50685,7 +50728,7 @@ var require_Message = __commonJS({
         const bitfield = PermissionFlagsBits2.SendMessages | (this.author.id === this.client.user.id ? PermissionsBitField2.DefaultBit : PermissionFlagsBits2.ManageMessages);
         const { channel } = this;
         return Boolean(
-          channel?.type === ChannelType3.GuildAnnouncement && !this.flags.has(MessageFlags2.Crossposted) && this.reference?.type !== MessageReferenceType.Forward && this.type === MessageType.Default && !this.poll && channel.viewable && channel.permissionsFor(this.client.user)?.has(bitfield, false)
+          channel?.type === ChannelType4.GuildAnnouncement && !this.flags.has(MessageFlags2.Crossposted) && this.reference?.type !== MessageReferenceType.Forward && this.type === MessageType.Default && !this.poll && channel.viewable && channel.permissionsFor(this.client.user)?.has(bitfield, false)
         );
       }
       /**
@@ -50854,7 +50897,7 @@ var require_Message = __commonJS({
        */
       async startThread(options = {}) {
         if (!this.channel) throw new DiscordjsError2(ErrorCodes2.ChannelNotCached);
-        if (![ChannelType3.GuildText, ChannelType3.GuildAnnouncement].includes(this.channel.type)) {
+        if (![ChannelType4.GuildText, ChannelType4.GuildAnnouncement].includes(this.channel.type)) {
           throw new DiscordjsError2(ErrorCodes2.MessageThreadParent);
         }
         if (this.hasThread) throw new DiscordjsError2(ErrorCodes2.MessageExistingThread);
@@ -50884,13 +50927,13 @@ var require_Message = __commonJS({
        * @returns {Promise<Message>}
        */
       suppressEmbeds(suppress = true) {
-        const flags = new MessageFlagsBitField(this.flags.bitfield);
+        const flags2 = new MessageFlagsBitField(this.flags.bitfield);
         if (suppress) {
-          flags.add(MessageFlags2.SuppressEmbeds);
+          flags2.add(MessageFlags2.SuppressEmbeds);
         } else {
-          flags.remove(MessageFlags2.SuppressEmbeds);
+          flags2.remove(MessageFlags2.SuppressEmbeds);
         }
-        return this.edit({ flags });
+        return this.edit({ flags: flags2 });
       }
       /**
        * Removes the attachments from this message.
@@ -51442,7 +51485,7 @@ var require_WebhookClient = __commonJS({
 var require_VoiceState = __commonJS({
   "node_modules/discord.js/src/structures/VoiceState.js"(exports2, module2) {
     "use strict";
-    var { ChannelType: ChannelType3, Routes: Routes3 } = require_v106();
+    var { ChannelType: ChannelType4, Routes: Routes3 } = require_v106();
     var Base = require_Base();
     var { DiscordjsError: DiscordjsError2, DiscordjsTypeError: DiscordjsTypeError2, ErrorCodes: ErrorCodes2 } = require_errors2();
     var VoiceState = class extends Base {
@@ -51586,7 +51629,7 @@ var require_VoiceState = __commonJS({
        * @returns {Promise<VoiceState>}
        */
       async edit(options) {
-        if (this.channel?.type !== ChannelType3.GuildStageVoice) throw new DiscordjsError2(ErrorCodes2.VoiceNotStageChannel);
+        if (this.channel?.type !== ChannelType4.GuildStageVoice) throw new DiscordjsError2(ErrorCodes2.VoiceNotStageChannel);
         const target = this.client.user.id === this.id ? "@me" : this.id;
         if (target !== "@me" && options.requestToSpeak !== void 0) {
           throw new DiscordjsError2(ErrorCodes2.VoiceStateNotOwn);
@@ -51646,8 +51689,8 @@ var require_VoiceState = __commonJS({
        * voiceState.setSuppressed(true);
        * @returns {Promise<VoiceState>}
        */
-      setSuppressed(suppressed = true) {
-        return this.edit({ suppressed });
+      setSuppressed(suppressed2 = true) {
+        return this.edit({ suppressed: suppressed2 });
       }
       toJSON() {
         return super.toJSON({
@@ -52172,8 +52215,8 @@ var require_GuildMember = __commonJS({
        * @param {string} [reason] Reason for setting the flags
        * @returns {Promise<GuildMember>}
        */
-      setFlags(flags, reason) {
-        return this.edit({ flags, reason });
+      setFlags(flags2, reason) {
+        return this.edit({ flags: flags2, reason });
       }
       /**
        * Sets the nickname for this member.
@@ -52684,7 +52727,7 @@ var require_MessagePayload = __commonJS({
     var { DiscordjsError: DiscordjsError2, DiscordjsRangeError: DiscordjsRangeError2, ErrorCodes: ErrorCodes2 } = require_errors2();
     var { resolveFile } = require_DataResolver();
     var MessageFlagsBitField = require_MessageFlagsBitField();
-    var { basename: basename4, verifyString, resolvePartialEmoji } = require_Util();
+    var { basename: basename5, verifyString, resolvePartialEmoji } = require_Util();
     var getBaseInteraction = lazy(() => require_BaseInteraction());
     var MessagePayload = class {
       /**
@@ -52798,15 +52841,15 @@ var require_MessagePayload = __commonJS({
           if (this.options.threadName) threadName = this.options.threadName;
           if (this.options.appliedTags) appliedTags = this.options.appliedTags;
         }
-        let flags;
+        let flags2;
         if (
           // eslint-disable-next-line eqeqeq
           this.options.flags != null
         ) {
-          flags = new MessageFlagsBitField(this.options.flags).bitfield;
+          flags2 = new MessageFlagsBitField(this.options.flags).bitfield;
         }
         if (isInteraction && this.options.ephemeral) {
-          flags |= MessageFlags2.Ephemeral;
+          flags2 |= MessageFlags2.Ephemeral;
         }
         let allowedMentions = this.options.allowedMentions === void 0 ? this.target.client.options.allowedMentions : this.options.allowedMentions;
         if (allowedMentions?.repliedUser !== void 0) {
@@ -52874,7 +52917,7 @@ var require_MessagePayload = __commonJS({
           username,
           avatar_url: avatarURL,
           allowed_mentions: this.isMessage && message_reference === void 0 && this.target.author.id !== this.target.client.user.id ? void 0 : allowedMentions,
-          flags,
+          flags: flags2,
           message_reference,
           attachments: this.options.attachments,
           sticker_ids: this.options.stickers?.map((sticker) => sticker.id ?? sticker),
@@ -52903,10 +52946,10 @@ var require_MessagePayload = __commonJS({
         let name;
         const findName = (thing) => {
           if (typeof thing === "string") {
-            return basename4(thing);
+            return basename5(thing);
           }
           if (thing.path) {
-            return basename4(thing.path);
+            return basename5(thing.path);
           }
           return "file.jpg";
         };
@@ -53924,7 +53967,7 @@ var require_Partials = __commonJS({
 var require_Action = __commonJS({
   "node_modules/discord.js/src/client/actions/Action.js"(exports2, module2) {
     "use strict";
-    var { ChannelType: ChannelType3 } = require_v106();
+    var { ChannelType: ChannelType4 } = require_v106();
     var { Poll } = require_Poll();
     var { PollAnswer } = require_PollAnswer();
     var Partials2 = require_Partials();
@@ -53946,7 +53989,7 @@ var require_Action = __commonJS({
           if (!data.recipients.some((existingRecipient) => recipient.id === existingRecipient.id)) {
             payloadData.recipients = [...data.recipients, recipient];
           }
-        } else if (data.type === ChannelType3.DM || data.type === ChannelType3.GroupDM) {
+        } else if (data.type === ChannelType4.DM || data.type === ChannelType4.GroupDM) {
           const recipient = data.author ?? data.user ?? { id: data.user_id };
           payloadData.recipients = [recipient];
         }
@@ -54372,7 +54415,7 @@ var require_DMChannel = __commonJS({
   "node_modules/discord.js/src/structures/DMChannel.js"(exports2, module2) {
     "use strict";
     var { userMention } = require_dist7();
-    var { ChannelType: ChannelType3 } = require_v106();
+    var { ChannelType: ChannelType4 } = require_v106();
     var { BaseChannel } = require_BaseChannel();
     var TextBasedChannel = require_TextBasedChannel();
     var DMMessageManager = require_DMMessageManager();
@@ -54380,7 +54423,7 @@ var require_DMChannel = __commonJS({
     var DMChannel = class extends BaseChannel {
       constructor(client, data) {
         super(client, data);
-        this.type = ChannelType3.DM;
+        this.type = ChannelType4.DM;
         this.messages = new DMMessageManager(this);
       }
       _patch(data) {
@@ -55001,7 +55044,7 @@ var require_ThreadChannel = __commonJS({
     "use strict";
     var { DiscordAPIError } = require_dist5();
     var { lazy } = require_dist();
-    var { RESTJSONErrorCodes, ChannelFlags, ChannelType: ChannelType3, PermissionFlagsBits: PermissionFlagsBits2, Routes: Routes3 } = require_v106();
+    var { RESTJSONErrorCodes, ChannelFlags, ChannelType: ChannelType4, PermissionFlagsBits: PermissionFlagsBits2, Routes: Routes3 } = require_v106();
     var { BaseChannel } = require_BaseChannel();
     var getThreadOnlyChannel = lazy(() => require_ThreadOnlyChannel());
     var TextBasedChannel = require_TextBasedChannel();
@@ -55035,7 +55078,7 @@ var require_ThreadChannel = __commonJS({
         }
         if ("thread_metadata" in data) {
           this.locked = data.thread_metadata.locked ?? false;
-          this.invitable = this.type === ChannelType3.PrivateThread ? data.thread_metadata.invitable ?? false : null;
+          this.invitable = this.type === ChannelType4.PrivateThread ? data.thread_metadata.invitable ?? false : null;
           this.archived = data.thread_metadata.archived;
           this.autoArchiveDuration = data.thread_metadata.auto_archive_duration;
           this.archiveTimestamp = Date.parse(data.thread_metadata.archive_timestamp);
@@ -55049,7 +55092,7 @@ var require_ThreadChannel = __commonJS({
           this.archiveTimestamp ??= null;
           this.invitable ??= null;
         }
-        this._createdTimestamp ??= this.type === ChannelType3.PrivateThread ? super.createdTimestamp : null;
+        this._createdTimestamp ??= this.type === ChannelType4.PrivateThread ? super.createdTimestamp : null;
         if ("last_message_id" in data) {
           this.lastMessageId = data.last_message_id;
         } else {
@@ -55222,7 +55265,7 @@ var require_ThreadChannel = __commonJS({
             auto_archive_duration: options.autoArchiveDuration,
             rate_limit_per_user: options.rateLimitPerUser,
             locked: options.locked,
-            invitable: this.type === ChannelType3.PrivateThread ? options.invitable : void 0,
+            invitable: this.type === ChannelType4.PrivateThread ? options.invitable : void 0,
             applied_tags: options.appliedTags,
             flags: "flags" in options ? ChannelFlagsBitField.resolve(options.flags) : void 0
           },
@@ -55269,7 +55312,7 @@ var require_ThreadChannel = __commonJS({
        * @returns {Promise<ThreadChannel>}
        */
       async setInvitable(invitable = true, reason) {
-        if (this.type !== ChannelType3.PrivateThread) {
+        if (this.type !== ChannelType4.PrivateThread) {
           throw new DiscordjsRangeError2(ErrorCodes2.ThreadInvitableType, this.type);
         }
         return this.edit({ invitable, reason });
@@ -55352,7 +55395,7 @@ var require_ThreadChannel = __commonJS({
        * @readonly
        */
       get editable() {
-        return this.ownerId === this.client.user.id && (this.type !== ChannelType3.PrivateThread || this.joined) || this.manageable;
+        return this.ownerId === this.client.user.id && (this.type !== ChannelType4.PrivateThread || this.joined) || this.manageable;
       }
       /**
        * Whether the thread is joinable by the client user
@@ -55361,7 +55404,7 @@ var require_ThreadChannel = __commonJS({
        */
       get joinable() {
         return !this.archived && !this.joined && this.permissionsFor(this.client.user)?.has(
-          this.type === ChannelType3.PrivateThread ? PermissionFlagsBits2.ManageThreads : PermissionFlagsBits2.ViewChannel,
+          this.type === ChannelType4.PrivateThread ? PermissionFlagsBits2.ManageThreads : PermissionFlagsBits2.ViewChannel,
           false
         );
       }
@@ -55396,7 +55439,7 @@ var require_ThreadChannel = __commonJS({
         const permissions = this.permissionsFor(this.client.user);
         if (!permissions) return false;
         if (permissions.has(PermissionFlagsBits2.Administrator, false)) return true;
-        return !(this.archived && this.locked && !this.manageable) && (this.type !== ChannelType3.PrivateThread || this.joined || this.manageable) && permissions.has(PermissionFlagsBits2.SendMessagesInThreads, false) && this.guild.members.me.communicationDisabledUntilTimestamp < Date.now();
+        return !(this.archived && this.locked && !this.manageable) && (this.type !== ChannelType4.PrivateThread || this.joined || this.manageable) && permissions.has(PermissionFlagsBits2.SendMessagesInThreads, false) && this.guild.members.me.communicationDisabledUntilTimestamp < Date.now();
       }
       /**
        * Whether the thread is unarchivable by the client user
@@ -55558,9 +55601,9 @@ var require_ThreadManager = __commonJS({
        * @returns {Promise<FetchedThreadsMore>}
        */
       async fetchArchived({ type = "public", fetchAll = false, before, limit } = {}, cache = true) {
-        let path13 = Routes3.channelThreads(this.channel.id, type);
+        let path15 = Routes3.channelThreads(this.channel.id, type);
         if (type === "private" && !fetchAll) {
-          path13 = Routes3.channelJoinedArchivedThreads(this.channel.id);
+          path15 = Routes3.channelJoinedArchivedThreads(this.channel.id);
         }
         let timestamp;
         let id;
@@ -55584,7 +55627,7 @@ var require_ThreadManager = __commonJS({
             }
           }
         }
-        const raw = await this.client.rest.get(path13, { query });
+        const raw = await this.client.rest.get(path15, { query });
         return this.constructor._mapThreads(raw, this.client, { parent: this.channel, cache });
       }
       /**
@@ -55619,7 +55662,7 @@ var require_ThreadManager = __commonJS({
 var require_GuildTextThreadManager = __commonJS({
   "node_modules/discord.js/src/managers/GuildTextThreadManager.js"(exports2, module2) {
     "use strict";
-    var { ChannelType: ChannelType3, Routes: Routes3 } = require_v106();
+    var { ChannelType: ChannelType4, Routes: Routes3 } = require_v106();
     var ThreadManager = require_ThreadManager();
     var { DiscordjsTypeError: DiscordjsTypeError2, ErrorCodes: ErrorCodes2 } = require_errors2();
     var GuildTextThreadManager = class extends ThreadManager {
@@ -55675,12 +55718,12 @@ var require_GuildTextThreadManager = __commonJS({
         reason,
         rateLimitPerUser
       } = {}) {
-        let resolvedType = this.channel.type === ChannelType3.GuildAnnouncement ? ChannelType3.AnnouncementThread : ChannelType3.PublicThread;
+        let resolvedType = this.channel.type === ChannelType4.GuildAnnouncement ? ChannelType4.AnnouncementThread : ChannelType4.PublicThread;
         let startMessageId;
         if (startMessage) {
           startMessageId = this.channel.messages.resolveId(startMessage);
           if (!startMessageId) throw new DiscordjsTypeError2(ErrorCodes2.InvalidType, "startMessage", "MessageResolvable");
-        } else if (this.channel.type !== ChannelType3.GuildAnnouncement) {
+        } else if (this.channel.type !== ChannelType4.GuildAnnouncement) {
           resolvedType = type ?? resolvedType;
         }
         const data = await this.client.rest.post(Routes3.threads(this.channel.id, startMessageId), {
@@ -55688,7 +55731,7 @@ var require_GuildTextThreadManager = __commonJS({
             name,
             auto_archive_duration: autoArchiveDuration,
             type: resolvedType,
-            invitable: resolvedType === ChannelType3.PrivateThread ? invitable : void 0,
+            invitable: resolvedType === ChannelType4.PrivateThread ? invitable : void 0,
             rate_limit_per_user: rateLimitPerUser
           },
           reason
@@ -56352,7 +56395,7 @@ var require_Channels = __commonJS({
   "node_modules/discord.js/src/util/Channels.js"(exports2, module2) {
     "use strict";
     var { lazy } = require_dist();
-    var { ChannelType: ChannelType3 } = require_v106();
+    var { ChannelType: ChannelType4 } = require_v106();
     var getCategoryChannel = lazy(() => require_CategoryChannel());
     var getDMChannel = lazy(() => require_DMChannel());
     var getNewsChannel = lazy(() => require_NewsChannel());
@@ -56367,49 +56410,49 @@ var require_Channels = __commonJS({
     function createChannel(client, data, guild, { allowUnknownGuild } = {}) {
       let channel;
       if (!data.guild_id && !guild) {
-        if (data.recipients && data.type !== ChannelType3.GroupDM || data.type === ChannelType3.DM) {
+        if (data.recipients && data.type !== ChannelType4.GroupDM || data.type === ChannelType4.DM) {
           channel = new (getDMChannel())(client, data);
-        } else if (data.type === ChannelType3.GroupDM) {
+        } else if (data.type === ChannelType4.GroupDM) {
           channel = new (getPartialGroupDMChannel())(client, data);
         }
       } else {
         guild ??= client.guilds.cache.get(data.guild_id);
         if (guild || allowUnknownGuild) {
           switch (data.type) {
-            case ChannelType3.GuildText: {
+            case ChannelType4.GuildText: {
               channel = new (getTextChannel())(guild, data, client);
               break;
             }
-            case ChannelType3.GuildVoice: {
+            case ChannelType4.GuildVoice: {
               channel = new (getVoiceChannel())(guild, data, client);
               break;
             }
-            case ChannelType3.GuildCategory: {
+            case ChannelType4.GuildCategory: {
               channel = new (getCategoryChannel())(guild, data, client);
               break;
             }
-            case ChannelType3.GuildAnnouncement: {
+            case ChannelType4.GuildAnnouncement: {
               channel = new (getNewsChannel())(guild, data, client);
               break;
             }
-            case ChannelType3.GuildStageVoice: {
+            case ChannelType4.GuildStageVoice: {
               channel = new (getStageChannel())(guild, data, client);
               break;
             }
-            case ChannelType3.AnnouncementThread:
-            case ChannelType3.PublicThread:
-            case ChannelType3.PrivateThread: {
+            case ChannelType4.AnnouncementThread:
+            case ChannelType4.PublicThread:
+            case ChannelType4.PrivateThread: {
               channel = new (getThreadChannel())(guild, data, client);
               if (!allowUnknownGuild) channel.parent?.threads.cache.set(channel.id, channel);
               break;
             }
-            case ChannelType3.GuildDirectory:
+            case ChannelType4.GuildDirectory:
               channel = new (getDirectoryChannel())(guild, data, client);
               break;
-            case ChannelType3.GuildForum:
+            case ChannelType4.GuildForum:
               channel = new (getForumChannel())(guild, data, client);
               break;
-            case ChannelType3.GuildMedia:
+            case ChannelType4.GuildMedia:
               channel = new (getMediaChannel())(guild, data, client);
               break;
           }
@@ -58653,22 +58696,22 @@ var require_InteractionResponses = __commonJS({
             deprecationEmittedForFetchReplyOption = true;
           }
         }
-        const flags = new MessageFlagsBitField(options.flags);
+        const flags2 = new MessageFlagsBitField(options.flags);
         if (options.ephemeral) {
-          flags.add(MessageFlags2.Ephemeral);
+          flags2.add(MessageFlags2.Ephemeral);
         }
         const response = await this.client.rest.post(Routes3.interactionCallback(this.id, this.token), {
           body: {
             type: InteractionResponseType.DeferredChannelMessageWithSource,
             data: {
-              flags: flags.bitfield
+              flags: flags2.bitfield
             }
           },
           auth: false,
           query: makeURLSearchParams2({ with_response: options.withResponse ?? false })
         });
         this.deferred = true;
-        this.ephemeral = flags.has(MessageFlags2.Ephemeral);
+        this.ephemeral = flags2.has(MessageFlags2.Ephemeral);
         return options.withResponse ? new InteractionCallbackResponse(this.client, response) : options.fetchReply ? this.fetchReply() : new InteractionResponse(this);
       }
       /**
@@ -63560,7 +63603,7 @@ var require_websocket2 = __commonJS({
     var http2 = require("http");
     var net = require("net");
     var tls = require("tls");
-    var { randomBytes: randomBytes2, createHash } = require("crypto");
+    var { randomBytes: randomBytes2, createHash: createHash2 } = require("crypto");
     var { Duplex, Readable } = require("stream");
     var { URL: URL2 } = require("url");
     var PerMessageDeflate = require_permessage_deflate2();
@@ -64220,7 +64263,7 @@ var require_websocket2 = __commonJS({
           abortHandshake(websocket, socket, "Invalid Upgrade header");
           return;
         }
-        const digest = createHash("sha1").update(key + GUID).digest("base64");
+        const digest = createHash2("sha1").update(key + GUID).digest("base64");
         if (res.headers["sec-websocket-accept"] !== digest) {
           abortHandshake(websocket, socket, "Invalid Sec-WebSocket-Accept header");
           return;
@@ -64587,7 +64630,7 @@ var require_websocket_server = __commonJS({
     var EventEmitter = require("events");
     var http2 = require("http");
     var { Duplex } = require("stream");
-    var { createHash } = require("crypto");
+    var { createHash: createHash2 } = require("crypto");
     var extension = require_extension();
     var PerMessageDeflate = require_permessage_deflate2();
     var subprotocol = require_subprotocol();
@@ -64888,7 +64931,7 @@ var require_websocket_server = __commonJS({
           );
         }
         if (this._state > RUNNING) return abortHandshake(socket, 503);
-        const digest = createHash("sha1").update(key + GUID).digest("base64");
+        const digest = createHash2("sha1").update(key + GUID).digest("base64");
         const headers = [
           "HTTP/1.1 101 Switching Protocols",
           "Upgrade: websocket",
@@ -65157,22 +65200,22 @@ var require_dist10 = __commonJS({
         const shardsPerWorker = this.options.shardsPerWorker === "all" ? shardIds.length : this.options.shardsPerWorker;
         const strategyOptions = await managerToFetchingStrategyOptions(this.manager);
         const loops = Math.ceil(shardIds.length / shardsPerWorker);
-        const promises = [];
+        const promises2 = [];
         for (let idx = 0; idx < loops; idx++) {
           const slice = shardIds.slice(idx * shardsPerWorker, (idx + 1) * shardsPerWorker);
           const workerData2 = {
             ...strategyOptions,
             shardIds: slice
           };
-          promises.push(this.setupWorker(workerData2));
+          promises2.push(this.setupWorker(workerData2));
         }
-        await Promise.all(promises);
+        await Promise.all(promises2);
       }
       /**
        * {@inheritDoc IShardingStrategy.connect}
        */
       async connect() {
-        const promises = [];
+        const promises2 = [];
         for (const [shardId, worker] of this.#workerByShardId.entries()) {
           const payload = {
             op: 0,
@@ -65180,22 +65223,22 @@ var require_dist10 = __commonJS({
           };
           const promise = new Promise((resolve2) => this.connectPromises.set(shardId, resolve2));
           worker.postMessage(payload);
-          promises.push(promise);
+          promises2.push(promise);
         }
-        await Promise.all(promises);
+        await Promise.all(promises2);
       }
       /**
        * {@inheritDoc IShardingStrategy.destroy}
        */
       async destroy(options = {}) {
-        const promises = [];
+        const promises2 = [];
         for (const [shardId, worker] of this.#workerByShardId.entries()) {
           const payload = {
             op: 1,
             shardId,
             options
           };
-          promises.push(
+          promises2.push(
             // eslint-disable-next-line no-promise-executor-return, promise/prefer-await-to-then
             new Promise((resolve2) => this.destroyPromises.set(shardId, resolve2)).then(async () => worker.terminate())
           );
@@ -65203,7 +65246,7 @@ var require_dist10 = __commonJS({
         }
         this.#workers = [];
         this.#workerByShardId.clear();
-        await Promise.all(promises);
+        await Promise.all(promises2);
       }
       /**
        * {@inheritDoc IShardingStrategy.send}
@@ -65260,20 +65303,20 @@ var require_dist10 = __commonJS({
         }
       }
       resolveWorkerPath() {
-        const path13 = this.options.workerPath;
-        if (!path13) {
+        const path15 = this.options.workerPath;
+        if (!path15) {
           return (0, import_node_path.join)(__dirname, "defaultWorker.js");
         }
-        if ((0, import_node_path.isAbsolute)(path13)) {
-          return path13;
+        if ((0, import_node_path.isAbsolute)(path15)) {
+          return path15;
         }
-        if (/^\.\.?[/\\]/.test(path13)) {
-          return (0, import_node_path.resolve)(path13);
+        if (/^\.\.?[/\\]/.test(path15)) {
+          return (0, import_node_path.resolve)(path15);
         }
         try {
-          return require.resolve(path13);
+          return require.resolve(path15);
         } catch {
-          return (0, import_node_path.resolve)(path13);
+          return (0, import_node_path.resolve)(path15);
         }
       }
       async waitForWorkerReady(worker) {
@@ -66225,21 +66268,21 @@ var require_dist10 = __commonJS({
        * {@inheritDoc IShardingStrategy.connect}
        */
       async connect() {
-        const promises = [];
+        const promises2 = [];
         for (const shard of this.shards.values()) {
-          promises.push(shard.connect());
+          promises2.push(shard.connect());
         }
-        await Promise.all(promises);
+        await Promise.all(promises2);
       }
       /**
        * {@inheritDoc IShardingStrategy.destroy}
        */
       async destroy(options) {
-        const promises = [];
+        const promises2 = [];
         for (const shard of this.shards.values()) {
-          promises.push(shard.destroy(options));
+          promises2.push(shard.destroy(options));
         }
-        await Promise.all(promises);
+        await Promise.all(promises2);
         this.shards.clear();
       }
       /**
@@ -69273,7 +69316,7 @@ var require_GuildChannelManager = __commonJS({
     "use strict";
     var process2 = require("node:process");
     var { Collection: Collection2 } = require_dist6();
-    var { ChannelType: ChannelType3, Routes: Routes3 } = require_v106();
+    var { ChannelType: ChannelType4, Routes: Routes3 } = require_v106();
     var CachedManager = require_CachedManager();
     var GuildTextThreadManager = require_GuildTextThreadManager();
     var { DiscordjsError: DiscordjsError2, DiscordjsTypeError: DiscordjsTypeError2, ErrorCodes: ErrorCodes2 } = require_errors2();
@@ -69536,7 +69579,7 @@ var require_GuildChannelManager = __commonJS({
         if (options.lockPermissions) {
           if (parentId) {
             const newParent = this.cache.get(parentId);
-            if (newParent?.type === ChannelType3.GuildCategory) {
+            if (newParent?.type === ChannelType4.GuildCategory) {
               permission_overwrites = newParent.permissionOverwrites.cache.map(
                 (overwrite) => PermissionOverwrites.resolve(overwrite, this.guild)
               );
@@ -72215,7 +72258,7 @@ var require_Guild = __commonJS({
     var { Collection: Collection2 } = require_dist6();
     var { makeURLSearchParams: makeURLSearchParams2 } = require_dist5();
     var { DiscordSnowflake } = require_cjs3();
-    var { ChannelType: ChannelType3, GuildPremiumTier, Routes: Routes3, GuildFeature } = require_v106();
+    var { ChannelType: ChannelType4, GuildPremiumTier, Routes: Routes3, GuildFeature } = require_v106();
     var AnonymousGuild = require_AnonymousGuild();
     var GuildAuditLogs = require_GuildAuditLogs();
     var { GuildOnboarding } = require_GuildOnboarding();
@@ -73341,7 +73384,7 @@ var require_Guild = __commonJS({
        * @private
        */
       _sortedChannels(channel) {
-        const channelIsCategory = channel.type === ChannelType3.GuildCategory;
+        const channelIsCategory = channel.type === ChannelType4.GuildCategory;
         const types = getSortableGroupTypes(channel.type);
         return discordSort(
           this.channels.cache.filter(
@@ -73723,7 +73766,7 @@ var require_GuildManager = __commonJS({
 var require_UserManager = __commonJS({
   "node_modules/discord.js/src/managers/UserManager.js"(exports2, module2) {
     "use strict";
-    var { ChannelType: ChannelType3, Routes: Routes3 } = require_v106();
+    var { ChannelType: ChannelType4, Routes: Routes3 } = require_v106();
     var CachedManager = require_CachedManager();
     var { DiscordjsError: DiscordjsError2, ErrorCodes: ErrorCodes2 } = require_errors2();
     var { GuildMember } = require_GuildMember();
@@ -73758,7 +73801,7 @@ var require_UserManager = __commonJS({
       dmChannel(userId) {
         const expectedRecipientIds = [userId, this.client.user.id];
         return this.client.channels.cache.find(
-          (channel) => channel.type === ChannelType3.DM && channel.recipientId === userId && channel.recipientIds.every((id) => expectedRecipientIds.includes(id))
+          (channel) => channel.type === ChannelType4.DM && channel.recipientId === userId && channel.recipientIds.every((id) => expectedRecipientIds.includes(id))
         ) ?? null;
       }
       /**
@@ -75014,7 +75057,7 @@ var require_Shard = __commonJS({
   "node_modules/discord.js/src/sharding/Shard.js"(exports2, module2) {
     "use strict";
     var EventEmitter = require("node:events");
-    var path13 = require("node:path");
+    var path15 = require("node:path");
     var process2 = require("node:process");
     var { setTimeout: setTimeout2, clearTimeout: clearTimeout2 } = require("node:timers");
     var { setTimeout: sleep2 } = require("node:timers/promises");
@@ -75066,14 +75109,14 @@ var require_Shard = __commonJS({
         this._exitListener = this._handleExit.bind(this, void 0, timeout);
         switch (this.manager.mode) {
           case "process":
-            this.process = childProcess.fork(path13.resolve(this.manager.file), this.args, {
+            this.process = childProcess.fork(path15.resolve(this.manager.file), this.args, {
               env: this.env,
               execArgv: this.execArgv,
               silent: this.silent
             }).on("message", this._handleMessage.bind(this)).on("exit", this._exitListener);
             break;
           case "worker":
-            this.worker = new Worker(path13.resolve(this.manager.file), {
+            this.worker = new Worker(path15.resolve(this.manager.file), {
               workerData: this.env,
               env: SHARE_ENV,
               execArgv: this.execArgv,
@@ -75334,8 +75377,8 @@ var require_ShardingManager = __commonJS({
   "node_modules/discord.js/src/sharding/ShardingManager.js"(exports2, module2) {
     "use strict";
     var EventEmitter = require("node:events");
-    var fs12 = require("node:fs");
-    var path13 = require("node:path");
+    var fs14 = require("node:fs");
+    var path15 = require("node:path");
     var process2 = require("node:process");
     var { setTimeout: sleep2 } = require("node:timers/promises");
     var { Collection: Collection2 } = require_dist6();
@@ -75380,8 +75423,8 @@ var require_ShardingManager = __commonJS({
         };
         this.file = file;
         if (!file) throw new DiscordjsError2(ErrorCodes2.ClientInvalidOption, "File", "specified.");
-        if (!path13.isAbsolute(file)) this.file = path13.resolve(process2.cwd(), file);
-        const stats = fs12.statSync(this.file);
+        if (!path15.isAbsolute(file)) this.file = path15.resolve(process2.cwd(), file);
+        const stats = fs14.statSync(this.file);
         if (!stats.isFile()) throw new DiscordjsError2(ErrorCodes2.ClientInvalidOption, "File", "a file");
         this.shardList = _options.shardList ?? "auto";
         if (this.shardList !== "auto") {
@@ -75476,11 +75519,11 @@ var require_ShardingManager = __commonJS({
           );
         }
         for (const shardId of this.shardList) {
-          const promises = [];
+          const promises2 = [];
           const shard = this.createShard(shardId);
-          promises.push(shard.spawn(timeout));
-          if (delay > 0 && this.shards.size !== this.shardList.length) promises.push(sleep2(delay));
-          await Promise.all(promises);
+          promises2.push(shard.spawn(timeout));
+          if (delay > 0 && this.shards.size !== this.shardList.length) promises2.push(sleep2(delay));
+          await Promise.all(promises2);
         }
         return this.shards;
       }
@@ -75490,9 +75533,9 @@ var require_ShardingManager = __commonJS({
        * @returns {Promise<Shard[]>}
        */
       broadcast(message) {
-        const promises = [];
-        for (const shard of this.shards.values()) promises.push(shard.send(message));
-        return Promise.all(promises);
+        const promises2 = [];
+        for (const shard of this.shards.values()) promises2.push(shard.send(message));
+        return Promise.all(promises2);
       }
       /**
        * Options for {@link ShardingManager#broadcastEval} and {@link ShardClientUtil#broadcastEval}.
@@ -75542,9 +75585,9 @@ var require_ShardingManager = __commonJS({
         if (this.shards.size !== this.shardList.length) {
           throw new DiscordjsError2(ErrorCodes2.ShardingInProcess);
         }
-        const promises = [];
-        for (const sh of this.shards.values()) promises.push(sh[method](...args));
-        return Promise.all(promises);
+        const promises2 = [];
+        for (const sh of this.shards.values()) promises2.push(sh[method](...args));
+        return Promise.all(promises2);
       }
       /**
        * Options used to respawn all shards.
@@ -75563,9 +75606,9 @@ var require_ShardingManager = __commonJS({
       async respawnAll({ shardDelay = 5e3, respawnDelay = 500, timeout = 3e4 } = {}) {
         let s = 0;
         for (const shard of this.shards.values()) {
-          const promises = [shard.respawn({ delay: respawnDelay, timeout })];
-          if (++s < this.shards.size && shardDelay > 0) promises.push(sleep2(shardDelay));
-          await Promise.all(promises);
+          const promises2 = [shard.respawn({ delay: respawnDelay, timeout })];
+          if (++s < this.shards.size && shardDelay > 0) promises2.push(sleep2(shardDelay));
+          await Promise.all(promises2);
         }
         return this.shards;
       }
@@ -75583,11 +75626,11 @@ var require_Formatters = __commonJS({
       blockQuote,
       bold,
       channelMention,
-      codeBlock,
+      codeBlock: codeBlock2,
       formatEmoji,
       hideLinkEmbed,
       hyperlink,
-      inlineCode,
+      inlineCode: inlineCode2,
       italic,
       quote,
       roleMention,
@@ -75646,7 +75689,7 @@ var require_Formatters = __commonJS({
        * @deprecated Import this method directly from discord.js instead.
        */
       static codeBlock = deprecate(
-        codeBlock,
+        codeBlock2,
         "Formatters.codeBlock() is deprecated. Import this method directly from discord.js instead."
       );
       /**
@@ -75697,7 +75740,7 @@ var require_Formatters = __commonJS({
        * @deprecated Import this method directly from discord.js instead.
        */
       static inlineCode = deprecate(
-        inlineCode,
+        inlineCode2,
         "Formatters.inlineCode() is deprecated. Import this method directly from discord.js instead."
       );
       /**
@@ -75855,8 +75898,8 @@ var require_EmbedBuilder = __commonJS({
 var require_AttachmentBuilder = __commonJS({
   "node_modules/discord.js/src/structures/AttachmentBuilder.js"(exports2, module2) {
     "use strict";
-    var { basename: basename4, flatten } = require_Util();
-    var AttachmentBuilder2 = class _AttachmentBuilder {
+    var { basename: basename5, flatten } = require_Util();
+    var AttachmentBuilder3 = class _AttachmentBuilder {
       /**
        * @param {BufferResolvable|Stream} attachment The file
        * @param {AttachmentData} [data] Extra data
@@ -75915,7 +75958,7 @@ var require_AttachmentBuilder = __commonJS({
        * @readonly
        */
       get spoiler() {
-        return basename4(this.name).startsWith("SPOILER_");
+        return basename5(this.name).startsWith("SPOILER_");
       }
       toJSON() {
         return flatten(this);
@@ -75932,7 +75975,7 @@ var require_AttachmentBuilder = __commonJS({
         });
       }
     };
-    module2.exports = AttachmentBuilder2;
+    module2.exports = AttachmentBuilder3;
   }
 });
 
@@ -76663,7 +76706,8 @@ function buildSessionModePrompt(options) {
     allowedAgentIds: options.allowedAgentIds,
     botUserId: options.botUserId
   });
-  return `${buildDiscordAdapterInstruction(options.incoming, { bossUserId: options.bossUserId, ownerIds: options.ownerIds, backgroundContext: options.backgroundContext })}
+  const instructionBlock = options.seedContextOverride ? options.seedContextOverride : buildDiscordAdapterInstruction(options.incoming, { bossUserId: options.bossUserId, ownerIds: options.ownerIds, backgroundContext: options.backgroundContext });
+  return `${instructionBlock}
 ${immediateContextBlock}
 
 [Message]
@@ -77151,9 +77195,9 @@ function truncateText(value, maxChars) {
   }
   return `${value.slice(0, Math.max(0, maxChars - 1))}\u2026`;
 }
-function parentDir(filePath) {
-  const slashIndex = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
-  return slashIndex === -1 ? "." : filePath.slice(0, slashIndex);
+function parentDir(filePath2) {
+  const slashIndex = Math.max(filePath2.lastIndexOf("/"), filePath2.lastIndexOf("\\"));
+  return slashIndex === -1 ? "." : filePath2.slice(0, slashIndex);
 }
 var fs4, fsPromises, MEMORY_FILE_VERSION, SESSION_TTL_MS, MAX_SESSIONS, MAX_ARCHIVED_CONVERSATIONS_PER_SESSION, EVICTION_INTERVAL_MS, DEFAULT_PROMPT_HISTORY_MESSAGE_LIMIT, DEFAULT_PROMPT_HISTORY_CHAR_BUDGET, TRANSCRIPT_ENTRY_CHAR_LIMIT, REPLY_CONTEXT_CHAR_LIMIT, ACTIVE_PARTICIPANT_LIMIT, ConversationMemory;
 var init_memory = __esm({
@@ -77402,10 +77446,10 @@ var init_memory = __esm({
         }
         return { store: /* @__PURE__ */ new Map(), archives: /* @__PURE__ */ new Map() };
       }
-      tryParseFile(filePath) {
+      tryParseFile(filePath2) {
         try {
-          if (!fs4.existsSync(filePath)) return null;
-          const raw = fs4.readFileSync(filePath, "utf-8");
+          if (!fs4.existsSync(filePath2)) return null;
+          const raw = fs4.readFileSync(filePath2, "utf-8");
           const parsed = JSON.parse(raw);
           if (isMemoryFileV4(parsed)) {
             return {
@@ -77444,29 +77488,45 @@ var init_memory = __esm({
 function pairingsPath(extensionDir2) {
   return resolveRuntimePaths(extensionDir2).dmPairingsFile;
 }
-function ensureParentDir(filePath) {
-  fs5.mkdirSync(path4.dirname(filePath), { recursive: true });
+function ensureParentDir(filePath2) {
+  fs5.mkdirSync(path4.dirname(filePath2), { recursive: true });
 }
 function loadPairingMap(extensionDir2) {
-  const filePath = pairingsPath(extensionDir2);
+  let cache = pairingsCacheMap.get(extensionDir2);
+  if (cache) {
+    return cache;
+  }
+  const filePath2 = pairingsPath(extensionDir2);
   try {
-    const parsed = JSON.parse(fs5.readFileSync(filePath, "utf-8"));
+    if (!fs5.existsSync(filePath2)) {
+      cache = /* @__PURE__ */ new Map();
+      pairingsCacheMap.set(extensionDir2, cache);
+      return cache;
+    }
+    const parsed = JSON.parse(fs5.readFileSync(filePath2, "utf-8"));
     const pairings = Array.isArray(parsed.pairings) ? parsed.pairings : [];
-    return new Map(
+    cache = new Map(
       pairings.filter((entry) => Boolean(entry && typeof entry.userId === "string" && typeof entry.channelId === "string")).map((entry) => [entry.userId, entry])
     );
+    pairingsCacheMap.set(extensionDir2, cache);
+    return cache;
   } catch {
-    return /* @__PURE__ */ new Map();
+    cache = /* @__PURE__ */ new Map();
+    pairingsCacheMap.set(extensionDir2, cache);
+    return cache;
   }
 }
 function savePairingMap(extensionDir2, pairings) {
-  const filePath = pairingsPath(extensionDir2);
-  ensureParentDir(filePath);
+  pairingsCacheMap.set(extensionDir2, pairings);
+  const filePath2 = pairingsPath(extensionDir2);
+  ensureParentDir(filePath2);
   const payload = {
     version: 1,
     pairings: [...pairings.values()].sort((left, right) => left.userId.localeCompare(right.userId))
   };
-  fs5.writeFileSync(filePath, JSON.stringify(payload, null, 2), { mode: 384 });
+  fs5.promises.writeFile(filePath2, JSON.stringify(payload, null, 2), { encoding: "utf-8", mode: 384 }).catch((err) => {
+    log.error("Failed to save DM pairing map asynchronously", { error: err });
+  });
 }
 function resolveDmPairingKey(userId) {
   return `dm:${userId}`;
@@ -77521,7 +77581,7 @@ async function ensureOwnerDmPairings(client, config, extensionDir2) {
     }
   }
 }
-var fs5, path4;
+var fs5, path4, pairingsCacheMap;
 var init_dm_pairing = __esm({
   "src/daemon/dm-pairing.ts"() {
     "use strict";
@@ -77529,6 +77589,7 @@ var init_dm_pairing = __esm({
     path4 = __toESM(require("node:path"), 1);
     init_runtime_paths();
     init_log();
+    pairingsCacheMap = /* @__PURE__ */ new Map();
   }
 });
 
@@ -77723,7 +77784,10 @@ var init_runtime = __esm({
       cliPool: null,
       isShuttingDown: false,
       agentExchangeCount: /* @__PURE__ */ new Map(),
-      lastInteractiveMessageAt: null
+      lastInteractiveMessageAt: null,
+      enqueueWorkflowRun: null,
+      activeWorkflowRuns: /* @__PURE__ */ new Map(),
+      workflowResponseCandidates: /* @__PURE__ */ new Map()
     };
   }
 });
@@ -77731,8 +77795,8 @@ var init_runtime = __esm({
 // src/daemon/session-reset.ts
 function resetConversationSession(config, memory, extensionDir2, context) {
   const dmUserId = context.guildId ? null : context.authorId ?? null;
-  const sessionKey = resolveSessionKey("channel", context.channelId, dmUserId);
-  const bindingKey = resolveGeminiBindingKey("channel", {
+  const sessionKey = context.threadId ? `thread:${context.threadId}` : resolveSessionKey("channel", context.channelId, dmUserId);
+  const bindingKey = context.threadId ? `thread:${context.threadId}` : resolveGeminiBindingKey("channel", {
     guildId: context.guildId,
     channelId: context.channelId,
     dmUserId
@@ -77750,7 +77814,8 @@ function resetConversationSession(config, memory, extensionDir2, context) {
     bindingKey,
     archivedGeminiSessionId: bindingState.lastSessionId,
     channelId: context.channelId,
-    guildId: context.guildId
+    guildId: context.guildId,
+    threadId: context.threadId
   });
   return {
     sessionKey,
@@ -77764,6 +77829,145 @@ var init_session_reset = __esm({
     init_binding();
     init_runtime();
     init_log();
+  }
+});
+
+// src/daemon/api-utils.ts
+function respond(res, status, body) {
+  res.writeHead(status, { "Content-Type": "application/json" });
+  res.end(JSON.stringify(body));
+}
+function requireAuth(req, config) {
+  const header = req.headers.authorization;
+  if (!header) return false;
+  const [scheme, token] = header.split(" ");
+  return scheme === "Bearer" && token === config.daemonApiToken;
+}
+async function readBody(req) {
+  return new Promise((resolve2, reject2) => {
+    const chunks = [];
+    let size = 0;
+    req.on("data", (chunk) => {
+      size += chunk.length;
+      if (size > MAX_BODY_BYTES) {
+        req.destroy();
+        reject2(new Error("Payload too large"));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => resolve2(Buffer.concat(chunks).toString("utf-8")));
+    req.on("error", reject2);
+  });
+}
+function parseOptionalNumber(value) {
+  if (value === void 0 || value === null || value === "") {
+    return null;
+  }
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+function parseOptionalTimestamp(value) {
+  if (value === void 0 || value === null || value === "") {
+    return null;
+  }
+  const parsed = Date.parse(String(value));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+function roleContextFromRequest(req, config) {
+  const rawRole = req.headers["x-gemini-discord-role"];
+  const role = Array.isArray(rawRole) ? rawRole[0] : rawRole;
+  if (role !== "BOSS" && role !== "GUEST") {
+    return null;
+  }
+  const rawSenderId = req.headers["x-gemini-discord-sender-id"];
+  const rawSenderLabel = req.headers["x-gemini-discord-sender-label"];
+  const senderDiscordId = (Array.isArray(rawSenderId) ? rawSenderId[0] : rawSenderId)?.trim() || "unknown";
+  const senderDisplayLabel = (Array.isArray(rawSenderLabel) ? rawSenderLabel[0] : rawSenderLabel)?.trim() || senderDiscordId;
+  return resolveDiscordRole(config, { discordUserId: senderDiscordId, displayLabel: senderDisplayLabel });
+}
+function roleContextFromLocalControlToken(req, config) {
+  const rawAuth = req.headers.authorization;
+  const header = Array.isArray(rawAuth) ? rawAuth[0] : rawAuth;
+  if (!header?.startsWith("Bearer ") || !config.daemonApiToken) {
+    return null;
+  }
+  const token = header.slice("Bearer ".length).trim();
+  if (!token || token !== config.daemonApiToken) {
+    return null;
+  }
+  const boss = validateBossConfig(config);
+  if (!boss.valid) {
+    return null;
+  }
+  return resolveDiscordRole(config, {
+    discordUserId: boss.bossUserId,
+    displayLabel: "local-control-api"
+  });
+}
+function authorizeApiAction(req, res, config, action) {
+  const roleContext = roleContextFromRequest(req, config) ?? roleContextFromLocalControlToken(req, config);
+  if (!roleContext) {
+    respond(res, 403, {
+      error: "Missing Discord role context. Use the bridge from an authorized boss message in Discord, or call the local MCP server with a valid daemon token."
+    });
+    return false;
+  }
+  const decision = authorizeAction(action, roleContext);
+  if (decision.decision === "allow") {
+    return true;
+  }
+  respond(res, 403, { error: formatPermissionDenial(decision) });
+  return false;
+}
+function resolveConversationSessionKey(config, extensionDir2, channelId, guildId) {
+  if (guildId) {
+    return resolveSessionKey("channel", channelId, null);
+  }
+  return resolveSessionKey(
+    "channel",
+    channelId,
+    resolveDmUserIdForChannel(extensionDir2, channelId)
+  );
+}
+function resolveSendChannelId(requestedChannelId) {
+  return requestedChannelId.trim();
+}
+async function fetchTextChannel(client, channelId) {
+  try {
+    const channel = await client.channels.fetch(channelId);
+    if (channel && channel.isTextBased() && "send" in channel) return channel;
+  } catch {
+  }
+  try {
+    const user = await client.users.fetch(channelId);
+    if (user) return await user.createDM();
+  } catch {
+  }
+  return null;
+}
+function isWritableTarget(channelId, channel, config) {
+  if ("isDMBased" in channel && channel.isDMBased()) {
+    return config.enableDMs;
+  }
+  if (config.allowedChannelIds.includes(channelId)) {
+    return true;
+  }
+  const parentId = channel.parentId ?? null;
+  if (parentId && config.allowedChannelIds.includes(parentId)) {
+    return true;
+  }
+  const guildId = channel.guildId ?? null;
+  return config.allowedChannelIds.length === 0 && Boolean(config.discordServerId) && guildId === config.discordServerId;
+}
+var MAX_BODY_BYTES;
+var init_api_utils = __esm({
+  "src/daemon/api-utils.ts"() {
+    "use strict";
+    init_memory();
+    init_dm_pairing();
+    init_permissions();
+    MAX_BODY_BYTES = 10240;
   }
 });
 
@@ -86821,9 +87025,9 @@ var require_CronFileParser = __commonJS({
        * @returns Promise resolving to parse results
        * @throws If file cannot be read
        */
-      static async parseFile(filePath) {
+      static async parseFile(filePath2) {
         const { readFile } = await Promise.resolve().then(() => __importStar2(require("fs/promises")));
-        const data = await readFile(filePath, "utf8");
+        const data = await readFile(filePath2, "utf8");
         return _CronFileParser.#parseContent(data);
       }
       /**
@@ -86832,9 +87036,9 @@ var require_CronFileParser = __commonJS({
        * @returns Parse results
        * @throws If file cannot be read
        */
-      static parseFileSync(filePath) {
-        const { readFileSync: readFileSync7 } = require("fs");
-        const data = readFileSync7(filePath, "utf8");
+      static parseFileSync(filePath2) {
+        const { readFileSync: readFileSync9 } = require("fs");
+        const data = readFileSync9(filePath2, "utf8");
         return _CronFileParser.#parseContent(data);
       }
       /**
@@ -86933,13 +87137,13 @@ var require_dist11 = __commonJS({
 });
 
 // src/shared/chunker.ts
-function chunkMessage(text) {
+function chunkMessage(text, limit = LARGE_RESPONSE_CUT) {
   if (!text || !text.trim()) {
     return [];
   }
   let wasTruncated = false;
-  if (text.length > LARGE_RESPONSE_CUT) {
-    text = safeTruncate(text, LARGE_RESPONSE_CUT);
+  if (text.length > limit) {
+    text = safeTruncate(text, limit);
     wasTruncated = true;
   }
   if (text.length <= CHUNK_LIMIT) {
@@ -87093,11 +87297,12 @@ async function sendDiscordMessage(channel, content, chunkFn, options = {}) {
   const chunks = content && content.trim() ? chunkFn(content) : [];
   let replied = false;
   const silentFlags = options.silent ? { flags: [import_discord2.MessageFlags.SuppressNotifications] } : {};
+  const allowedMentions = options.allowedMentions;
   if (attachments.length > 0) {
     const [firstChunk, ...remainingChunks] = chunks;
     for (let index = 0; index < attachments.length; index += 10) {
       const batch = attachments.slice(index, index + 10);
-      const payload = firstChunk && index === 0 ? { content: firstChunk, files: batch, ...silentFlags } : { files: batch, ...silentFlags };
+      const payload = firstChunk && index === 0 ? { content: firstChunk, files: batch, ...silentFlags, ...allowedMentions ? { allowedMentions } : {} } : { files: batch, ...silentFlags, ...allowedMentions ? { allowedMentions } : {} };
       let sent;
       if (!replied && options.replyTo && index === 0) {
         sent = await retrySend(() => options.replyTo.reply(payload));
@@ -87108,7 +87313,7 @@ async function sendDiscordMessage(channel, content, chunkFn, options = {}) {
       messageIds.push(sent.id);
     }
     for (const chunk of remainingChunks) {
-      const sent = await retrySend(() => channel.send({ content: chunk, ...silentFlags }));
+      const sent = await retrySend(() => channel.send({ content: chunk, ...silentFlags, ...allowedMentions ? { allowedMentions } : {} }));
       messageIds.push(sent.id);
     }
     return messageIds;
@@ -87116,11 +87321,11 @@ async function sendDiscordMessage(channel, content, chunkFn, options = {}) {
   if (chunks.length > 0) {
     for (const [index, chunk] of chunks.entries()) {
       if (index === 0 && options.replyTo) {
-        const sent = await retrySend(() => options.replyTo.reply({ content: chunk, ...silentFlags }));
+        const sent = await retrySend(() => options.replyTo.reply({ content: chunk, ...silentFlags, ...allowedMentions ? { allowedMentions } : {} }));
         messageIds.push(sent.id);
         replied = true;
       } else {
-        const sent = await retrySend(() => channel.send({ content: chunk, ...silentFlags }));
+        const sent = await retrySend(() => channel.send({ content: chunk, ...silentFlags, ...allowedMentions ? { allowedMentions } : {} }));
         messageIds.push(sent.id);
       }
     }
@@ -87131,18 +87336,18 @@ async function buildAttachments(files) {
   if (!files || files.length === 0) {
     return [];
   }
-  return Promise.all(files.map(async (filePath) => {
+  return Promise.all(files.map(async (filePath2) => {
     let stat3;
     try {
-      stat3 = await fsp.stat(filePath);
-      await fsp.access(filePath, fs7.constants.R_OK);
+      stat3 = await fsp.stat(filePath2);
+      await fsp.access(filePath2, fs7.constants.R_OK);
     } catch (err) {
-      throw new Error(`Attachment file is not readable: ${filePath} (${err instanceof Error ? err.message : String(err)})`);
+      throw new Error(`Attachment file is not readable: ${filePath2} (${err instanceof Error ? err.message : String(err)})`);
     }
     if (!stat3.isFile()) {
-      throw new Error(`Attachment path is not a file: ${filePath}`);
+      throw new Error(`Attachment path is not a file: ${filePath2}`);
     }
-    return new import_discord2.AttachmentBuilder(filePath, { name: path6.basename(filePath) });
+    return new import_discord2.AttachmentBuilder(filePath2, { name: path6.basename(filePath2) });
   }));
 }
 var fs7, fsp, path6, import_discord2;
@@ -87157,8 +87362,37 @@ var init_sender = __esm({
   }
 });
 
+// src/daemon/mention-safety.ts
+function resolveAllowedMentions(config) {
+  const parse = [];
+  if (config.discordAllowedMentions && config.discordAllowedMentions.length > 0) {
+    for (const val of config.discordAllowedMentions) {
+      if (val === "users" || val === "roles" || val === "everyone") {
+        parse.push(val);
+      }
+    }
+  } else if (!config.discordAllowedMentions) {
+    parse.push("users");
+  }
+  return {
+    parse,
+    repliedUser: config.discordPingRepliedUser ?? true
+  };
+}
+var SUPPRESS_DISCORD_MENTIONS;
+var init_mention_safety = __esm({
+  "src/daemon/mention-safety.ts"() {
+    "use strict";
+    SUPPRESS_DISCORD_MENTIONS = {
+      parse: [],
+      repliedUser: false
+    };
+  }
+});
+
 // src/daemon/cron.ts
 function initCron(config, client, extensionDir2) {
+  systemConfig = config;
   storePath = resolveRuntimePaths(extensionDir2).cronFile;
   discordClient = client;
   loadJobs();
@@ -87239,32 +87473,48 @@ async function checkJobs() {
   let updated = false;
   for (const job of [...jobs.values()]) {
     if (now >= job.nextRun) {
-      log.info("Executing cron job", { id: job.id });
-      let nextRun = null;
-      if (!job.runOnce) {
-        try {
-          const interval = import_cron_parser.CronExpressionParser.parse(job.cronExpression);
-          nextRun = interval.next().getTime();
-        } catch (err) {
-          log.error("Failed to parse cron for next run, deleting job", { id: job.id });
-          jobs.delete(job.id);
+      if (runningJobs.has(job.id)) {
+        continue;
+      }
+      runningJobs.add(job.id);
+      try {
+        log.info("Executing cron job", { id: job.id });
+        let nextRun = null;
+        if (!job.runOnce) {
+          try {
+            const interval = import_cron_parser.CronExpressionParser.parse(job.cronExpression);
+            nextRun = interval.next().getTime();
+          } catch (err) {
+            log.error("Failed to parse cron for next run, deleting job", { id: job.id });
+            jobs.delete(job.id);
+            updated = true;
+            continue;
+          }
+        }
+        const delivered = await deliverCronJob(job);
+        if (job.runOnce) {
+          if (delivered) {
+            jobs.delete(job.id);
+          } else {
+            const remaining = job.attempts ?? 5;
+            if (remaining > 1) {
+              job.attempts = remaining - 1;
+              job.nextRun = now + 6e4;
+              log.warn("Rescheduling failed one-time cron job", { id: job.id, remainingAttempts: job.attempts });
+            } else {
+              log.error("Discarding failed one-time cron job after maximum attempts", { id: job.id });
+              jobs.delete(job.id);
+            }
+          }
           updated = true;
           continue;
         }
-      }
-      const delivered = await deliverCronJob(job);
-      if (job.runOnce) {
-        if (delivered) {
-          jobs.delete(job.id);
-        } else {
-          job.nextRun = now + 6e4;
+        if (nextRun !== null) {
+          job.nextRun = nextRun;
+          updated = true;
         }
-        updated = true;
-        continue;
-      }
-      if (nextRun !== null) {
-        job.nextRun = nextRun;
-        updated = true;
+      } finally {
+        runningJobs.delete(job.id);
       }
     }
   }
@@ -87296,7 +87546,8 @@ async function deliverCronJob(job) {
       log.warn("Cron delivery target is not sendable", { id: job.id, channelId: job.channelId });
       return false;
     }
-    await sendDiscordMessage(channel, job.message, chunkMessage);
+    const allowedMentions = systemConfig ? resolveAllowedMentions(systemConfig) : void 0;
+    await sendDiscordMessage(channel, job.message, chunkMessage, { allowedMentions });
     return true;
   } catch (err) {
     log.error("Failed to deliver cron job", {
@@ -87315,6 +87566,7 @@ function coerceCronJob(value) {
   const authorId = typeof value.authorId === "string" ? value.authorId : "";
   const nextRun = typeof value.nextRun === "number" ? value.nextRun : 0;
   const runOnce = value.runOnce === void 0 ? true : value.runOnce === true;
+  const attempts = typeof value.attempts === "number" ? value.attempts : void 0;
   if (!id || !cronExpression || !message || !channelId || !authorId || !nextRun) {
     return null;
   }
@@ -87325,7 +87577,8 @@ function coerceCronJob(value) {
     channelId,
     authorId,
     nextRun,
-    runOnce
+    runOnce,
+    attempts
   };
 }
 function normalizeReminderRunAt(input) {
@@ -87339,7 +87592,7 @@ function normalizeReminderRunAt(input) {
   }
   return roundedUp;
 }
-var fs8, path7, import_cron_parser, MIN_REMINDER_DELAY_MS, jobs, storePath, discordClient, poller;
+var fs8, path7, import_cron_parser, MIN_REMINDER_DELAY_MS, jobs, runningJobs, storePath, discordClient, poller, systemConfig;
 var init_cron = __esm({
   "src/daemon/cron.ts"() {
     "use strict";
@@ -87350,11 +87603,14 @@ var init_cron = __esm({
     init_chunker();
     init_sender();
     init_runtime_paths();
+    init_mention_safety();
     MIN_REMINDER_DELAY_MS = 6e4;
     jobs = /* @__PURE__ */ new Map();
+    runningJobs = /* @__PURE__ */ new Set();
     storePath = "";
     discordClient = null;
     poller = null;
+    systemConfig = null;
   }
 });
 
@@ -87364,7 +87620,23 @@ async function buildGuildUserMap(client, config, options = {}) {
   discoveredUsers.clear();
   for (const guild of await resolveGuilds2(client, config)) {
     try {
-      const members = options.query?.trim() ? await guild.members.fetch({ query: options.query.trim(), limit: options.limit ?? 25 }) : await guild.members.fetch();
+      let members;
+      if (options.query?.trim()) {
+        members = await guild.members.fetch({ query: options.query.trim(), limit: options.limit ?? 25 });
+      } else {
+        const idsToFetch = [
+          ...config?.ownerIds ?? [],
+          ...config?.discordBossUserId ? [config.discordBossUserId] : [],
+          client.user?.id
+        ].filter((id) => Boolean(id));
+        try {
+          if (idsToFetch.length > 0) {
+            await guild.members.fetch({ user: idsToFetch });
+          }
+        } catch (e) {
+        }
+        members = guild.members.cache || await guild.members.fetch();
+      }
       for (const [, member] of members) {
         registerDiscoveredUser(memberToTarget(member, guild));
       }
@@ -87497,6 +87769,1608 @@ var init_users = __esm({
   }
 });
 
+// src/daemon/workflow/task-validation.ts
+function normalizeWorkflowTaskSummary(task) {
+  return task.trim().replace(/\s+/g, " ");
+}
+function validateWorkflowTaskSummary(task) {
+  const normalized = normalizeWorkflowTaskSummary(task);
+  if (!normalized) {
+    throw new WorkflowTaskValidationError("Workflow task is required. Please provide a specific task.");
+  }
+  const tokens = normalized.match(/[A-Za-z0-9][A-Za-z0-9_-]*/g) ?? [];
+  if (tokens.length === 1) {
+    const token = tokens[0].toLowerCase();
+    if (token.length < 4 || VAGUE_SINGLE_WORDS.has(token)) {
+      throw new WorkflowTaskValidationError(
+        `Workflow task "${normalized}" is too vague. Please provide a specific task, for example "fix CI failure" or "run tests".`
+      );
+    }
+  }
+  return normalized;
+}
+var VAGUE_SINGLE_WORDS, WorkflowTaskValidationError;
+var init_task_validation = __esm({
+  "src/daemon/workflow/task-validation.ts"() {
+    "use strict";
+    VAGUE_SINGLE_WORDS = /* @__PURE__ */ new Set([
+      "do",
+      "fix",
+      "help",
+      "issue",
+      "job",
+      "run",
+      "task",
+      "test",
+      "thing",
+      "this",
+      "that",
+      "todo",
+      "work"
+    ]);
+    WorkflowTaskValidationError = class extends Error {
+      constructor(message) {
+        super(message);
+        this.name = "WorkflowTaskValidationError";
+      }
+    };
+  }
+});
+
+// src/daemon/workflow/thread-manifest.ts
+function getManifestDir(extensionDir2) {
+  return path8.join(extensionDir2, "threads");
+}
+function getManifestPath(extensionDir2, threadId) {
+  return path8.join(getManifestDir(extensionDir2), `${threadId}.json`);
+}
+function saveThreadManifest(extensionDir2, manifest) {
+  const dir = getManifestDir(extensionDir2);
+  if (!fs9.existsSync(dir)) {
+    fs9.mkdirSync(dir, { recursive: true });
+  }
+  const filePath2 = getManifestPath(extensionDir2, manifest.threadId);
+  fs9.writeFileSync(filePath2, JSON.stringify(manifest, null, 2), "utf8");
+}
+function loadThreadManifest(extensionDir2, threadId) {
+  const filePath2 = getManifestPath(extensionDir2, threadId);
+  if (!fs9.existsSync(filePath2)) {
+    return null;
+  }
+  try {
+    const data = fs9.readFileSync(filePath2, "utf8");
+    return JSON.parse(data);
+  } catch {
+    return null;
+  }
+}
+function isWorkflowThread(extensionDir2, threadId) {
+  return fs9.existsSync(getManifestPath(extensionDir2, threadId));
+}
+var fs9, path8;
+var init_thread_manifest = __esm({
+  "src/daemon/workflow/thread-manifest.ts"() {
+    "use strict";
+    fs9 = __toESM(require("node:fs"), 1);
+    path8 = __toESM(require("node:path"), 1);
+  }
+});
+
+// src/daemon/workflow/policy.ts
+function isExplicitSendToCurrentThread(userContent) {
+  const normalized = userContent.toLowerCase();
+  if (normalized.includes("reply with") || normalized.includes("reply only") || normalized.includes("reply with only") || normalized.includes("reply to this with") || normalized.includes("reply back")) {
+    return false;
+  }
+  const explicitDiscordSendPatterns = [
+    /\b(?:send|post|publish)\s+(?:a\s+)?(?:discord\s+)?(?:message|reply|update)\b/,
+    /\b(?:send|post|publish)\b.*\b(?:to|in|on)\s+(?:discord|this\s+thread|this\s+channel|here|#\w[\w-]*)\b/,
+    /\b(?:send|post)\s+(?:it|that|this)\s+(?:here|to\s+discord|in\s+this\s+thread|in\s+this\s+channel)\b/,
+    /\b(?:send|post)\s+(?!me\b).+\bhere\b/,
+    /\breply\s+(?:in|to)\s+(?:this\s+thread|this\s+channel|discord)\b/
+  ];
+  return explicitDiscordSendPatterns.some((pattern) => pattern.test(normalized));
+}
+var init_policy = __esm({
+  "src/daemon/workflow/policy.ts"() {
+    "use strict";
+  }
+});
+
+// src/daemon/workflow/thread-creator.ts
+var thread_creator_exports = {};
+__export(thread_creator_exports, {
+  createWorkflowThread: () => createWorkflowThread
+});
+async function createWorkflowThread(client, config, extensionDir2, opts) {
+  const { creatorUserId, sourceChannelId, sourceMessageId, traceMode = "compact" } = opts;
+  const taskSummary = validateWorkflowTaskSummary(opts.taskSummary);
+  const originChannel = await fetchTextChannel(client, sourceChannelId);
+  if (!originChannel) {
+    throw new Error(`Origin channel ${sourceChannelId} not found`);
+  }
+  const isDm = "isDMBased" in originChannel && originChannel.isDMBased();
+  let parentChannel;
+  if (isDm) {
+    if (!config.workflowParentChannelId) {
+      throw new Error("WORKFLOW_PARENT_CHANNEL_ID is not configured. Workflow threads cannot be created from DMs without a configured parent channel.");
+    }
+    const resolvedParent = await client.channels.fetch(config.workflowParentChannelId);
+    if (!resolvedParent || !resolvedParent.isTextBased() || resolvedParent.isDMBased() || !("threads" in resolvedParent)) {
+      throw new Error(`Configured WORKFLOW_PARENT_CHANNEL_ID ${config.workflowParentChannelId} is not a valid thread-capable guild text channel.`);
+    }
+    parentChannel = resolvedParent;
+  } else {
+    parentChannel = originChannel;
+  }
+  if (!isWritableTarget(parentChannel.id, parentChannel, config)) {
+    throw new Error(`Parent channel ${parentChannel.id} is not writable or allowed under configured allowedChannelIds.`);
+  }
+  const sanitizedTask = taskSummary.toLowerCase().replace(/[^a-z0-9\s-]+/g, "").trim().replace(/[\s-]+/g, "-").slice(0, 30);
+  const threadName = `gemini-workflow-${sanitizedTask || "task"}`;
+  let thread;
+  let starterMessageId = null;
+  if (sourceMessageId && !isDm) {
+    try {
+      const msg = await parentChannel.messages.fetch(sourceMessageId);
+      thread = await msg.startThread({
+        name: threadName
+      });
+      starterMessageId = sourceMessageId;
+    } catch (err) {
+      log.warn("Could not start thread on message, creating standalone thread instead", { sourceMessageId, error: String(err) });
+      thread = await parentChannel.threads.create({
+        name: threadName
+      });
+    }
+  } else {
+    thread = await parentChannel.threads.create({
+      name: threadName
+    });
+  }
+  const seedMsg = await thread.send({
+    content: `> ${taskSummary}
+
+\u25CC **Workflow queued** \xB7 requested by <@${creatorUserId}>`,
+    allowedMentions: SUPPRESS_DISCORD_MENTIONS
+  });
+  const manifest = {
+    threadId: thread.id,
+    parentChannelId: parentChannel.id,
+    guildId: parentChannel.guildId,
+    creatorUserId,
+    starterMessageId: starterMessageId || seedMsg.id,
+    createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+    mode: "monitored_workflow",
+    taskSummary,
+    traceMode,
+    originContext: {
+      type: isDm ? "dm" : "channel",
+      sourceChannelId,
+      sourceMessageId
+    }
+  };
+  saveThreadManifest(extensionDir2, manifest);
+  return {
+    threadId: thread.id,
+    manifest,
+    thread
+  };
+}
+var init_thread_creator = __esm({
+  "src/daemon/workflow/thread-creator.ts"() {
+    "use strict";
+    init_thread_manifest();
+    init_api_utils();
+    init_log();
+    init_task_validation();
+    init_mention_safety();
+  }
+});
+
+// src/daemon/acp-content.ts
+function buildAcpPromptBlocks(prompt, attachments = []) {
+  if (attachments.length === 0) {
+    return [{ type: "text", text: prompt }];
+  }
+  return [
+    ...attachments.map(toAcpAttachmentBlock),
+    {
+      type: "text",
+      text: [
+        "",
+        "Use the attached file content as the primary evidence for this turn. If the user asks to identify a person, character, object, place, or media source, ground the answer in visible/audible/textual details from the attachment and say when you are uncertain. Do not infer from prior conversation, memory, or unrelated context when it conflicts with the attachment.",
+        "",
+        prompt
+      ].join("\n")
+    }
+  ];
+}
+function toAcpAttachmentBlock(attachment) {
+  const uri = toFileUri(attachment.relativePath);
+  const mimeType = attachment.inlineData?.mimeType;
+  if (attachment.inlineData && mimeType?.startsWith("image/")) {
+    return {
+      type: "image",
+      data: attachment.inlineData.data,
+      mimeType,
+      uri
+    };
+  }
+  if (attachment.inlineData && mimeType?.startsWith("audio/")) {
+    return {
+      type: "audio",
+      data: attachment.inlineData.data,
+      mimeType
+    };
+  }
+  if (attachment.inlineData && mimeType) {
+    return {
+      type: "resource",
+      resource: {
+        uri,
+        blob: attachment.inlineData.data,
+        mimeType
+      }
+    };
+  }
+  return {
+    type: "resource_link",
+    uri,
+    name: attachment.metadata.name || path9.basename(attachment.relativePath),
+    mimeType: attachment.metadata.contentType,
+    size: attachment.metadata.sizeBytes
+  };
+}
+function toFileUri(relativePath) {
+  return `file://${relativePath.split(path9.sep).join("/")}`;
+}
+var path9;
+var init_acp_content = __esm({
+  "src/daemon/acp-content.ts"() {
+    "use strict";
+    path9 = __toESM(require("node:path"), 1);
+  }
+});
+
+// src/daemon/gemini-output.ts
+function asRecord(value) {
+  return value && typeof value === "object" ? value : null;
+}
+function extractGeminiResultText(value) {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    const joined = value.map((entry) => extractGeminiResultText(entry)).filter((entry) => typeof entry === "string" && entry.length > 0).join("");
+    return joined || null;
+  }
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+  const directFields = ["response", "text", "content"];
+  for (const field of directFields) {
+    const candidate = record[field];
+    if (typeof candidate === "string" && candidate.length > 0) {
+      return candidate;
+    }
+  }
+  const parts = record["parts"];
+  if (Array.isArray(parts)) {
+    const joined = parts.map((part) => {
+      const partRecord = asRecord(part);
+      if (!partRecord || partRecord["thought"] === true) {
+        return "";
+      }
+      return typeof partRecord["text"] === "string" ? partRecord["text"] : "";
+    }).join("");
+    if (joined.length > 0) {
+      return joined;
+    }
+  }
+  const nestedFields = ["result", "output", "message"];
+  for (const field of nestedFields) {
+    const nested = extractGeminiResultText(record[field]);
+    if (nested) {
+      return nested;
+    }
+  }
+  return null;
+}
+function getGeminiTextDelta(existing, incoming) {
+  if (!incoming || incoming === existing) {
+    return "";
+  }
+  if (!existing) {
+    return incoming;
+  }
+  if (incoming.startsWith(existing)) {
+    return incoming.slice(existing.length);
+  }
+  const maxOverlap = Math.min(existing.length, incoming.length);
+  for (let overlap = maxOverlap; overlap > 0; overlap--) {
+    if (existing.slice(-overlap) === incoming.slice(0, overlap)) {
+      return incoming.slice(overlap);
+    }
+  }
+  return incoming;
+}
+var init_gemini_output = __esm({
+  "src/daemon/gemini-output.ts"() {
+    "use strict";
+  }
+});
+
+// src/daemon/workflow/tool-registry.ts
+function isBuiltinTool(name) {
+  return name in BUILTIN_TOOL_REGISTRY;
+}
+function isMcpTool(name) {
+  return name.includes("/") || name.startsWith("mcp_") || name.includes("__");
+}
+function resolveToolEntry(rawToolName) {
+  if (isBuiltinTool(rawToolName)) {
+    return BUILTIN_TOOL_REGISTRY[rawToolName];
+  }
+  const family = isMcpTool(rawToolName) ? "mcp" : "unknown";
+  let displayName = rawToolName;
+  if (rawToolName.includes("/") || rawToolName.includes("__")) {
+    const parts = rawToolName.split(/[\/]+|__/);
+    const toolPart = parts[parts.length - 1];
+    displayName = toolPart.split(/[-_]/).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join("");
+  }
+  return {
+    canonical: rawToolName,
+    displayName,
+    family
+  };
+}
+var BUILTIN_TOOL_REGISTRY;
+var init_tool_registry = __esm({
+  "src/daemon/workflow/tool-registry.ts"() {
+    "use strict";
+    BUILTIN_TOOL_REGISTRY = {
+      "run_shell_command": { canonical: "run_shell_command", displayName: "Shell", family: "shell" },
+      "glob": { canonical: "glob", displayName: "Glob", family: "search" },
+      "grep_search": { canonical: "grep_search", displayName: "SearchText", family: "search" },
+      "list_directory": { canonical: "list_directory", displayName: "ListDirectory", family: "filesystem" },
+      "read_file": { canonical: "read_file", displayName: "ReadFile", family: "filesystem" },
+      "read_many_files": { canonical: "read_many_files", displayName: "ReadManyFiles", family: "filesystem" },
+      "replace": { canonical: "replace", displayName: "Edit", family: "filesystem" },
+      "write_file": { canonical: "write_file", displayName: "WriteFile", family: "filesystem" },
+      "google_web_search": { canonical: "google_web_search", displayName: "GoogleSearch", family: "web" },
+      "web_fetch": { canonical: "web_fetch", displayName: "WebFetch", family: "web" },
+      "ask_user": { canonical: "ask_user", displayName: "AskUser", family: "interaction" },
+      "write_todos": { canonical: "write_todos", displayName: "TodoWrite", family: "planning" },
+      "save_memory": { canonical: "save_memory", displayName: "SaveMemory", family: "planning" },
+      "tracker_create_task": { canonical: "tracker_create_task", displayName: "CreateTask", family: "planning" },
+      "tracker_update_task": { canonical: "tracker_update_task", displayName: "UpdateTask", family: "planning" },
+      "tracker_get_task": { canonical: "tracker_get_task", displayName: "GetTask", family: "planning" },
+      "tracker_list_tasks": { canonical: "tracker_list_tasks", displayName: "ListTasks", family: "planning" },
+      "tracker_add_dependency": { canonical: "tracker_add_dependency", displayName: "AddDependency", family: "planning" },
+      "tracker_visualize": { canonical: "tracker_visualize", displayName: "Visualize", family: "planning" },
+      "update_topic": { canonical: "update_topic", displayName: "UpdateTopic", family: "planning" },
+      "list_mcp_resources": { canonical: "list_mcp_resources", displayName: "ListMCPResources", family: "mcp" },
+      "read_mcp_resource": { canonical: "read_mcp_resource", displayName: "ReadMCPResource", family: "mcp" },
+      "activate_skill": { canonical: "activate_skill", displayName: "ActivateSkill", family: "mcp" },
+      "get_internal_docs": { canonical: "get_internal_docs", displayName: "InternalDocs", family: "mcp" },
+      "enter_plan_mode": { canonical: "enter_plan_mode", displayName: "PlanMode", family: "planning" },
+      "exit_plan_mode": { canonical: "exit_plan_mode", displayName: "ExitPlanMode", family: "planning" },
+      "complete_task": { canonical: "complete_task", displayName: "CompleteTask", family: "planning" }
+    };
+  }
+});
+
+// src/daemon/workflow/redaction.ts
+function redactFilePath(path15) {
+  if (typeof path15 !== "string") return path15;
+  return path15.replace(/\/Users\/[^/]+\//g, "~/");
+}
+function redactDiscordId(id) {
+  if (typeof id !== "string") return id;
+  return id.replace(/\b\d{17,20}\b/g, (match) => {
+    return match.slice(0, 6) + "...";
+  });
+}
+function redactIpAddresses(text) {
+  if (typeof text !== "string") return text;
+  let redacted = text.replace(/\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b/g, "[IP_REDACTED]");
+  redacted = redacted.replace(/\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b/g, "[IP_REDACTED]");
+  redacted = redacted.replace(/\b((?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{0,4})\b/g, "[IP_REDACTED]");
+  return redacted;
+}
+function redactCommandFlags(cmd, fieldsRedacted) {
+  if (typeof cmd !== "string") return cmd;
+  let redacted = cmd;
+  const flagRegex = /(--(?:token|secret|password|key|env)|-(?:token|secret|password|key|env|e))(=|\s+)([^\s]+)/gi;
+  redacted = redacted.replace(flagRegex, (match, flag, separator, value) => {
+    fieldsRedacted.push(flag.replace(/^-+/, ""));
+    return `${flag}${separator}[REDACTED]`;
+  });
+  return redacted;
+}
+function redactTraceArgs(args) {
+  const fieldsRedacted = [];
+  function redactValue(val, keyName) {
+    if (val === null || val === void 0) return val;
+    if (typeof val === "string") {
+      let s = val;
+      if (keyName) {
+        const lowerKey = keyName.toLowerCase();
+        if (lowerKey.includes("secret") || lowerKey.includes("token") || lowerKey.includes("key") || lowerKey.includes("password") || lowerKey.includes("credential") || lowerKey.includes("auth")) {
+          fieldsRedacted.push(keyName);
+          return "[REDACTED]";
+        }
+      }
+      if (/\bey[Jj][a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+\b/.test(s)) {
+        fieldsRedacted.push(keyName || "jwt");
+        s = "[REDACTED]";
+      }
+      if (/bearer\s+[a-zA-Z0-9-_.]+/i.test(s)) {
+        fieldsRedacted.push(keyName || "bearer_token");
+        s = s.replace(/bearer\s+[a-zA-Z0-9-_.]+/gi, "Bearer [REDACTED]");
+      }
+      if (keyName === "commandLine" || keyName === "command" || keyName === "args" || keyName === "CommandLine") {
+        s = redactCommandFlags(s, fieldsRedacted);
+      }
+      s = redactFilePath(s);
+      s = redactDiscordId(s);
+      s = redactIpAddresses(s);
+      return s;
+    }
+    if (Array.isArray(val)) {
+      return val.map((item) => redactValue(item, keyName));
+    }
+    if (typeof val === "object") {
+      const obj = val;
+      const newObj = {};
+      for (const k of Object.keys(obj)) {
+        newObj[k] = redactValue(obj[k], k);
+      }
+      return newObj;
+    }
+    return val;
+  }
+  const redacted = redactValue(args);
+  return {
+    redacted,
+    fieldsRedacted: Array.from(new Set(fieldsRedacted))
+  };
+}
+function redactTraceResult(result, maxLength = 200) {
+  if (typeof result !== "string") {
+    return { summary: "", truncated: false };
+  }
+  let s = redactFilePath(result);
+  s = redactDiscordId(s);
+  s = redactIpAddresses(s);
+  if (s.length <= maxLength) {
+    return { summary: s, truncated: false };
+  }
+  const truncatedCount = s.length - maxLength;
+  const summary = s.slice(0, maxLength) + `... [${truncatedCount} chars truncated]`;
+  return {
+    summary,
+    truncated: true
+  };
+}
+function redactTraceText(result, maxLength = 12e3) {
+  if (typeof result !== "string") {
+    return { text: "", truncated: false };
+  }
+  let s = redactFilePath(result);
+  s = redactDiscordId(s);
+  s = redactIpAddresses(s);
+  if (s.length <= maxLength) {
+    return { text: s, truncated: false };
+  }
+  return {
+    text: `${s.slice(0, maxLength)}
+... [${s.length - maxLength} chars truncated]`,
+    truncated: true
+  };
+}
+var init_redaction = __esm({
+  "src/daemon/workflow/redaction.ts"() {
+    "use strict";
+  }
+});
+
+// src/daemon/workflow/trace-normalizer.ts
+function stringifyTraceValue(value, toolName) {
+  if (value === null || value === void 0) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object" && toolName === "run_shell_command") {
+    const resObj = value;
+    const exitCode = resObj["exitCode"] ?? resObj["exit_code"] ?? resObj["code"];
+    const stdout = String(resObj["stdout"] ?? resObj["output"] ?? "");
+    const stderr = String(resObj["stderr"] ?? "");
+    const lines = [];
+    if (exitCode !== void 0 && String(exitCode) !== "0") lines.push(`exit code: ${String(exitCode)}`);
+    if (stdout && stderr) {
+      lines.push(`stdout:
+${stdout}`);
+    } else if (stdout) {
+      lines.push(stdout);
+    }
+    if (stderr) lines.push(`stderr:
+${stderr}`);
+    return lines.join("\n");
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+function firstString(...values) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return null;
+}
+function normalizeToolName(value) {
+  const withoutServerSuffix = value.replace(/\s*\([^)]*MCP Server\)\s*$/i, "").trim();
+  if (withoutServerSuffix === "discord_message" || withoutServerSuffix.endsWith("/discord_message")) {
+    return "discord_message";
+  }
+  return withoutServerSuffix || value;
+}
+function recordValue(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+function extractContentBlockText(value) {
+  const record = recordValue(value);
+  if (!record) return typeof value === "string" ? value : "";
+  if (typeof record["text"] === "string") return record["text"];
+  if (typeof record["thought"] === "string") return record["thought"];
+  const content = record["content"];
+  if (content && typeof content === "object") {
+    return extractContentBlockText(content);
+  }
+  const resource = record["resource"];
+  if (resource && typeof resource === "object") {
+    return extractContentBlockText(resource);
+  }
+  return "";
+}
+function extractToolContentText(value) {
+  if (!Array.isArray(value)) return "";
+  return value.map((entry) => {
+    const record = recordValue(entry);
+    if (!record) return "";
+    if (record["type"] === "diff") {
+      const path15 = firstString(record["path"]) ?? "diff";
+      const oldText = typeof record["oldText"] === "string" ? record["oldText"] : "";
+      const newText = typeof record["newText"] === "string" ? record["newText"] : "";
+      return [
+        `Diff: ${path15}`,
+        oldText ? `--- old
+${oldText}` : "",
+        newText ? `+++ new
+${newText}` : ""
+      ].filter(Boolean).join("\n");
+    }
+    if (record["type"] === "terminal") {
+      const terminalId = firstString(record["terminalId"]);
+      return terminalId ? `Terminal output: ${terminalId}` : "Terminal output";
+    }
+    if (record["type"] === "content") {
+      return extractContentBlockText(record["content"]);
+    }
+    return extractContentBlockText(record);
+  }).filter(Boolean).join("\n\n");
+}
+function isInternalNarrationText(text) {
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (lines.length === 0) return false;
+  return lines.every(
+    (line) => /^\[current working directory\b[^\]]*\]$/i.test(line) || /^\((?:Executing|Creating|Running|Using|Reading|Compiling|Listing)\b[\s\S]*\)$/i.test(line)
+  );
+}
+function summarizePlanEntries(entries) {
+  if (!Array.isArray(entries)) return null;
+  const lines = entries.map((entry) => {
+    const record = recordValue(entry);
+    if (!record) return "";
+    const content = firstString(record["content"]);
+    if (!content) return "";
+    const status = firstString(record["status"]);
+    return status ? `${status}: ${content}` : content;
+  }).filter(Boolean);
+  return lines.length > 0 ? lines.join("\n") : null;
+}
+function resolveAcpStatus(sessionUpdate, rawStatus, hasResultText) {
+  if (rawStatus === "failed") return { type: "tool_failed", status: "failed" };
+  if (rawStatus === "cancelled") return { type: "tool_cancelled", status: "cancelled" };
+  if (rawStatus === "completed" || hasResultText) return { type: "tool_completed", status: "completed" };
+  if (sessionUpdate === "tool_call_update") return { type: "tool_progress", status: "progress" };
+  return { type: "tool_started", status: "started" };
+}
+function resolveDuration(id, type, timestamp, activeToolTimers) {
+  if (!id) return null;
+  if (type === "tool_started") {
+    if (!activeToolTimers.has(id)) {
+      activeToolTimers.set(id, timestamp);
+    }
+    return null;
+  }
+  const start = activeToolTimers.get(id);
+  if (!start) return null;
+  if (type === "tool_completed" || type === "tool_failed" || type === "tool_cancelled") {
+    activeToolTimers.delete(id);
+  }
+  return timestamp - start;
+}
+function familyFromAcpKind(kind) {
+  switch (kind) {
+    case "execute":
+      return "shell";
+    case "read":
+    case "edit":
+    case "delete":
+    case "move":
+      return "filesystem";
+    case "search":
+      return "search";
+    case "fetch":
+      return "web";
+    case "think":
+    case "switch_mode":
+      return "planning";
+    default:
+      return "unknown";
+  }
+}
+function resolveTopLevelToolEntry(payload) {
+  const rawInput = recordValue(payload["rawInput"]);
+  const rawToolName = firstString(
+    rawInput?.["name"],
+    rawInput?.["toolName"],
+    rawInput?.["tool_name"]
+  );
+  if (rawToolName) return resolveToolEntry(normalizeToolName(rawToolName));
+  const kind = firstString(payload["kind"]) ?? "other";
+  const title = firstString(payload["title"]) ?? kind;
+  if (/^Searching\s+the\s+web\s+for:/i.test(title)) {
+    return resolveToolEntry("google_web_search");
+  }
+  if (kind === "fetch" || /^Processing\s+URLs\s+and\s+instructions\s+from\s+prompt:/i.test(title)) {
+    return resolveToolEntry("web_fetch");
+  }
+  if (/^"[^"]+":\s+\S/.test(title)) {
+    return resolveToolEntry("activate_skill");
+  }
+  if (/^(?:ReadFolder|ListDirectory)\b/i.test(title) || kind === "read" && /^[.~/(]|^[A-Za-z]:[\\/]/.test(title)) {
+    return {
+      canonical: "list_directory",
+      displayName: "ReadFolder",
+      family: "filesystem"
+    };
+  }
+  if (/^ReadFile\b/i.test(title)) {
+    return resolveToolEntry("read_file");
+  }
+  return {
+    canonical: `acp_${kind}`,
+    displayName: title,
+    family: familyFromAcpKind(kind)
+  };
+}
+function rawInputArgs(rawInput) {
+  const record = recordValue(rawInput);
+  if (!record) return {};
+  const args = recordValue(record["args"]) ?? recordValue(record["arguments"]);
+  if (args) return args;
+  if (firstString(record["name"], record["toolName"], record["tool_name"])) {
+    const rest = { ...record };
+    delete rest["name"];
+    delete rest["toolName"];
+    delete rest["tool_name"];
+    return rest;
+  }
+  return record;
+}
+function argsWithTitleCommand(args, toolEntry, title) {
+  if (toolEntry.family !== "shell") return args;
+  if (firstString(args["command"], args["commandLine"], args["CommandLine"])) return args;
+  const command = title.replace(/^Shell(?:\s+command)?\s*/i, "").trim();
+  return command ? { ...args, command } : args;
+}
+function argsWithTitleMetadata(args, toolEntry, title) {
+  const withCommand = argsWithTitleCommand(args, toolEntry, title);
+  if (toolEntry.canonical === "list_directory" && !firstString(withCommand["dir_path"], withCommand["path"])) {
+    const dir = title.replace(/^(?:ReadFolder|ListDirectory)\s*/i, "").trim();
+    return dir ? { ...withCommand, dir_path: dir } : withCommand;
+  }
+  if (toolEntry.canonical === "read_file" && !firstString(withCommand["file_path"], withCommand["path"])) {
+    const file = title.replace(/^ReadFile\s*/i, "").trim();
+    return file ? { ...withCommand, file_path: file } : withCommand;
+  }
+  if (toolEntry.canonical === "activate_skill" && !firstString(withCommand["name"], withCommand["skill"])) {
+    const skill = title.match(/^"([^"]+)":\s+/)?.[1];
+    return skill ? { ...withCommand, name: skill } : withCommand;
+  }
+  if (toolEntry.canonical === "web_fetch" && !firstString(withCommand["url"], withCommand["prompt"], withCommand["query"])) {
+    const prompt = title.match(/^Processing\s+URLs\s+and\s+instructions\s+from\s+prompt:\s*["“]?(.+?)["”]?\s*$/i)?.[1];
+    return prompt ? { ...withCommand, prompt } : withCommand;
+  }
+  if (toolEntry.canonical !== "google_web_search") return withCommand;
+  if (firstString(withCommand["query"], withCommand["prompt"])) return withCommand;
+  const match = title.match(/^Searching\s+the\s+web\s+for:\s*["“]?(.+?)["”]?\s*$/i);
+  return match?.[1] ? { ...withCommand, query: match[1] } : withCommand;
+}
+function normalizeAcpUpdate(sessionUpdate, updatePayload, activeToolTimers) {
+  const timestamp = Date.now();
+  if (sessionUpdate === "plan") {
+    let summary = "Planning next steps...";
+    const entriesSummary = summarizePlanEntries(updatePayload["entries"]);
+    const planVal = updatePayload["plan"];
+    if (entriesSummary) {
+      summary = entriesSummary;
+    } else if (planVal && typeof planVal === "string") {
+      summary = planVal;
+    } else if (planVal && typeof planVal === "object") {
+      const steps = planVal["steps"];
+      if (Array.isArray(steps)) {
+        summary = steps.map((s) => String(s)).join("\n");
+      } else {
+        summary = JSON.stringify(planVal);
+      }
+    } else {
+      const thoughtVal = updatePayload["thought"] || updatePayload["agent_thought_chunk"];
+      if (thoughtVal && typeof thoughtVal === "string") {
+        summary = thoughtVal;
+      }
+    }
+    const redacted = redactTraceResult(summary, 500);
+    return {
+      type: "phase_started",
+      timestamp,
+      toolName: null,
+      canonicalToolName: null,
+      displayName: null,
+      toolFamily: "planning",
+      args: {},
+      status: "started",
+      durationMs: null,
+      resultSummary: redacted.summary,
+      resultDetail: redacted.summary,
+      artifactRef: null,
+      redactionMetadata: {
+        fieldsRedacted: [],
+        truncated: redacted.truncated
+      },
+      raw: updatePayload
+    };
+  }
+  if (sessionUpdate === "tool_call" || sessionUpdate === "tool_call_update") {
+    const toolCall = updatePayload["toolCall"];
+    if (!toolCall) {
+      const id2 = firstString(updatePayload["toolCallId"]) ?? "";
+      const title = firstString(updatePayload["title"]) ?? "";
+      if (!id2 || !title) return null;
+      const toolEntry2 = resolveTopLevelToolEntry(updatePayload);
+      const rawArgs2 = argsWithTitleMetadata(rawInputArgs(updatePayload["rawInput"]), toolEntry2, title);
+      const { redacted: redactedArgs2, fieldsRedacted: fieldsRedacted2 } = redactTraceArgs(rawArgs2);
+      const contentText = extractToolContentText(updatePayload["content"]);
+      const outputText = stringifyTraceValue(
+        updatePayload["rawOutput"],
+        toolEntry2.family === "shell" ? "run_shell_command" : toolEntry2.canonical
+      );
+      const visibleContentText = toolEntry2.family === "shell" && isInternalNarrationText(contentText) ? "" : contentText;
+      const resultText = [visibleContentText, outputText].filter(Boolean).join("\n\n");
+      const metadataOnlyShellUpdate = toolEntry2.family === "shell" && Boolean(contentText) && !visibleContentText && !outputText;
+      const rawStatus = metadataOnlyShellUpdate ? "in_progress" : updatePayload["status"];
+      const statusInfo = resolveAcpStatus(sessionUpdate, rawStatus, Boolean(resultText));
+      const durationMs2 = resolveDuration(id2, statusInfo.type, timestamp, activeToolTimers);
+      const redactedResult = redactTraceResult(resultText, 200);
+      const redactedDetail = redactTraceText(resultText, 12e3);
+      const isDiscordMessage2 = toolEntry2.canonical === "discord_message";
+      let policySuppressed2 = false;
+      let intercepted2 = false;
+      if (isDiscordMessage2) {
+        const targetChannelId = String(rawArgs2["channel_id"] || rawArgs2["channelId"] || "");
+        const activeRun = targetChannelId ? runtimeStore.activeWorkflowRuns.get(targetChannelId) : null;
+        if (activeRun) {
+          if (!isExplicitSendToCurrentThread(activeRun.userContent)) {
+            policySuppressed2 = true;
+          }
+        }
+        const rawOutput = updatePayload["rawOutput"];
+        if (rawOutput && typeof rawOutput === "object" && rawOutput.intercepted === true) {
+          intercepted2 = true;
+          policySuppressed2 = true;
+        }
+      }
+      return {
+        type: statusInfo.type,
+        timestamp,
+        toolName: toolEntry2.canonical,
+        canonicalToolName: toolEntry2.canonical,
+        displayName: toolEntry2.displayName,
+        toolFamily: toolEntry2.family,
+        args: redactedArgs2,
+        status: statusInfo.status,
+        durationMs: durationMs2,
+        resultSummary: redactedResult.summary || null,
+        resultDetail: redactedDetail.text || redactedResult.summary || null,
+        policySuppressed: policySuppressed2,
+        intercepted: intercepted2,
+        artifactRef: null,
+        redactionMetadata: {
+          fieldsRedacted: fieldsRedacted2,
+          truncated: redactedResult.truncated || redactedDetail.truncated
+        },
+        raw: updatePayload
+      };
+    }
+    const id = typeof toolCall["id"] === "string" ? toolCall["id"] : "";
+    const name = typeof toolCall["name"] === "string" ? normalizeToolName(toolCall["name"]) : "";
+    if (!name) return null;
+    const toolEntry = resolveToolEntry(name);
+    const rawArgs = toolCall["arguments"] ?? toolCall["args"] ?? {};
+    const { redacted: redactedArgs, fieldsRedacted } = redactTraceArgs(rawArgs);
+    let type = "tool_started";
+    let status = "started";
+    let durationMs = null;
+    let resultSummary = null;
+    let resultDetail = null;
+    let truncated = false;
+    const progress = toolCall["progress"];
+    const result = toolCall["result"] ?? toolCall["response"];
+    const error = toolCall["error"] ?? toolCall["errorMessage"];
+    if (error !== void 0 && error !== null) {
+      type = "tool_failed";
+      status = "failed";
+      const start = activeToolTimers.get(id);
+      if (start) {
+        durationMs = timestamp - start;
+        activeToolTimers.delete(id);
+      }
+      const errorStr = stringifyTraceValue(error, name);
+      const redactedError = redactTraceResult(errorStr, 200);
+      const redactedErrorDetail = redactTraceText(errorStr, 12e3);
+      resultSummary = redactedError.summary;
+      resultDetail = redactedErrorDetail.text || resultSummary;
+      truncated = redactedError.truncated || redactedErrorDetail.truncated;
+    } else if (result !== void 0 && result !== null) {
+      type = "tool_completed";
+      status = "completed";
+      const start = activeToolTimers.get(id);
+      if (start) {
+        durationMs = timestamp - start;
+        activeToolTimers.delete(id);
+      }
+      const resultStr = stringifyTraceValue(result, name);
+      const redactedResult = redactTraceResult(resultStr, 200);
+      const redactedDetail = redactTraceText(resultStr, 12e3);
+      resultSummary = redactedResult.summary;
+      resultDetail = redactedDetail.text || resultSummary;
+      truncated = redactedResult.truncated || redactedDetail.truncated;
+    } else if (sessionUpdate === "tool_call_update" || progress !== void 0 && progress !== null) {
+      type = "tool_progress";
+      status = "progress";
+      const start = activeToolTimers.get(id);
+      if (start) {
+        durationMs = timestamp - start;
+      }
+      const progressStr = stringifyTraceValue(progress, name);
+      const redactedProgress = redactTraceResult(progressStr, 200);
+      const redactedProgressDetail = redactTraceText(progressStr, 12e3);
+      resultSummary = redactedProgress.summary;
+      resultDetail = redactedProgressDetail.text || resultSummary;
+      truncated = redactedProgress.truncated || redactedProgressDetail.truncated;
+    } else {
+      type = "tool_started";
+      status = "started";
+      activeToolTimers.set(id, timestamp);
+    }
+    let artifactRef = null;
+    if (name === "write_file" || name === "replace" || name === "write_to_file" || name === "replace_file_content") {
+      const pathVal = firstString(rawArgs["file_path"], rawArgs["path"], rawArgs["TargetFile"], rawArgs["filePath"]);
+      if (typeof pathVal === "string") {
+        artifactRef = redactFilePath(pathVal);
+      }
+    }
+    const isDiscordMessage = name === "discord_message" || toolEntry.canonical === "discord_message";
+    let policySuppressed = false;
+    let intercepted = false;
+    if (isDiscordMessage) {
+      const targetChannelId = String(rawArgs["channel_id"] || rawArgs["channelId"] || "");
+      const activeRun = targetChannelId ? runtimeStore.activeWorkflowRuns.get(targetChannelId) : null;
+      if (activeRun) {
+        if (!isExplicitSendToCurrentThread(activeRun.userContent)) {
+          policySuppressed = true;
+        }
+      }
+      if (result && typeof result === "object" && result.intercepted === true) {
+        intercepted = true;
+        policySuppressed = true;
+      }
+    }
+    return {
+      type,
+      timestamp,
+      toolName: name,
+      canonicalToolName: toolEntry.canonical,
+      displayName: toolEntry.displayName,
+      toolFamily: toolEntry.family,
+      args: redactedArgs,
+      status,
+      durationMs,
+      resultSummary,
+      resultDetail,
+      policySuppressed,
+      intercepted,
+      artifactRef,
+      redactionMetadata: {
+        fieldsRedacted,
+        truncated
+      },
+      raw: updatePayload
+    };
+  }
+  return null;
+}
+var init_trace_normalizer = __esm({
+  "src/daemon/workflow/trace-normalizer.ts"() {
+    "use strict";
+    init_tool_registry();
+    init_redaction();
+    init_runtime();
+    init_policy();
+  }
+});
+
+// src/daemon/cli-pool.ts
+function buildPoolKey(bindingKey, allowedTools) {
+  const tier = allowedTools === "all" ? "full" : allowedTools === "none" ? "chat" : allowedTools === "google_web_search" ? "public-web-search" : allowedTools === "google_web_search,web_fetch" ? "web" : allowedTools.includes("google_web_search,web_fetch") ? "web-discord" : "discord";
+  return `${bindingKey}:${tier}`;
+}
+function buildGeminiProcessEnv(config, roleContext, baseEnv = process.env) {
+  return { ...baseEnv, ...config.geminiCliEnv ?? {}, ...roleEnv(roleContext) };
+}
+function appendHeadlessIsolationArgs(args) {
+  args.push("--extensions", "gemini-discord");
+  args.push("--allowed-mcp-server-names", "discord-bridge");
+}
+function normalizeResumeSessionId(value) {
+  const trimmed = value?.trim();
+  return trimmed && trimmed !== "latest" ? trimmed : null;
+}
+function normalizeAcpError(error) {
+  if (error && typeof error === "object") {
+    const candidate = error;
+    const message = typeof candidate["message"] === "string" ? candidate["message"] : "Gemini ACP request failed";
+    const details = candidate["data"];
+    if (details && typeof details === "object" && "details" in details) {
+      const detailMessage = details["details"];
+      if (typeof detailMessage === "string" && detailMessage.trim()) {
+        return new Error(`${message}: ${detailMessage}`);
+      }
+    }
+    return new Error(message);
+  }
+  return new Error(typeof error === "string" ? error : "Gemini ACP request failed");
+}
+function isRetryableAcpExitError(error) {
+  const message = error.message.toLowerCase();
+  return message.includes("gemini acp exited with code 1") || message.includes("gemini returned no assistant output");
+}
+function isMissingSessionError(error) {
+  const message = error.message.toLowerCase();
+  return message.includes("no previous sessions found for this project") || message.includes("session not found") || message.includes("invalid session identifier") || message.includes("failed to resolve session") || message.includes("resume_session_unavailable");
+}
+function extractUpdateText(update) {
+  const content = update["content"];
+  if (Array.isArray(content)) {
+    return content.map((value) => {
+      if (!value || typeof value !== "object") {
+        return "";
+      }
+      const record = value;
+      const inner = record["content"];
+      if (inner && typeof inner === "object" && typeof inner["text"] === "string") {
+        return String(inner["text"]);
+      }
+      return typeof record["text"] === "string" ? record["text"] : "";
+    }).join("");
+  }
+  if (content && typeof content === "object") {
+    const record = content;
+    if (typeof record["text"] === "string") {
+      return record["text"];
+    }
+  }
+  return "";
+}
+var import_node_child_process2, readline, ACP_PROTOCOL_VERSION, SESSION_REQUEST_TIMEOUT_MS, STARTUP_REQUEST_TIMEOUT_MS, SESSION_REPLAY_QUIET_MS, SESSION_REPLAY_MAX_WAIT_MS, CliProcessPool;
+var init_cli_pool = __esm({
+  "src/daemon/cli-pool.ts"() {
+    "use strict";
+    import_node_child_process2 = require("node:child_process");
+    readline = __toESM(require("node:readline"), 1);
+    init_log();
+    init_acp_content();
+    init_gemini_output();
+    init_permissions();
+    init_trace_normalizer();
+    ACP_PROTOCOL_VERSION = 1;
+    SESSION_REQUEST_TIMEOUT_MS = 12e4;
+    STARTUP_REQUEST_TIMEOUT_MS = 9e4;
+    SESSION_REPLAY_QUIET_MS = 400;
+    SESSION_REPLAY_MAX_WAIT_MS = 6e3;
+    CliProcessPool = class {
+      pool = /* @__PURE__ */ new Map();
+      maxSize;
+      idleTimeoutMs;
+      config;
+      constructor(config) {
+        this.config = config;
+        this.maxSize = config.geminiMaxConcurrent;
+        this.idleTimeoutMs = config.cliIdleTimeoutMs;
+      }
+      async send(bindingKey, prompt, callbacks, opts) {
+        const allowedTools = resolveGeminiAllowedTools(opts.roleContext, opts.toolMode);
+        const poolKey = buildPoolKey(bindingKey, allowedTools);
+        let lastError = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          let entry = this.pool.get(poolKey);
+          if (entry && !entry.busy && this.isAlive(entry)) {
+            entry.busy = true;
+            entry.lastActivityAt = Date.now();
+            this.resetIdleTimer(entry);
+            log.info("CLI pool: reusing warm ACP process", {
+              poolKey,
+              aliveMs: Date.now() - entry.spawnedAt,
+              sessionId: entry.sessionId
+            });
+          } else {
+            if (entry) {
+              this.evict(poolKey);
+            }
+            if (this.pool.size >= this.maxSize) {
+              this.evictOldestIdle();
+            }
+            entry = await this.spawnProcess(poolKey, allowedTools, opts.roleContext);
+            entry.busy = true;
+            this.pool.set(poolKey, entry);
+          }
+          try {
+            await this.ensureSession(entry, opts);
+            const response = await this.promptWithAcp(entry, prompt, callbacks, opts);
+            entry.busy = false;
+            entry.lastActivityAt = Date.now();
+            this.resetIdleTimer(entry);
+            return response;
+          } catch (error) {
+            const normalized = error instanceof Error ? error : new Error(String(error));
+            lastError = normalized;
+            this.evict(poolKey);
+            if (attempt === 0 && isRetryableAcpExitError(normalized)) {
+              log.warn("CLI pool: retrying Gemini ACP after crash", {
+                poolKey,
+                error: normalized.message
+              });
+              continue;
+            }
+            throw normalized;
+          }
+        }
+        throw lastError ?? new Error("Gemini ACP request failed");
+      }
+      async spawnProcess(poolKey, allowedTools, roleContext) {
+        const spawnedAt = Date.now();
+        const args = [
+          "--acp",
+          "--model",
+          this.config.geminiModel,
+          "--approval-mode",
+          "yolo",
+          "--allowed-tools",
+          allowedTools
+        ];
+        appendHeadlessIsolationArgs(args);
+        log.info("CLI pool: initializing ACP process entry", {
+          poolKey,
+          model: this.config.geminiModel,
+          allowedTools,
+          extensionScope: "gemini-discord"
+        });
+        const proc = (0, import_node_child_process2.spawn)(this.config.geminiPath, args, {
+          stdio: ["pipe", "pipe", "pipe"],
+          env: buildGeminiProcessEnv(this.config, roleContext)
+        });
+        if (!proc.stdout || !proc.stdin) {
+          throw new Error("Gemini ACP did not expose the expected stdio streams.");
+        }
+        const rl = readline.createInterface({ input: proc.stdout });
+        const entry = {
+          proc,
+          poolKey,
+          rl,
+          busy: false,
+          spawnedAt,
+          lastActivityAt: spawnedAt,
+          idleTimer: null,
+          allowedTools,
+          initialized: false,
+          nextRequestId: 1,
+          pendingRequests: /* @__PURE__ */ new Map(),
+          activePrompt: null,
+          sessionId: null,
+          cwd: null,
+          stderrTail: "",
+          lastSessionUpdateAt: 0,
+          activeToolTimers: /* @__PURE__ */ new Map()
+        };
+        proc.stderr?.on("data", (chunk) => {
+          entry.stderrTail = `${entry.stderrTail}${chunk.toString()}`.slice(-4e3);
+        });
+        rl.on("line", (line) => {
+          this.handleStdoutLine(entry, line);
+        });
+        proc.on("error", (error) => {
+          this.rejectAllPending(entry, new Error(`Failed to spawn gemini: ${error.message}`));
+          if (this.pool.get(entry.poolKey) === entry) {
+            this.pool.delete(entry.poolKey);
+          }
+        });
+        proc.on("close", (code) => {
+          this.rejectAllPending(entry, new Error(`Gemini ACP exited with code ${code}. ${entry.stderrTail.slice(-300)}`));
+          if (entry.idleTimer) {
+            clearTimeout(entry.idleTimer);
+          }
+          try {
+            rl.close();
+          } catch {
+          }
+          if (this.pool.get(entry.poolKey) === entry) {
+            this.pool.delete(entry.poolKey);
+          }
+        });
+        try {
+          await this.sendRequest(entry, "initialize", {
+            protocolVersion: ACP_PROTOCOL_VERSION,
+            clientCapabilities: {
+              auth: { terminal: false },
+              fs: { readTextFile: false, writeTextFile: false },
+              terminal: false
+            },
+            clientInfo: {
+              name: "gemini-discord",
+              version: "0.1.1"
+            }
+          }, STARTUP_REQUEST_TIMEOUT_MS);
+          entry.initialized = true;
+          this.resetIdleTimer(entry);
+          return entry;
+        } catch (error) {
+          try {
+            proc.kill("SIGTERM");
+          } catch {
+          }
+          try {
+            rl.close();
+          } catch {
+          }
+          throw error;
+        }
+      }
+      async ensureSession(entry, opts) {
+        const resumeSessionId = normalizeResumeSessionId(opts.resumeSessionId);
+        if (entry.sessionId && entry.cwd === opts.cwd) {
+          if (!resumeSessionId || resumeSessionId === entry.sessionId) {
+            opts.onSessionId?.(entry.sessionId);
+            return;
+          }
+          await this.closeSession(entry);
+        }
+        if (resumeSessionId) {
+          try {
+            await this.sendRequest(entry, "session/load", {
+              sessionId: resumeSessionId,
+              cwd: opts.cwd,
+              mcpServers: []
+            }, SESSION_REQUEST_TIMEOUT_MS);
+            entry.sessionId = resumeSessionId;
+            entry.cwd = opts.cwd;
+            await this.waitForSessionReplayToDrain(entry);
+            opts.onSessionId?.(entry.sessionId);
+            return;
+          } catch (error) {
+            const normalized = error instanceof Error ? error : new Error(String(error));
+            if (!isMissingSessionError(normalized)) {
+              throw normalized;
+            }
+            log.warn("CLI pool: resume target unavailable, starting fresh session", {
+              poolKey: entry.poolKey,
+              requestedSessionId: resumeSessionId,
+              cwd: opts.cwd,
+              error: normalized.message
+            });
+            entry.sessionId = null;
+            entry.cwd = null;
+          }
+        }
+        const result = await this.sendRequest(entry, "session/new", {
+          cwd: opts.cwd,
+          mcpServers: []
+        }, SESSION_REQUEST_TIMEOUT_MS);
+        if (!result || typeof result !== "object" || typeof result["sessionId"] !== "string") {
+          throw new Error("Gemini ACP did not return a sessionId for the new session.");
+        }
+        entry.sessionId = String(result["sessionId"]);
+        entry.cwd = opts.cwd;
+        opts.onSessionId?.(entry.sessionId);
+      }
+      async closeSession(entry) {
+        if (!entry.sessionId) {
+          return;
+        }
+        try {
+          await this.sendRequest(entry, "session/close", {
+            sessionId: entry.sessionId
+          }, 3e4);
+        } catch {
+        } finally {
+          entry.sessionId = null;
+          entry.cwd = null;
+        }
+      }
+      async waitForSessionReplayToDrain(entry) {
+        const startedAt = Date.now();
+        let lastObservedAt = startedAt;
+        while (Date.now() - startedAt < SESSION_REPLAY_MAX_WAIT_MS) {
+          if (entry.lastSessionUpdateAt > lastObservedAt) {
+            lastObservedAt = entry.lastSessionUpdateAt;
+          }
+          if (Date.now() - lastObservedAt >= SESSION_REPLAY_QUIET_MS) {
+            return;
+          }
+          await new Promise((resolve2) => setTimeout(resolve2, 50));
+        }
+        log.warn("CLI pool: session replay did not fully drain before prompt", {
+          poolKey: entry.poolKey,
+          sessionId: entry.sessionId,
+          waitedMs: Date.now() - startedAt
+        });
+      }
+      async promptWithAcp(entry, prompt, callbacks, opts) {
+        if (!entry.sessionId) {
+          throw new Error("Gemini ACP session is not initialized.");
+        }
+        const requestId = entry.nextRequestId++;
+        const hasAttachments = (opts.attachments?.length ?? 0) > 0;
+        return new Promise((resolve2, reject2) => {
+          const maxTotalTimeoutMs = this.config.geminiTimeoutMs;
+          const firstOutputTimeoutMs = hasAttachments ? Math.min(maxTotalTimeoutMs, 6e5) : Math.min(maxTotalTimeoutMs, 12e4);
+          const postOutputTimeoutMs = 12e4;
+          const activePrompt = {
+            requestId,
+            callbacks,
+            fullResponse: "",
+            sawAssistantOutput: false,
+            lastOutputAt: Date.now(),
+            startedAt: Date.now(),
+            timeoutHandle: setInterval(() => {
+              const current = entry.activePrompt;
+              if (!current || current.requestId !== requestId) {
+                return;
+              }
+              const idleMs = Date.now() - current.lastOutputAt;
+              const totalMs = Date.now() - current.startedAt;
+              if (!current.sawAssistantOutput && idleMs > firstOutputTimeoutMs) {
+                const error = new Error(`Gemini stalled \u2014 no output for ${Math.round(idleMs / 1e3)}s`);
+                this.failPrompt(entry, error, true);
+                return;
+              }
+              if (current.sawAssistantOutput && idleMs > postOutputTimeoutMs) {
+                const error = new Error(`Gemini stalled \u2014 no output for ${Math.round(idleMs / 1e3)}s`);
+                this.failPrompt(entry, error, true);
+                return;
+              }
+              if (totalMs > maxTotalTimeoutMs) {
+                const error = new Error(`Gemini timed out after ${Math.round(totalMs / 1e3)}s total`);
+                this.failPrompt(entry, error, true);
+              }
+            }, 5e3),
+            resolve: resolve2,
+            reject: reject2
+          };
+          entry.activePrompt = activePrompt;
+          entry.pendingRequests.set(requestId, {
+            resolve: () => {
+              const current = entry.activePrompt;
+              if (!current || current.requestId !== requestId) {
+                resolve2("");
+                return;
+              }
+              clearInterval(current.timeoutHandle);
+              entry.activePrompt = null;
+              if (!current.sawAssistantOutput) {
+                reject2(new Error("Gemini returned no assistant output for this turn."));
+                return;
+              }
+              resolve2(current.fullResponse);
+            },
+            reject: (error) => {
+              const current = entry.activePrompt;
+              if (current && current.requestId === requestId) {
+                clearInterval(current.timeoutHandle);
+                entry.activePrompt = null;
+              }
+              reject2(error);
+            }
+          });
+          try {
+            this.writeJsonLine(entry, {
+              jsonrpc: "2.0",
+              id: requestId,
+              method: "session/prompt",
+              params: {
+                sessionId: entry.sessionId,
+                prompt: buildAcpPromptBlocks(prompt, opts.attachments)
+              }
+            });
+          } catch (error) {
+            this.failPrompt(entry, error instanceof Error ? error : new Error(String(error)), false);
+          }
+        });
+      }
+      handleStdoutLine(entry, line) {
+        if (line.length < 3 || line[0] !== "{") {
+          return;
+        }
+        let parsed;
+        try {
+          parsed = JSON.parse(line);
+        } catch {
+          return;
+        }
+        const method = typeof parsed["method"] === "string" ? parsed["method"] : null;
+        if (method === "session/update") {
+          const params = parsed["params"];
+          if (params && typeof params === "object") {
+            this.handleSessionUpdate(entry, params);
+          }
+          return;
+        }
+        const rawId = parsed["id"];
+        if (typeof rawId !== "number") {
+          return;
+        }
+        const pending = entry.pendingRequests.get(rawId);
+        if (!pending) {
+          return;
+        }
+        entry.pendingRequests.delete(rawId);
+        if ("error" in parsed && parsed["error"]) {
+          pending.reject(normalizeAcpError(parsed["error"]));
+          return;
+        }
+        const activePrompt = entry.activePrompt;
+        if (activePrompt && activePrompt.requestId === rawId) {
+          const finalText = extractGeminiResultText(parsed["result"]);
+          if (finalText) {
+            const delta = getGeminiTextDelta(activePrompt.fullResponse, finalText);
+            if (delta) {
+              activePrompt.sawAssistantOutput = true;
+              activePrompt.fullResponse += delta;
+              activePrompt.callbacks.onToken(delta);
+            }
+          }
+        }
+        pending.resolve(parsed["result"]);
+      }
+      handleSessionUpdate(entry, params) {
+        entry.lastSessionUpdateAt = Date.now();
+        const activePrompt = entry.activePrompt;
+        if (!activePrompt || !entry.sessionId) {
+          return;
+        }
+        const sessionId = typeof params["sessionId"] === "string" ? params["sessionId"] : null;
+        if (!sessionId || sessionId !== entry.sessionId) {
+          return;
+        }
+        const rawUpdate = params["update"];
+        if (!rawUpdate || typeof rawUpdate !== "object") {
+          return;
+        }
+        const update = rawUpdate;
+        const sessionUpdate = typeof update["sessionUpdate"] === "string" ? update["sessionUpdate"] : "";
+        activePrompt.lastOutputAt = Date.now();
+        if (sessionUpdate === "agent_message_chunk") {
+          const candidate = extractUpdateText(update);
+          if (!candidate) {
+            return;
+          }
+          const delta = getGeminiTextDelta(activePrompt.fullResponse, candidate);
+          if (!delta) {
+            return;
+          }
+          activePrompt.sawAssistantOutput = true;
+          activePrompt.fullResponse += delta;
+          activePrompt.callbacks.onToken(delta);
+          return;
+        }
+        if (sessionUpdate === "agent_thought_chunk") {
+          activePrompt.callbacks.onThought?.();
+          return;
+        }
+        if (sessionUpdate === "tool_call" || sessionUpdate === "tool_call_update" || sessionUpdate === "plan") {
+          activePrompt.callbacks.onThought?.();
+          if (activePrompt.callbacks.onTraceEvent) {
+            const traceEvent = normalizeAcpUpdate(sessionUpdate, update, entry.activeToolTimers);
+            if (traceEvent) {
+              activePrompt.callbacks.onTraceEvent(traceEvent);
+            }
+          }
+        }
+      }
+      failPrompt(entry, error, evictAfter) {
+        const activePrompt = entry.activePrompt;
+        if (!activePrompt) {
+          return;
+        }
+        const pending = entry.pendingRequests.get(activePrompt.requestId);
+        if (pending) {
+          entry.pendingRequests.delete(activePrompt.requestId);
+          pending.reject(error);
+        } else {
+          clearInterval(activePrompt.timeoutHandle);
+          entry.activePrompt = null;
+          activePrompt.reject(error);
+        }
+        if (evictAfter) {
+          this.evict(entry.poolKey);
+        }
+      }
+      async sendRequest(entry, method, params, timeoutMs) {
+        const requestId = entry.nextRequestId++;
+        return new Promise((resolve2, reject2) => {
+          const timeoutHandle = setTimeout(() => {
+            entry.pendingRequests.delete(requestId);
+            reject2(new Error(`Gemini ACP ${method} timed out after ${Math.round(timeoutMs / 1e3)}s`));
+          }, timeoutMs);
+          entry.pendingRequests.set(requestId, {
+            resolve: (value) => {
+              clearTimeout(timeoutHandle);
+              resolve2(value);
+            },
+            reject: (error) => {
+              clearTimeout(timeoutHandle);
+              reject2(error);
+            }
+          });
+          try {
+            this.writeJsonLine(entry, {
+              jsonrpc: "2.0",
+              id: requestId,
+              method,
+              params
+            });
+          } catch (error) {
+            clearTimeout(timeoutHandle);
+            entry.pendingRequests.delete(requestId);
+            reject2(error instanceof Error ? error : new Error(String(error)));
+          }
+        });
+      }
+      writeJsonLine(entry, payload) {
+        if (!entry.proc.stdin || entry.proc.stdin.destroyed || !this.isAlive(entry)) {
+          throw new Error("Gemini ACP stdin is not writable.");
+        }
+        entry.proc.stdin.write(`${JSON.stringify(payload)}
+`);
+      }
+      rejectAllPending(entry, error) {
+        if (entry.activePrompt) {
+          clearInterval(entry.activePrompt.timeoutHandle);
+          entry.activePrompt = null;
+        }
+        for (const [requestId, pending] of entry.pendingRequests.entries()) {
+          entry.pendingRequests.delete(requestId);
+          pending.reject(error);
+        }
+      }
+      isAlive(entry) {
+        return entry.proc.exitCode === null && !entry.proc.killed;
+      }
+      resetIdleTimer(entry) {
+        if (entry.idleTimer) {
+          clearTimeout(entry.idleTimer);
+        }
+        entry.idleTimer = setTimeout(() => {
+          if (!entry.busy) {
+            log.info("CLI pool: evicting idle ACP process", {
+              poolKey: entry.poolKey,
+              sessionId: entry.sessionId
+            });
+            this.evict(entry.poolKey);
+          }
+        }, this.idleTimeoutMs);
+      }
+      evict(poolKey) {
+        const entry = this.pool.get(poolKey);
+        if (!entry) {
+          return;
+        }
+        if (entry.idleTimer) {
+          clearTimeout(entry.idleTimer);
+        }
+        this.rejectAllPending(entry, new Error(`CLI pool entry evicted: ${poolKey}`));
+        this.pool.delete(poolKey);
+        try {
+          if (this.isAlive(entry)) {
+            entry.proc.kill("SIGTERM");
+          }
+        } catch {
+        }
+        try {
+          entry.rl.close();
+        } catch {
+        }
+        entry.pendingRequests.clear();
+      }
+      evictOldestIdle() {
+        let oldest = null;
+        for (const entry of this.pool.values()) {
+          if (entry.busy) {
+            continue;
+          }
+          if (!oldest || entry.lastActivityAt < oldest.lastActivityAt) {
+            oldest = entry;
+          }
+        }
+        if (oldest) {
+          log.info("CLI pool: evicting oldest idle ACP process to make room", {
+            poolKey: oldest.poolKey
+          });
+          this.evict(oldest.poolKey);
+        }
+      }
+      kill(bindingKey) {
+        let killed = 0;
+        for (const [key] of this.pool) {
+          if (key.startsWith(bindingKey + ":")) {
+            this.evict(key);
+            killed++;
+          }
+        }
+        log.info("CLI pool: killed binding processes", { bindingKey, killed });
+      }
+      killAll() {
+        for (const [key] of this.pool) {
+          this.evict(key);
+        }
+      }
+      status() {
+        const now = Date.now();
+        const processes = [];
+        for (const entry of this.pool.values()) {
+          processes.push({
+            poolKey: entry.poolKey,
+            busy: entry.busy,
+            aliveMs: now - entry.spawnedAt,
+            lastActivityMs: now - entry.lastActivityAt,
+            allowedTools: entry.allowedTools
+          });
+        }
+        return {
+          total: this.pool.size,
+          busy: processes.filter((process2) => process2.busy).length,
+          idle: processes.filter((process2) => !process2.busy).length,
+          maxSize: this.maxSize,
+          processes
+        };
+      }
+    };
+  }
+});
+
 // src/daemon/attachments.ts
 function getSupportedAttachmentMetadata(message) {
   return getSupportedAttachments(message).map(toConversationAttachment);
@@ -87506,8 +89380,8 @@ async function downloadSupportedAttachments(message, attachmentsRootDir, geminiP
   if (attachments.length === 0) {
     return [];
   }
-  const targetDir = path10.join(attachmentsRootDir, sanitizeFilename(message.id));
-  await fs11.mkdir(targetDir, { recursive: true });
+  const targetDir = path12.join(attachmentsRootDir, sanitizeFilename(message.id));
+  await fs13.mkdir(targetDir, { recursive: true });
   const downloads = attachments.map(async (attachment, index) => {
     try {
       const response = await fetch(attachment.url);
@@ -87516,9 +89390,9 @@ async function downloadSupportedAttachments(message, attachmentsRootDir, geminiP
       }
       const buffer = Buffer.from(await response.arrayBuffer());
       const safeName = sanitizeFilename(attachment.name || `${attachment.kind}-${index + 1}.bin`);
-      const localPath = path10.join(targetDir, `${index + 1}-${safeName}`);
-      await fs11.writeFile(localPath, buffer);
-      const relativePath = path10.relative(geminiProjectDir, localPath);
+      const localPath = path12.join(targetDir, `${index + 1}-${safeName}`);
+      await fs13.writeFile(localPath, buffer);
+      const relativePath = path12.relative(geminiProjectDir, localPath);
       const metadata = toConversationAttachment({
         ...attachment,
         sizeBytes: buffer.length
@@ -87545,7 +89419,7 @@ async function downloadSupportedAttachments(message, attachmentsRootDir, geminiP
     (item) => item !== null
   );
   if (downloaded.length === 0) {
-    await fs11.rm(targetDir, { recursive: true, force: true }).catch(() => {
+    await fs13.rm(targetDir, { recursive: true, force: true }).catch(() => {
     });
   }
   return downloaded;
@@ -87576,7 +89450,7 @@ function classifySupportedAttachment(contentType, name) {
     if (baseType === "application/pdf") return "pdf";
     if (isTextLikeApplicationType(baseType)) return "text";
   }
-  const extension = path10.extname(name).toLowerCase();
+  const extension = path12.extname(name).toLowerCase();
   if (IMAGE_EXTENSIONS.has(extension)) return "image";
   if (VIDEO_EXTENSIONS.has(extension)) return "video";
   if (AUDIO_EXTENSIONS.has(extension)) return "audio";
@@ -87617,7 +89491,7 @@ function resolveAttachmentMimeType(attachment) {
   if (attachment.contentType) {
     return normalizeContentType(attachment.contentType);
   }
-  const extension = path10.extname(attachment.name).toLowerCase();
+  const extension = path12.extname(attachment.name).toLowerCase();
   switch (extension) {
     case ".jpg":
     case ".jpeg":
@@ -87671,12 +89545,12 @@ function toConversationAttachment(attachment) {
 function sanitizeFilename(filename) {
   return filename.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
-var fs11, path10, MAX_SUPPORTED_ATTACHMENTS, MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, MAX_AUDIO_BYTES, MAX_PDF_BYTES, MAX_TEXT_BYTES, MAX_INLINE_ATTACHMENT_BYTES, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, AUDIO_EXTENSIONS, PDF_EXTENSIONS, TEXT_EXTENSIONS;
+var fs13, path12, MAX_SUPPORTED_ATTACHMENTS, MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, MAX_AUDIO_BYTES, MAX_PDF_BYTES, MAX_TEXT_BYTES, MAX_INLINE_ATTACHMENT_BYTES, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, AUDIO_EXTENSIONS, PDF_EXTENSIONS, TEXT_EXTENSIONS;
 var init_attachments = __esm({
   "src/daemon/attachments.ts"() {
     "use strict";
-    fs11 = __toESM(require("node:fs/promises"), 1);
-    path10 = __toESM(require("node:path"), 1);
+    fs13 = __toESM(require("node:fs/promises"), 1);
+    path12 = __toESM(require("node:path"), 1);
     init_log();
     MAX_SUPPORTED_ATTACHMENTS = 4;
     MAX_IMAGE_BYTES = 35 * 1024 * 1024;
@@ -87837,6 +89711,9 @@ function isAllowedGuildChannel(input, config) {
   if (config.allowedChannelIds.includes(input.channelId)) {
     return true;
   }
+  if (input.parentChannelId && config.allowedChannelIds.includes(input.parentChannelId)) {
+    return true;
+  }
   return config.allowedChannelIds.length === 0 && Boolean(config.discordServerId) && input.guildId === config.discordServerId;
 }
 var init_routing = __esm({
@@ -87850,22 +89727,22 @@ var init_routing = __esm({
 function createClient(config) {
   log.info("Client creating", { enableDMs: config.enableDMs, bossConfigured: Boolean(config.discordBossUserId) });
   const intents = [
-    import_discord4.GatewayIntentBits.Guilds,
-    import_discord4.GatewayIntentBits.GuildMessages,
-    import_discord4.GatewayIntentBits.GuildIntegrations,
-    import_discord4.GatewayIntentBits.MessageContent
+    import_discord5.GatewayIntentBits.Guilds,
+    import_discord5.GatewayIntentBits.GuildMessages,
+    import_discord5.GatewayIntentBits.GuildIntegrations,
+    import_discord5.GatewayIntentBits.MessageContent
   ];
   if (config.enableServerMembersIntent !== false) {
-    intents.push(import_discord4.GatewayIntentBits.GuildMembers);
+    intents.push(import_discord5.GatewayIntentBits.GuildMembers);
   }
   if (config.enableDMs) {
-    intents.push(import_discord4.GatewayIntentBits.DirectMessages);
-    intents.push(import_discord4.GatewayIntentBits.DirectMessageTyping);
+    intents.push(import_discord5.GatewayIntentBits.DirectMessages);
+    intents.push(import_discord5.GatewayIntentBits.DirectMessageTyping);
   }
-  return new import_discord4.Client({
+  return new import_discord5.Client({
     intents,
-    partials: config.enableDMs ? [import_discord4.Partials.Channel, import_discord4.Partials.Message, import_discord4.Partials.User, import_discord4.Partials.GuildMember, import_discord4.Partials.Reaction, import_discord4.Partials.ThreadMember] : [],
-    makeCache: import_discord4.Options.cacheWithLimits({
+    partials: config.enableDMs ? [import_discord5.Partials.Channel, import_discord5.Partials.Message, import_discord5.Partials.User, import_discord5.Partials.GuildMember, import_discord5.Partials.Reaction, import_discord5.Partials.ThreadMember] : [],
+    makeCache: import_discord5.Options.cacheWithLimits({
       MessageManager: { maxSize: 50 },
       GuildMemberManager: { maxSize: 10 },
       PresenceManager: { maxSize: 0 },
@@ -87966,7 +89843,8 @@ function setupMessageHandler(client, config, callbacks, isShuttingDown) {
         isDM,
         mentionedBot,
         repliedToBot,
-        replyToMessageId
+        replyToMessageId,
+        parentChannelId: origin.channelId
       }, config);
       if (!decision.accept) {
         if (decision.trackOnly && decision.speakerKind && callbacks.onIgnoredMessage) {
@@ -88083,13 +89961,17 @@ function isAllowedGuildChannel2(message, config) {
   if (config.allowedChannelIds.includes(message.channelId)) {
     return true;
   }
+  const parentId = message.channel.parentId ?? null;
+  if (parentId && config.allowedChannelIds.includes(parentId)) {
+    return true;
+  }
   return config.allowedChannelIds.length === 0 && Boolean(config.discordServerId) && message.guildId === config.discordServerId;
 }
-var import_discord4;
+var import_discord5;
 var init_bot = __esm({
   "src/daemon/bot.ts"() {
     "use strict";
-    import_discord4 = __toESM(require_src(), 1);
+    import_discord5 = __toESM(require_src(), 1);
     init_log();
     init_attachments();
     init_routing();
@@ -88099,12 +89981,33 @@ var init_bot = __esm({
 });
 
 // src/daemon/commands.ts
+function buildGuildCommandPayloads(commands = COMMANDS) {
+  return commands.map((cmd) => {
+    const { contexts, integration_types, ...guildCommand } = cmd.toJSON();
+    return guildCommand;
+  });
+}
+function buildDmOnlyGlobalCommandPayloads(commands = COMMANDS) {
+  return commands.map((cmd) => cmd.toJSON()).filter((command) => DM_COMMAND_NAMES.has(command.name)).map((command) => {
+    const {
+      contexts,
+      integration_types,
+      ...baseCommand
+    } = command;
+    return {
+      ...baseCommand,
+      contexts: [import_discord6.InteractionContextType.BotDM],
+      integration_types: [import_discord6.ApplicationIntegrationType.GuildInstall]
+    };
+  });
+}
 async function registerGuildCommands(client, config) {
-  const rest = new import_discord5.REST({ version: "10" }).setToken(config.discordBotToken);
+  const rest = new import_discord6.REST({ version: "10" }).setToken(config.discordBotToken);
   try {
+    const globalPayloads = buildDmOnlyGlobalCommandPayloads();
     await rest.put(
-      import_discord5.Routes.applicationCommands(client.user.id),
-      { body: COMMANDS.map((cmd) => cmd.toJSON()) }
+      import_discord6.Routes.applicationCommands(client.user.id),
+      { body: globalPayloads }
     );
     log.info("Registered global slash commands (for DMs)");
   } catch (error) {
@@ -88113,9 +90016,10 @@ async function registerGuildCommands(client, config) {
   const guilds = await client.guilds.fetch();
   for (const [guildId] of guilds) {
     try {
+      const guildPayloads = buildGuildCommandPayloads();
       await rest.put(
-        import_discord5.Routes.applicationGuildCommands(client.user.id, guildId),
-        { body: COMMANDS.map((cmd) => cmd.toJSON()) }
+        import_discord6.Routes.applicationGuildCommands(client.user.id, guildId),
+        { body: guildPayloads }
       );
       log.info(`Registered slash commands for guild: ${guildId}`);
     } catch (error) {
@@ -88123,10 +90027,10 @@ async function registerGuildCommands(client, config) {
     }
   }
 }
-function setupInteractionHandler(client, config, state2, memory, extensionDir2) {
+function setupInteractionHandler(client, config, state2, memory, extensionDir2, onWorkflowThreadCreated) {
   client.on("interactionCreate", async (interaction) => {
     if (interaction.isAutocomplete()) {
-      await handleAutocomplete(interaction);
+      await handleAutocomplete(interaction, config);
       return;
     }
     if (!interaction.isChatInputCommand()) return;
@@ -88135,6 +90039,13 @@ function setupInteractionHandler(client, config, state2, memory, extensionDir2) 
       displayLabel: interaction.user.tag
     });
     const isBossUser = isBoss(roleContext);
+    if (!interaction.guildId && !isBossUser) {
+      await interaction.reply({
+        content: "You do not have permission to use DM bot management commands.",
+        ephemeral: true
+      });
+      return;
+    }
     const isAllowed = config.allowedUserIds.includes(interaction.user.id);
     const isOwner = config.ownerIds.includes(interaction.user.id);
     if (!isBossUser && !isOwner && !isAllowed) {
@@ -88216,13 +90127,14 @@ function setupInteractionHandler(client, config, state2, memory, extensionDir2) 
       if (!await authorizeInteraction(interaction, roleContext, "model_config")) return;
       const newModel = interaction.options.getString("name", true);
       const oldModel = config.geminiModel;
-      if (!AVAILABLE_MODELS.includes(newModel)) {
-        await interaction.reply({ content: `Invalid model. Available: ${AVAILABLE_MODELS.join(", ")}`, ephemeral: true });
+      const models = config.geminiAvailableModels && config.geminiAvailableModels.length > 0 ? config.geminiAvailableModels : DEFAULT_AVAILABLE_MODELS;
+      if (!models.includes(newModel)) {
+        await interaction.reply({ content: `Invalid model. Available: ${models.join(", ")}`, ephemeral: true });
         return;
       }
       await interaction.deferReply();
       try {
-        const isValid = await validateModel(config.geminiPath, newModel);
+        const isValid = await validateModel(config, newModel);
         if (!isValid) {
           throw new Error(`Model \`${newModel}\` failed validation check.`);
         }
@@ -88234,9 +90146,51 @@ function setupInteractionHandler(client, config, state2, memory, extensionDir2) 
 Confirmation: Gemini CLI verified connectivity.`);
       } catch (error) {
         log.error("Model switch failed", { error: error instanceof Error ? error.message : String(error) });
-        await interaction.editReply(`**Model switch failed.** 
+        await interaction.editReply(`**Model switch failed.**
 Error: \`${error instanceof Error ? error.message : String(error)}\`
 Action: Reverted to \`${oldModel}\`.`);
+      }
+      return;
+    }
+    if (commandName === "workflow") {
+      if (!await authorizeInteraction(interaction, roleContext, "admin_command")) return;
+      let task = interaction.options.getString("task", true);
+      const messageId = interaction.options.getString("message_id") ?? void 0;
+      try {
+        task = validateWorkflowTaskSummary(task);
+      } catch (error) {
+        const message = error instanceof WorkflowTaskValidationError ? error.message : String(error);
+        await interaction.reply({
+          content: `\u274C ${message}`,
+          ephemeral: true,
+          allowedMentions: SUPPRESS_DISCORD_MENTIONS
+        });
+        return;
+      }
+      await interaction.deferReply();
+      try {
+        const { threadId, thread } = await createWorkflowThread(
+          client,
+          config,
+          extensionDir2,
+          {
+            taskSummary: task,
+            creatorUserId: interaction.user.id,
+            sourceChannelId: interaction.channelId,
+            sourceMessageId: messageId
+          }
+        );
+        await interaction.editReply({
+          content: `\u{1F9F9} **Monitored Workflow Thread Created:** <#${threadId}>`,
+          allowedMentions: SUPPRESS_DISCORD_MENTIONS
+        });
+        onWorkflowThreadCreated?.({ interaction, thread, task, roleContext });
+      } catch (error) {
+        log.error("Failed to create workflow thread from slash command", { error: error instanceof Error ? error.message : String(error) });
+        await interaction.editReply({
+          content: `\u274C **Failed to create workflow thread:** ${error instanceof Error ? error.message : String(error)}`,
+          allowedMentions: SUPPRESS_DISCORD_MENTIONS
+        });
       }
       return;
     }
@@ -88250,18 +90204,19 @@ async function authorizeInteraction(interaction, roleContext, action) {
   await interaction.reply({ content: formatPermissionDenial(decision), ephemeral: true });
   return false;
 }
-async function handleAutocomplete(interaction) {
+async function handleAutocomplete(interaction, config) {
   const focusedValue = interaction.options.getFocused();
-  const filtered = AVAILABLE_MODELS.filter((choice) => choice.startsWith(focusedValue));
+  const models = config.geminiAvailableModels && config.geminiAvailableModels.length > 0 ? config.geminiAvailableModels : DEFAULT_AVAILABLE_MODELS;
+  const filtered = models.filter((choice) => choice.startsWith(focusedValue));
   await interaction.respond(
     filtered.map((choice) => ({ name: choice, value: choice }))
   );
 }
-async function validateModel(geminiPath, model) {
+async function validateModel(config, model) {
   return new Promise((resolve2) => {
-    const proc = (0, import_node_child_process3.spawn)(geminiPath, ["--model", model, "-p", "ping", "--output-format", "json"], {
+    const proc = (0, import_node_child_process4.spawn)(config.geminiPath, ["--model", model, "-p", "ping", "--output-format", "json"], {
       timeout: 15e3,
-      env: { ...process.env }
+      env: buildGeminiProcessEnv(config, resolveLocalValidationRoleContext(config))
     });
     proc.on("close", (code) => {
       resolve2(code === 0);
@@ -88271,30 +90226,58 @@ async function validateModel(geminiPath, model) {
     });
   });
 }
-var import_discord5, import_node_child_process3, COMMANDS, AVAILABLE_MODELS;
+function resolveLocalValidationRoleContext(config) {
+  return {
+    role: "BOSS",
+    senderDiscordId: config.discordBossUserId,
+    senderDisplayLabel: "local model validation",
+    bossLabel: "the boss",
+    bossConfigValid: Boolean(config.discordBossUserId),
+    bossConfigReason: config.discordBossUserId ? void 0 : "missing"
+  };
+}
+var import_discord6, import_node_child_process4, COMMANDS, DM_COMMAND_NAMES, DEFAULT_AVAILABLE_MODELS;
 var init_commands = __esm({
   "src/daemon/commands.ts"() {
     "use strict";
-    import_discord5 = __toESM(require_src(), 1);
+    import_discord6 = __toESM(require_src(), 1);
     init_log();
-    import_node_child_process3 = require("node:child_process");
+    import_node_child_process4 = require("node:child_process");
     init_config();
     init_runtime();
     init_session_reset();
     init_permissions();
+    init_thread_creator();
+    init_task_validation();
+    init_cli_pool();
+    init_mention_safety();
     COMMANDS = [
-      new import_discord5.SlashCommandBuilder().setName("new").setDescription("Start a fresh Gemini conversation for this channel.").setDefaultMemberPermissions(import_discord5.PermissionFlagsBits.ManageMessages),
-      new import_discord5.SlashCommandBuilder().setName("model").setDescription("Switch the active Gemini model.").addStringOption(
+      new import_discord6.SlashCommandBuilder().setName("new").setDescription("Start a fresh Gemini conversation for this channel.").setDefaultMemberPermissions(import_discord6.PermissionFlagsBits.ManageMessages),
+      new import_discord6.SlashCommandBuilder().setName("model").setDescription("Switch the active Gemini model.").addStringOption(
         (option) => option.setName("name").setDescription("The name of the model to use.").setRequired(true).setAutocomplete(true)
-      ).setDefaultMemberPermissions(import_discord5.PermissionFlagsBits.Administrator),
-      new import_discord5.SlashCommandBuilder().setName("status").setDescription("Show the current daemon health and status."),
-      new import_discord5.SlashCommandBuilder().setName("ping").setDescription("Check the bot latency."),
-      new import_discord5.SlashCommandBuilder().setName("pool").setDescription("Show CLI process pool status.").setDefaultMemberPermissions(import_discord5.PermissionFlagsBits.Administrator),
-      new import_discord5.SlashCommandBuilder().setName("kill").setDescription("Kill a specific CLI pool process.").setDefaultMemberPermissions(import_discord5.PermissionFlagsBits.Administrator).addStringOption(
+      ).setDefaultMemberPermissions(import_discord6.PermissionFlagsBits.Administrator),
+      new import_discord6.SlashCommandBuilder().setName("status").setDescription("Show the current daemon health and status."),
+      new import_discord6.SlashCommandBuilder().setName("ping").setDescription("Check the bot latency."),
+      new import_discord6.SlashCommandBuilder().setName("pool").setDescription("Show CLI process pool status.").setDefaultMemberPermissions(import_discord6.PermissionFlagsBits.Administrator),
+      new import_discord6.SlashCommandBuilder().setName("kill").setDescription("Kill a specific CLI pool process.").setDefaultMemberPermissions(import_discord6.PermissionFlagsBits.Administrator).addStringOption(
         (option) => option.setName("session").setDescription("Pool key to kill").setRequired(true)
+      ),
+      new import_discord6.SlashCommandBuilder().setName("workflow").setDescription("Create a monitored workflow thread for a task.").setDefaultMemberPermissions(import_discord6.PermissionFlagsBits.ManageMessages).addStringOption(
+        (option) => option.setName("task").setDescription("Description of the task to execute").setRequired(true)
+      ).addStringOption(
+        (option) => option.setName("message_id").setDescription("Optional ID of a message to promote to a thread").setRequired(false)
       )
     ];
-    AVAILABLE_MODELS = [
+    DM_COMMAND_NAMES = /* @__PURE__ */ new Set([
+      "new",
+      "model",
+      "status",
+      "ping",
+      "pool",
+      "kill",
+      "workflow"
+    ]);
+    DEFAULT_AVAILABLE_MODELS = [
       "gemini-3.1-pro-preview",
       "gemini-3-flash-preview",
       "gemini-3.1-flash-lite-preview",
@@ -88610,14 +90593,37 @@ var init_background_context = __esm({
   }
 });
 
+// src/daemon/workflow/seed-context.ts
+function buildWorkflowSeedContext(manifest) {
+  const originType = manifest.originContext.type === "dm" ? "Direct Message (DM)" : "Channel";
+  return `You are executing a task inside an opt-in monitored workflow thread.
+The user Yamato requested this workflow thread to run a specific task.
+
+Context:
+- Task Goal: "${manifest.taskSummary}"
+- Creator: <@${manifest.creatorUserId}>
+- Origin: ${originType} (Source channel: ${manifest.originContext.sourceChannelId})
+
+Important Directives:
+- Focus solely on achieving the task goal.
+- You are running in a clean, thread-scoped isolated session with no chat history from the parent channel/DM.
+- Be concise, direct, and execute tools to make progress. Do not converse or narrate unnecessarily.
+`;
+}
+var init_seed_context = __esm({
+  "src/daemon/workflow/seed-context.ts"() {
+    "use strict";
+  }
+});
+
 // src/daemon/gemini-project.ts
 function resolveGeminiProjectDir(extensionDir2) {
-  const resolved = path11.resolve(extensionDir2);
-  const parts = resolved.split(path11.sep);
+  const resolved = path13.resolve(extensionDir2);
+  const parts = resolved.split(path13.sep);
   for (let index = parts.length - 1; index >= 0; index -= 1) {
     if (parts[index] === ".gemini") {
-      const prefix = parts.slice(0, index + 1).join(path11.sep);
-      return prefix || path11.sep;
+      const prefix = parts.slice(0, index + 1).join(path13.sep);
+      return prefix || path13.sep;
     }
   }
   return resolved;
@@ -88626,16 +90632,16 @@ function resolveBindingResumeSessionId(state2) {
   const sessionId = state2.lastSessionId?.trim();
   return sessionId ? sessionId : null;
 }
-var path11;
+var path13;
 var init_gemini_project = __esm({
   "src/daemon/gemini-project.ts"() {
     "use strict";
-    path11 = __toESM(require("node:path"), 1);
+    path13 = __toESM(require("node:path"), 1);
   }
 });
 
 // src/daemon/engine-cli.ts
-async function processViaCli(message, accepted, config, memory, processingContext, geminiSemaphore, channel, toolMode) {
+async function processViaCli(message, accepted, config, memory, processingContext, geminiSemaphore, channel, toolMode, extensionDir2, traceCallbacks) {
   let targetMessage = message;
   if (isBoss(accepted.roleContext) && message.attachments.size === 0 && message.reference?.messageId) {
     try {
@@ -88650,9 +90656,10 @@ async function processViaCli(message, accepted, config, memory, processingContex
   if ((targetMessage.attachments.size > 0 || attachmentMetadata.length > 0) && !isBoss(accepted.roleContext)) {
     const decision = authorizeAction("attachment_processing", accepted.roleContext);
     const responseText = formatPermissionDenial(decision);
-    const messageIds = await sendPreparedDisplayText(channel, responseText);
+    const messageIds = await sendPreparedDisplayText(channel, responseText, config);
     return { response: responseText, messageIds, attachments: [], sessionId: void 0 };
   }
+  const isWorkflow = isWorkflowThread(extensionDir2, message.channelId);
   const allowPersistentSession = isBoss(accepted.roleContext) && config.useGeminiCliSessions;
   const bindingState = loadGeminiBindingState(processingContext.bindingDir);
   const resumeSessionId = allowPersistentSession ? resolveBindingResumeSessionId(bindingState) : null;
@@ -88689,6 +90696,13 @@ async function processViaCli(message, accepted, config, memory, processingContex
   }) : void 0;
   if (allowPersistentSession) {
     const immediateContext = shouldUseImmediateMentionContext(accepted.trigger, accepted.content) ? selectImmediateMentionContext(memory.snapshot(processingContext.sessionKey), incomingPrompt) : [];
+    let seedContextOverride;
+    if (isWorkflow && !resumeSessionId) {
+      const manifest = loadThreadManifest(extensionDir2, message.channelId);
+      if (manifest) {
+        seedContextOverride = buildWorkflowSeedContext(manifest);
+      }
+    }
     prompt = buildSessionModePrompt({
       incoming: incomingPrompt,
       bossUserId: config.discordBossUserId,
@@ -88696,7 +90710,8 @@ async function processViaCli(message, accepted, config, memory, processingContex
       allowedAgentIds: config.allowedAgentIds,
       botUserId: message.client.user?.id ?? null,
       immediateContext,
-      backgroundContext
+      backgroundContext,
+      seedContextOverride
     });
   } else {
     const fullHistorySnapshot = memory.snapshot(processingContext.sessionKey);
@@ -88718,7 +90733,7 @@ async function processViaCli(message, accepted, config, memory, processingContex
   let response = "";
   let responseMessageIds = [];
   let currentSessionId = null;
-  const editor = config.streaming ? new LiveEditor({ placeholderDelayMs: null }) : null;
+  const editor = config.streaming && !isWorkflow ? new LiveEditor({ placeholderDelayMs: null }) : null;
   if (editor) await editor.init(channel);
   let feedbackMessageId = null;
   await geminiSemaphore.acquireWithTimeout(2e3, () => {
@@ -88768,12 +90783,16 @@ async function processViaCli(message, accepted, config, memory, processingContex
       response = await sendViaCli(
         {
           onToken: (token) => editor.feed(token),
-          onThought: () => editor.feedThought()
+          onThought: () => editor.feedThought(),
+          onTraceEvent: traceCallbacks?.onTraceEvent
         }
       );
-      const prepared = await finalizeAssistantResponse(response, message, isBoss(accepted.roleContext));
+      const prepared = await finalizeAssistantResponse(response, message, {
+        allowPrivilegedActions: isBoss(accepted.roleContext)
+      });
       response = prepared.responseText;
-      responseMessageIds = await editor.finalize(prepared.displayText, chunkMessage, {
+      const customChunkFn = (t) => chunkMessage(t, config.chunkerLimit);
+      responseMessageIds = await editor.finalize(prepared.displayText, customChunkFn, {
         allowEmpty: prepared.allowEmpty,
         rawText: response
       });
@@ -88800,13 +90819,29 @@ async function processViaCli(message, accepted, config, memory, processingContex
             onToken: () => {
             },
             onThought: () => {
-            }
+            },
+            onTraceEvent: traceCallbacks?.onTraceEvent
           }
         );
         clearInterval(typingInterval);
-        const prepared = await finalizeAssistantResponse(response, message, isBoss(accepted.roleContext));
+        if (isWorkflow) {
+          if (allowPersistentSession) {
+            recordGeminiBindingSession(processingContext.bindingDir, currentSessionId ?? bindingState.lastSessionId);
+          }
+          return {
+            response,
+            messageIds: [],
+            attachments: attachmentMetadata,
+            sessionId: currentSessionId ?? bindingState.lastSessionId ?? void 0
+          };
+        }
+        const prepared = await finalizeAssistantResponse(response, message, {
+          allowPrivilegedActions: isBoss(accepted.roleContext)
+        });
         response = prepared.responseText;
-        responseMessageIds = await sendPreparedDisplayText(channel, prepared.displayText);
+        responseMessageIds = await sendPreparedDisplayText(channel, prepared.displayText, config, {
+          chunkerLimit: config.chunkerLimit
+        });
         responseMessageIds.push(...prepared.actionMessageIds);
         if (allowPersistentSession) {
           recordGeminiBindingSession(processingContext.bindingDir, currentSessionId ?? bindingState.lastSessionId);
@@ -88823,6 +90858,9 @@ async function processViaCli(message, accepted, config, memory, processingContex
       }
     }
   } catch (err) {
+    if (isWorkflow) {
+      throw err;
+    }
     if (editor) await editor.sendError(formatError(err));
     else await retrySend(() => channel.send(formatError(err))).catch(() => {
     });
@@ -88834,7 +90872,7 @@ async function processViaCli(message, accepted, config, memory, processingContex
       });
     }
     if (downloadedAttachments.length > 0) {
-      const targetDir = path12.dirname(downloadedAttachments[0].localPath);
+      const targetDir = path14.dirname(downloadedAttachments[0].localPath);
       for (const att of downloadedAttachments) {
         try {
           await fsp2.unlink(att.localPath);
@@ -88848,10 +90886,10 @@ async function processViaCli(message, accepted, config, memory, processingContex
     }
   }
 }
-async function finalizeAssistantResponse(rawResponse, message, allowPrivilegedActions) {
+async function finalizeAssistantResponse(rawResponse, message, options) {
   const sanitized = sanitizeFullResponse(rawResponse);
   const actionResult = await processCrossChannelSends(sanitized, message.client, {
-    allowPrivileged: allowPrivilegedActions
+    allowPrivileged: options.allowPrivilegedActions
   });
   return {
     displayText: actionResult.cleanedResponse,
@@ -88860,25 +90898,39 @@ async function finalizeAssistantResponse(rawResponse, message, allowPrivilegedAc
     actionMessageIds: actionResult.messageIds
   };
 }
-async function sendPreparedDisplayText(channel, displayText) {
+async function sendPreparedDisplayText(channel, displayText, config, options = {}) {
   if (!displayText.trim()) {
     return [];
   }
   const messageIds = [];
-  const chunks = chunkMessage(displayText);
+  const chunks = chunkMessage(displayText, options.chunkerLimit);
+  const allowedMentions = options.suppressMentions ? SUPPRESS_DISCORD_MENTIONS : resolveAllowedMentions(config);
   for (const chunk of chunks) {
-    const sent = await retrySend(() => channel.send(chunk));
+    const payload = { content: chunk, allowedMentions };
+    const sent = await retrySend(() => channel.send(payload));
     messageIds.push(sent.id);
   }
   return messageIds;
 }
 function resolveProcessingContext(config, message, accepted, extensionDir2) {
+  const isWorkflow = isWorkflowThread(extensionDir2, message.channelId);
   if (!isBoss(accepted.roleContext)) {
     const guestKey = message.guildId ? `guest:${message.author.id}:channel:${message.channelId}:message:${message.id}` : `guest:${message.author.id}:dm:${message.channelId}:message:${message.id}`;
     const bindingWorkspace2 = ensureGeminiBindingWorkspace(extensionDir2, guestKey);
     return {
       sessionKey: guestKey,
       bindingKey: guestKey,
+      bindingDir: bindingWorkspace2.bindingDir,
+      attachmentsDir: bindingWorkspace2.attachmentsDir,
+      geminiProjectDir: resolveGeminiProjectDir(extensionDir2)
+    };
+  }
+  if (isWorkflow) {
+    const threadKey = `thread:${message.channelId}`;
+    const bindingWorkspace2 = ensureGeminiBindingWorkspace(extensionDir2, threadKey);
+    return {
+      sessionKey: threadKey,
+      bindingKey: threadKey,
       bindingDir: bindingWorkspace2.bindingDir,
       attachmentsDir: bindingWorkspace2.attachmentsDir,
       geminiProjectDir: resolveGeminiProjectDir(extensionDir2)
@@ -88915,7 +90967,7 @@ function shouldRetryWithFreshSession(error, resumeSessionId) {
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return message.includes("exited with code") || message.includes("returned no assistant output") || message.includes("resume_session_unavailable");
 }
-var fsp2, path12, ERROR_MATCHERS;
+var fsp2, path14, ERROR_MATCHERS;
 var init_engine_cli = __esm({
   "src/daemon/engine-cli.ts"() {
     "use strict";
@@ -88929,11 +90981,14 @@ var init_engine_cli = __esm({
     init_background_context();
     init_runtime();
     init_log();
+    init_mention_safety();
     init_permissions();
     init_binding();
+    init_thread_manifest();
+    init_seed_context();
     init_gemini_project();
     fsp2 = __toESM(require("node:fs/promises"), 1);
-    path12 = __toESM(require("node:path"), 1);
+    path14 = __toESM(require("node:path"), 1);
     ERROR_MATCHERS = [
       {
         match: (msg) => msg.includes("timed out") || msg.includes("stalled"),
@@ -89182,7 +91237,7 @@ async function discoverGuildDefaults(client, config) {
   if (config.discordChannelId) {
     try {
       const channel = await client.channels.fetch(config.discordChannelId);
-      if (channel && channel.type !== import_discord6.ChannelType.DM && "guild" in channel && channel.guild) {
+      if (channel && channel.type !== import_discord7.ChannelType.DM && "guild" in channel && channel.guild) {
         result.primaryGuildId = channel.guild.id;
         result.primaryGuildName = channel.guild.name;
         result.primaryChannelName = "name" in channel && typeof channel.name === "string" ? channel.name : "";
@@ -89198,7 +91253,7 @@ async function discoverGuildDefaults(client, config) {
   const guild = await client.guilds.fetch(guildId);
   const channels = await guild.channels.fetch();
   const eligible = channels.filter(
-    (channel) => channel && (channel.type === import_discord6.ChannelType.GuildText || channel.type === import_discord6.ChannelType.GuildAnnouncement)
+    (channel) => channel && (channel.type === import_discord7.ChannelType.GuildText || channel.type === import_discord7.ChannelType.GuildAnnouncement)
   ).map((channel) => ({ id: channel.id, name: channel.name })).sort((left, right) => left.name.localeCompare(right.name));
   if (!result.primaryGuildId) {
     result.primaryGuildId = guild.id;
@@ -89219,26 +91274,997 @@ function getChannelName2(message) {
   }
   return `channel-${message.channelId}`;
 }
-var import_discord6;
+var import_discord7;
 var init_onboarding = __esm({
   "src/daemon/onboarding.ts"() {
     "use strict";
-    import_discord6 = __toESM(require_src(), 1);
+    import_discord7 = __toESM(require_src(), 1);
     init_config();
     init_config_vars();
     init_log();
   }
 });
 
+// src/daemon/workflow/trace-renderer.ts
+function flags() {
+  return { source: "trace_renderer", doNotRoute: true, doNotPersist: true };
+}
+function suppressed() {
+  return {
+    content: "",
+    density: "row",
+    suppressed: true,
+    flags: flags()
+  };
+}
+function statusGlyph(status) {
+  switch (status) {
+    case "started":
+      return "\u2301";
+    case "progress":
+      return "\u21BB";
+    case "completed":
+      return "\u2713";
+    case "failed":
+      return "\u2717";
+    case "cancelled":
+      return "\u26A0";
+  }
+}
+function stringArg(args, ...keys) {
+  for (const key of keys) {
+    const value = args[key];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return "";
+}
+function boolArg(args, ...keys) {
+  return keys.some((key) => args[key] === true || args[key] === "true");
+}
+function intArg(args, ...keys) {
+  for (const key of keys) {
+    const value = args[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && /^\d+$/.test(value)) return Number(value);
+  }
+  return null;
+}
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function shortenHomePaths(value) {
+  const homeDir = os2.homedir().replace(/\\/g, "/");
+  if (!homeDir) return value;
+  const escapedHome = escapeRegExp(homeDir);
+  return value.replace(new RegExp(`${escapedHome}/`, "g"), "~/").replace(new RegExp(`${escapedHome}(?=$|\\s)`, "g"), "~");
+}
+function shortPath(path15) {
+  if (!path15) return "";
+  const normalized = path15.replace(/\\/g, "/");
+  const homeDir = os2.homedir().replace(/\\/g, "/");
+  if (homeDir && normalized.startsWith(`${homeDir}/`)) {
+    return normalized.replace(`${homeDir}/`, "~/");
+  } else if (homeDir && normalized === homeDir) {
+    return "~";
+  }
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length <= 4) return normalized;
+  return `${parts[0]}/.../${parts.slice(-2).join("/")}`;
+}
+function parseHeredocTarget(cmd) {
+  const match = cmd.match(/(?:cat\s*<<\s*['"]?(\w+)['"]?\s*>\s*(\S+)|cat\s*>\s*(\S+)\s*<<\s*['"]?(\w+)['"]?)/i);
+  if (!match) return null;
+  const file = shortPath(match[2] || match[3] || "");
+  const marker = match[1] || match[4] || "EOF";
+  const lines = cmd.split(/\r?\n/);
+  const contentLines = [];
+  let inContent = false;
+  for (const line of lines) {
+    if (inContent) {
+      if (line.trim() === marker) {
+        break;
+      }
+      contentLines.push(line);
+    } else if (line.includes("<<") && line.includes(marker)) {
+      inContent = true;
+    }
+  }
+  return {
+    file,
+    lines: contentLines.length,
+    content: contentLines.join("\n")
+  };
+}
+function summarizeCommand(cmd) {
+  const collapsed = shortenHomePaths(cmd).trim();
+  if (collapsed.startsWith("mkdir -p ")) {
+    return `mkdir -p ${shortPath(collapsed.substring(9))}`;
+  }
+  const heredoc = parseHeredocTarget(collapsed);
+  if (heredoc) {
+    return `cat << 'EOF' > ${heredoc.file}`;
+  }
+  if (collapsed.includes("python") && !/\s-c\s/.test(collapsed)) {
+    const match = collapsed.match(/(?:^|\/|~)(?:python3|python)\s+(\S+)/);
+    if (match) {
+      return `python3 ${shortPath(match[1])}`;
+    }
+  }
+  if (collapsed.length <= 120) return collapsed;
+  return collapsed.slice(0, 117) + "...";
+}
+function truncateLines(text, maxLines = 10, keepEnd = false) {
+  const lines = text.trimEnd().split(/\r?\n/);
+  if (lines.length <= maxLines) return text;
+  if (keepEnd) {
+    const hiddenCount = lines.length - maxLines;
+    const preview = lines.slice(hiddenCount).join("\n");
+    return `... first ${hiddenCount} lines hidden ...
+${preview}`;
+  } else {
+    const hiddenCount = lines.length - maxLines;
+    const preview = lines.slice(0, maxLines).join("\n");
+    return `${preview}
+... ${hiddenCount} lines truncated ...`;
+  }
+}
+function truncate2(text, maxLength) {
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength)}...`;
+}
+function oneLine(text, maxLength = 180) {
+  return truncate2(text.replace(/\s+/g, " ").trim(), maxLength);
+}
+function inlineCode(text) {
+  const safe = text.replace(/`/g, "'");
+  return `\`${truncate2(safe, 180)}\``;
+}
+function codeBlock(language, text) {
+  const safe = text.replace(/```/g, "'''");
+  return `\`\`\`${language}
+${safe}
+\`\`\``;
+}
+function filenameFor(event) {
+  const rawName = event.displayName || event.toolName || "tool-output";
+  const safeName = rawName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "tool-output";
+  return `workflow-${safeName}-${event.timestamp}.txt`;
+}
+function attachmentFor(event, detail) {
+  if (detail.length < ATTACHMENT_THRESHOLD) return null;
+  return new import_discord8.AttachmentBuilder(Buffer.from(detail, "utf8"), { name: filenameFor(event) });
+}
+function compactArgs(args, preferred) {
+  const parts = [];
+  for (const key of preferred) {
+    const value = args[key];
+    if (value === void 0 || value === null || value === "") continue;
+    if (typeof value === "string") {
+      parts.push(`${key}: ${truncate2(value, 80)}`);
+    } else if (typeof value === "number" || typeof value === "boolean") {
+      parts.push(`${key}: ${String(value)}`);
+    } else {
+      parts.push(`${key}: ${truncate2(JSON.stringify(value), 80)}`);
+    }
+    if (parts.length >= 3) break;
+  }
+  return parts.join(", ");
+}
+function resultSuffix(event, fallback = "") {
+  const result = event.resultSummary || fallback;
+  return result ? ` \u2192 ${oneLine(result, 240)}` : "";
+}
+function terminalLine(event, title, body = "") {
+  const suffix = body.trim() ? ` ${body.trim()}` : "";
+  return `${statusGlyph(event.status)} **${title}**${suffix}`.trim();
+}
+function outputBlock(language, text) {
+  const value = text.trimEnd();
+  return value ? codeBlock(language, value) : "";
+}
+function languageForPath(path15) {
+  const ext = path15.split(".").pop()?.toLowerCase();
+  switch (ext) {
+    case "go":
+      return "go";
+    case "ts":
+    case "tsx":
+      return "ts";
+    case "js":
+    case "jsx":
+      return "js";
+    case "json":
+      return "json";
+    case "md":
+      return "md";
+    case "py":
+      return "py";
+    case "sh":
+      return "sh";
+    default:
+      return "txt";
+  }
+}
+function diffNewContent(detail) {
+  const marker = detail.match(/\+\+\+ new\n([\s\S]*)$/);
+  return marker?.[1]?.trimEnd() ?? "";
+}
+function diffOldNewContent(detail) {
+  const match = detail.match(/--- old\n([\s\S]*?)\n\+\+\+ new\n([\s\S]*)$/);
+  if (!match) return null;
+  return {
+    oldText: match[1].trimEnd(),
+    newText: match[2].trimEnd()
+  };
+}
+function compactDiffHunk(detail) {
+  const parsed = diffOldNewContent(detail);
+  if (!parsed) return diffNewContent(detail);
+  const oldLines = parsed.oldText.split(/\r?\n/);
+  const newLines = parsed.newText.split(/\r?\n/);
+  let prefix = 0;
+  while (prefix < oldLines.length && prefix < newLines.length && oldLines[prefix] === newLines[prefix]) {
+    prefix += 1;
+  }
+  let suffix = 0;
+  while (suffix < oldLines.length - prefix && suffix < newLines.length - prefix && oldLines[oldLines.length - 1 - suffix] === newLines[newLines.length - 1 - suffix]) {
+    suffix += 1;
+  }
+  const contextBefore = oldLines.slice(Math.max(0, prefix - 2), prefix).map((line) => ` ${line}`);
+  const removed = oldLines.slice(prefix, oldLines.length - suffix).map((line) => `-${line}`);
+  const added = newLines.slice(prefix, newLines.length - suffix).map((line) => `+${line}`);
+  const contextAfter = oldLines.slice(oldLines.length - suffix, Math.min(oldLines.length, oldLines.length - suffix + 2)).map((line) => ` ${line}`);
+  const hunk = [...contextBefore, ...removed, ...added, ...contextAfter].filter((line) => line.length > 1);
+  return hunk.length ? hunk.join("\n") : diffNewContent(detail);
+}
+function card(event, title, lines) {
+  return {
+    content: [
+      terminalLine(event, title),
+      ...lines.filter(Boolean).slice(0, 4)
+    ].join("\n"),
+    density: "card",
+    flags: flags()
+  };
+}
+function shellCommand(event) {
+  return stringArg(event.args, "command", "commandLine", "CommandLine");
+}
+function filePath(event) {
+  return stringArg(event.args, "file_path", "path", "filePath", "TargetFile");
+}
+function searchTarget(event) {
+  return stringArg(event.args, "pattern", "query", "Query", "include");
+}
+function readFileResult(event) {
+  const start = intArg(event.args, "start_line", "startLine", "offset");
+  const end = intArg(event.args, "end_line", "endLine");
+  const limit = intArg(event.args, "limit");
+  if (start !== null && end !== null) return `Read lines ${start}-${end}`;
+  if (start !== null && limit !== null) return `Read lines ${start}-${start + limit}`;
+  return event.resultSummary ? truncate2(event.resultSummary.replace(/\s+/g, " "), 180) : "Read file";
+}
+function cleanSuccessfulMetadata(text, event) {
+  if (event.status !== "completed") return text;
+  return text.split(/\r?\n/).filter((line) => {
+    const trimmed = line.trim();
+    return !/^\[current working directory\b[^\]]*\]$/i.test(trimmed) && !/^\((?:Executing|Creating|Running|Using|Reading|Compiling|Listing|Writing)\b[\s\S]*\)$/i.test(trimmed);
+  }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+function cleanShellOutput(event) {
+  const detail = event.resultDetail || event.resultSummary || "";
+  if (/command substitution detected in shell command/i.test(detail)) {
+    return "";
+  }
+  return cleanSuccessfulMetadata(detail, event);
+}
+function directoryCount(event) {
+  const text = [event.resultSummary, event.resultDetail].filter(Boolean).join("\n");
+  const countMatch = text.match(/Found\s+(\d+)\s+item\(s\)|Listed\s+(\d+)\s+entries|(\d+)\s+entries|(\d+)\s+files|listed\s+(\d+)/i);
+  return countMatch?.[1] || countMatch?.[2] || countMatch?.[3] || countMatch?.[4] || countMatch?.[5] || "n";
+}
+function writeFileAction(event) {
+  const text = [event.resultSummary, event.resultDetail].filter(Boolean).join("\n");
+  const accepted = text.match(/\bAccepted\s*(\(\+\d+,\s*-\d+\))?/i);
+  if (accepted) {
+    return accepted[1] ? `Accepted \`${accepted[1].replace(/\s+/g, " ")}\`` : "Accepted";
+  }
+  if (/created|new file|\+\+\+\s+new/i.test(text)) return "Created";
+  return "Updated";
+}
+function compactToolResult(text, maxLength = 180) {
+  return shortenHomePaths(oneLine(text, maxLength)).replace(/:\s*Showing up to \d+ items.*$/i, ".");
+}
+var import_discord8, os2, TRACE_LIMIT, ATTACHMENT_THRESHOLD, ShellRenderer, FilesystemRenderer, SearchRenderer, WebRenderer, PlanningRenderer, McpRenderer, InteractionRenderer, GenericFallbackRenderer, TraceRendererRegistry;
+var init_trace_renderer = __esm({
+  "src/daemon/workflow/trace-renderer.ts"() {
+    "use strict";
+    import_discord8 = __toESM(require_src(), 1);
+    os2 = __toESM(require("node:os"), 1);
+    TRACE_LIMIT = 1900;
+    ATTACHMENT_THRESHOLD = 1200;
+    ShellRenderer = class {
+      canRender(event) {
+        return event.canonicalToolName === "run_shell_command" || event.toolFamily === "shell";
+      }
+      render(event) {
+        const command = shellCommand(event);
+        if (boolArg(event.args, "is_background", "isBackground")) {
+          const statusText = event.status === "completed" ? " \u2192 Moved to background" : " \u2192 Starting in background...";
+          return {
+            content: `${statusGlyph(event.status)} **Shell** ${inlineCode(summarizeCommand(command))}${statusText}`,
+            density: "row",
+            flags: flags()
+          };
+        }
+        if (event.status === "started") {
+          return suppressed();
+        }
+        if (event.status === "progress") {
+          return suppressed();
+        }
+        const previewLines = [];
+        const detail = cleanShellOutput(event);
+        if (detail.trim()) {
+          const attachment2 = attachmentFor(event, detail);
+          const truncatedOutput = truncateLines(detail, 10, event.status === "failed");
+          previewLines.push(outputBlock("txt", truncatedOutput));
+          if (attachment2) {
+            previewLines.push("\u21B3 full output attached");
+          }
+        }
+        const content = [
+          `${statusGlyph(event.status)} **Shell** ${inlineCode(summarizeCommand(command))}`,
+          ...previewLines
+        ].join("\n");
+        const attachment = attachmentFor(event, detail);
+        return {
+          content,
+          files: attachment ? [attachment] : void 0,
+          density: previewLines.length > 0 ? "panel" : "row",
+          flags: flags()
+        };
+      }
+    };
+    FilesystemRenderer = class {
+      canRender(event) {
+        return event.toolFamily === "filesystem";
+      }
+      render(event) {
+        const canonical = event.canonicalToolName;
+        const path15 = filePath(event);
+        if (event.status === "started" || event.status === "progress") {
+          return suppressed();
+        }
+        if (canonical === "replace") {
+          const added = intArg(event.args, "added", "lines_added");
+          const removed = intArg(event.args, "removed", "lines_removed");
+          const delta = added !== null || removed !== null ? ` (+${added ?? 0}, -${removed ?? 0})` : "";
+          const hunk = event.resultDetail ? compactDiffHunk(event.resultDetail) : "";
+          return {
+            content: [
+              `${statusGlyph(event.status)} **Edit** ${path15 ? inlineCode(shortPath(path15)) : ""} \u2192 Accepted${delta}`,
+              hunk ? outputBlock("diff", truncateLines(hunk, 12)) : ""
+            ].filter(Boolean).join("\n"),
+            density: hunk ? "panel" : "row",
+            flags: flags()
+          };
+        }
+        if (canonical === "write_file") {
+          const action = writeFileAction(event);
+          const statusText = event.status === "completed" ? ` \u2192 ${action}` : "";
+          return {
+            content: `${statusGlyph(event.status)} **WriteFile** ${path15 ? inlineCode(shortPath(path15)) : ""}${statusText}`,
+            density: "row",
+            flags: flags()
+          };
+        }
+        if (canonical === "read_file") {
+          const detail = event.resultDetail || "";
+          return {
+            content: [
+              `${statusGlyph(event.status)} **ReadFile** ${path15 ? inlineCode(shortPath(path15)) : ""} \u2192 ${readFileResult(event)}`,
+              detail ? outputBlock(languageForPath(path15), truncateLines(detail, 10)) : ""
+            ].filter(Boolean).join("\n"),
+            density: detail ? "panel" : "row",
+            flags: flags()
+          };
+        }
+        if (canonical === "read_many_files") {
+          const include = stringArg(event.args, "include");
+          const filesCount = event.resultSummary?.match(/Read\s+(\d+)\s+file/i)?.[1] || "n";
+          return {
+            content: `${statusGlyph(event.status)} **ReadManyFiles** ${include ? inlineCode(include) : "files"}
+\u21B3 Read ${filesCount} file(s)`,
+            density: "card",
+            flags: flags()
+          };
+        }
+        if (canonical === "list_directory") {
+          const dir = stringArg(event.args, "dir_path", "path");
+          const count = directoryCount(event);
+          return {
+            content: `${statusGlyph(event.status)} **ReadFolder** ${dir ? inlineCode(shortPath(dir)) : "directory"} \u2192 Found ${count} item(s)`,
+            density: "row",
+            flags: flags()
+          };
+        }
+        return {
+          content: `${statusGlyph(event.status)} **${event.displayName || event.toolName}** ${path15 ? inlineCode(shortPath(path15)) : ""}${resultSuffix(event)}`,
+          density: "row",
+          flags: flags()
+        };
+      }
+    };
+    SearchRenderer = class {
+      canRender(event) {
+        return event.toolFamily === "search";
+      }
+      render(event) {
+        if (event.status === "started" || event.status === "progress") {
+          return suppressed();
+        }
+        const canonical = event.canonicalToolName;
+        const query = searchTarget(event);
+        const dir = stringArg(event.args, "dir_path", "path");
+        if (canonical === "grep_search") {
+          const matchCount = event.resultSummary?.match(/Found\s+(\d+)\s+matches/i)?.[1] || "n";
+          const dirText = dir ? ` in ${inlineCode(shortPath(dir))}` : "";
+          return {
+            content: `${statusGlyph(event.status)} **SearchText** '${query}'${dirText} \u2192 Found ${matchCount} matches`,
+            density: "row",
+            flags: flags()
+          };
+        }
+        if (canonical === "glob") {
+          const fileCount = event.resultSummary?.match(/Found\s+(\d+)\s+files/i)?.[1] || "n";
+          return {
+            content: `${statusGlyph(event.status)} **Glob** ${query ? inlineCode(query) : "pattern"} \u2192 Found ${fileCount} files`,
+            density: "row",
+            flags: flags()
+          };
+        }
+        const within = dir ? ` within ${inlineCode(shortPath(dir))}` : "";
+        return {
+          content: `${statusGlyph(event.status)} **${event.displayName || event.toolName}** ${query ? inlineCode(query) : ""}${within}${resultSuffix(event)}`,
+          density: "row",
+          flags: flags()
+        };
+      }
+    };
+    WebRenderer = class {
+      canRender(event) {
+        return event.toolFamily === "web";
+      }
+      render(event) {
+        const canonical = event.canonicalToolName;
+        const query = stringArg(event.args, "query", "prompt", "url", "Url");
+        if (canonical === "google_web_search") {
+          if (event.status === "started" || event.status === "progress") {
+            return {
+              content: `${statusGlyph(event.status)} **GoogleSearch**  Searching the web for: \`"${oneLine(query, 120)}"\``,
+              density: "row",
+              flags: flags()
+            };
+          }
+          const resultText = event.status === "completed" ? `\u21B3 Search results for \`"${oneLine(query, 120)}"\` returned.` : `\u21B3 Failed or cancelled search.`;
+          return {
+            content: `${statusGlyph(event.status)} **GoogleSearch**  Searching the web for: \`"${oneLine(query, 120)}"\`
+${resultText}`,
+            density: "row",
+            flags: flags()
+          };
+        }
+        if (canonical === "web_fetch") {
+          const target = query ? inlineCode(oneLine(query, 160)) : "prompt";
+          const summary = event.status === "completed" ? compactToolResult(event.resultSummary || "Content retrieved") : event.status === "failed" ? compactToolResult(event.resultSummary || "Fetch failed") : "";
+          return {
+            content: [
+              `${statusGlyph(event.status)} **Web Fetch** ${target}`,
+              summary ? `\u21B3 ${summary}` : ""
+            ].filter(Boolean).join("\n"),
+            density: summary ? "card" : "row",
+            flags: flags()
+          };
+        }
+        if (event.status === "started" || event.status === "progress") {
+          return {
+            content: `${statusGlyph(event.status)} **WebFetch** ${query ? inlineCode(oneLine(query, 160)) : ""}`.trim(),
+            density: "row",
+            flags: flags()
+          };
+        }
+        const title = event.displayName || "WebFetch";
+        return {
+          content: `${statusGlyph(event.status)} **${title}** ${query ? inlineCode(query) : ""}${resultSuffix(event, "Content retrieved")}`,
+          density: "row",
+          flags: flags()
+        };
+      }
+    };
+    PlanningRenderer = class {
+      canRender(event) {
+        const isUpdateTopic = event.canonicalToolName === "update_topic" || event.toolName === "update_topic" || !!event.displayName?.toLowerCase().includes("update topic") || !!event.displayName?.toLowerCase().includes("updatetopic");
+        return event.toolFamily === "planning" || event.type === "phase_started" || isUpdateTopic;
+      }
+      render(event) {
+        const displayName = event.displayName || "";
+        if (/update\s+tactical\s+intent|tactical\s+intent/i.test(displayName)) {
+          return suppressed();
+        }
+        const isUpdateTopic = event.canonicalToolName === "update_topic" || event.toolName === "update_topic" || !!displayName.toLowerCase().includes("update topic") || !!displayName.toLowerCase().includes("updatetopic");
+        if (isUpdateTopic) {
+          if (event.status === "started" || event.status === "progress") {
+            return suppressed();
+          }
+          const title = stringArg(event.args, "topic", "title") || event.resultSummary?.match(/Topic:\s*([^\n]+)/)?.[1] || event.displayName?.replace(/^Update\s+topic\s+to\s*/i, "") || "";
+          let summaryLine = stringArg(event.args, "summary");
+          if (!summaryLine) {
+            const summaryMatch = event.resultSummary?.match(/Summary:\s*([^\n]+)/i);
+            if (summaryMatch) {
+              summaryLine = summaryMatch[1];
+            }
+          }
+          if (summaryLine) {
+            summaryLine = summaryLine.trim().split(/\r?\n/)[0];
+            summaryLine = summaryLine.replace(/^(Strategy|Intent|Summary):\s*/i, "");
+            summaryLine = oneLine(summaryLine, 120);
+          }
+          const content = summaryLine ? `**${oneLine(title, 120)}:** ${summaryLine}` : `**${oneLine(title, 120)}**`;
+          return {
+            content: title ? content : "",
+            density: "row",
+            suppressed: !title,
+            flags: flags()
+          };
+        }
+        const summary = event.resultSummary || compactArgs(event.args, ["title", "summary", "reason", "taskId"]);
+        if (event.type === "phase_started") {
+          return suppressed();
+        }
+        return card(event, event.displayName || "Planning", summary ? [summary] : []);
+      }
+    };
+    McpRenderer = class {
+      canRender(event) {
+        return event.toolFamily === "mcp";
+      }
+      render(event) {
+        if (event.canonicalToolName === "activate_skill") {
+          const skillName = stringArg(event.args, "name", "skill", "skillName");
+          const label = skillName ? inlineCode(skillName) : "skill";
+          const summary = event.status === "completed" ? compactToolResult(event.resultSummary || "Skill activated") : event.status === "failed" ? compactToolResult(event.resultSummary || "Activation failed") : "";
+          return {
+            content: [
+              `${statusGlyph(event.status)} **Activate Skill** ${label}`,
+              summary ? `\u21B3 ${summary}` : ""
+            ].filter(Boolean).join("\n"),
+            density: summary ? "card" : "row",
+            flags: flags()
+          };
+        }
+        const rawToolName = event.toolName || "";
+        let serverName = "";
+        if (rawToolName.includes("/")) {
+          serverName = rawToolName.split("/")[0];
+        } else if (rawToolName.startsWith("mcp_")) {
+          const parts = rawToolName.split("_");
+          if (parts.length > 1) {
+            serverName = parts[1];
+          }
+        }
+        if (!serverName) serverName = "mcp";
+        const args = compactArgs(event.args, ["namespace", "query", "name", "path", "uri", "prompt"]);
+        if (event.status === "started" || event.status === "progress") {
+          return {
+            content: `${statusGlyph(event.status)} **MCPTool** (${serverName}) ${args ? `{${args}}` : ""}`,
+            density: "row",
+            flags: flags()
+          };
+        }
+        const resultText = event.resultSummary ? ` \u2192 ${oneLine(event.resultSummary, 120)}` : "";
+        return {
+          content: `${statusGlyph(event.status)} **MCPTool** (${serverName}) ${args ? `{${args}}` : ""}${resultText}`,
+          density: "row",
+          flags: flags()
+        };
+      }
+    };
+    InteractionRenderer = class {
+      canRender(event) {
+        return event.toolFamily === "interaction";
+      }
+      render(event) {
+        if (event.status === "started" || event.status === "progress") {
+          return suppressed();
+        }
+        const prompt = stringArg(event.args, "prompt", "question");
+        return card(event, event.displayName || "AskUser", [prompt ? inlineCode(prompt) : "? clarification needed"]);
+      }
+    };
+    GenericFallbackRenderer = class {
+      canRender() {
+        return true;
+      }
+      render(event) {
+        const title = event.displayName || event.toolName || "Tool";
+        if (/update\s+tactical\s+intent|tactical\s+intent/i.test(title)) {
+          return suppressed();
+        }
+        const args = compactArgs(event.args, Object.keys(event.args));
+        if (event.status === "started" || event.status === "progress") {
+          return {
+            content: `${statusGlyph(event.status)} **${title}** ${args ? `\`{${args}}\`` : ""}`,
+            density: "row",
+            flags: flags()
+          };
+        }
+        const result = event.resultSummary ? ` \u2192 ${oneLine(event.resultSummary, 120)}` : "";
+        return {
+          content: `${statusGlyph(event.status)} **${title}** ${args ? `\`{${args}}\`` : ""}${result}`,
+          density: "row",
+          flags: flags()
+        };
+      }
+    };
+    TraceRendererRegistry = class {
+      renderers = [];
+      fallbackRenderer = new GenericFallbackRenderer();
+      constructor() {
+        this.register(new ShellRenderer());
+        this.register(new FilesystemRenderer());
+        this.register(new SearchRenderer());
+        this.register(new WebRenderer());
+        this.register(new PlanningRenderer());
+        this.register(new McpRenderer());
+        this.register(new InteractionRenderer());
+      }
+      register(renderer) {
+        this.renderers.push(renderer);
+      }
+      render(event) {
+        for (const renderer of this.renderers) {
+          if (renderer.canRender(event)) {
+            const rendered = renderer.render(event);
+            if (rendered.content.length > TRACE_LIMIT) {
+              rendered.content = truncate2(rendered.content, TRACE_LIMIT);
+            }
+            return rendered;
+          }
+        }
+        return this.fallbackRenderer.render(event);
+      }
+    };
+  }
+});
+
+// src/daemon/workflow/trace-dispatcher.ts
+function resolveToolCallId(event) {
+  if (typeof event.raw?.["toolCallId"] === "string") {
+    return event.raw["toolCallId"];
+  }
+  const toolCall = event.raw?.toolCall;
+  return typeof toolCall?.id === "string" ? toolCall.id : null;
+}
+function resolveLogicalToolKey(event) {
+  const canonical = event.canonicalToolName;
+  if (!canonical) return null;
+  if (canonical === "run_shell_command" || event.toolFamily === "shell") {
+    const command = stringArg2(event.args, "command", "commandLine", "CommandLine");
+    return command ? `logical:shell:${command.replace(/\s+/g, " ").trim()}` : null;
+  }
+  if (canonical === "write_file" || canonical === "replace") {
+    const path15 = stringArg2(event.args, "file_path", "path", "filePath", "TargetFile");
+    return path15 ? `logical:${canonical}:${path15}` : null;
+  }
+  return null;
+}
+function stringArg2(args, ...keys) {
+  for (const key of keys) {
+    const value = args[key];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return "";
+}
+function formatFinalResponseBlock(response) {
+  const trimmed = response.trim().replace(/^\u2726\s*/, "");
+  if (!trimmed) return "";
+  const quoted = trimmed.split(/\r?\n/).map((line) => `> ${line}`).join("\n");
+  return `**Final Answer**
+${quoted}`;
+}
+var TraceDispatcher;
+var init_trace_dispatcher = __esm({
+  "src/daemon/workflow/trace-dispatcher.ts"() {
+    "use strict";
+    init_log();
+    init_mention_safety();
+    init_chunker();
+    TraceDispatcher = class {
+      constructor(threadChannel, registry) {
+        this.threadChannel = threadChannel;
+        this.registry = registry;
+      }
+      activeMessages = /* @__PURE__ */ new Map();
+      headerMessage = null;
+      startedAt = Date.now();
+      toolCallCount = 0;
+      currentStep = null;
+      seenToolCallIds = /* @__PURE__ */ new Set();
+      hasTraceEvents = false;
+      heartbeatTimer = null;
+      fallbackCounters = /* @__PURE__ */ new Map();
+      lastEditTimes = /* @__PURE__ */ new Map();
+      logicalToolCallIds = /* @__PURE__ */ new Map();
+      renderedTopic = false;
+      topicMessage = null;
+      getEffectiveToolCallId(event) {
+        const id = resolveToolCallId(event);
+        const logicalKey = resolveLogicalToolKey(event);
+        if (logicalKey) {
+          const existing = this.logicalToolCallIds.get(logicalKey);
+          if (existing) return existing;
+          if (id) {
+            this.logicalToolCallIds.set(logicalKey, id);
+            return id;
+          }
+        } else if (id) {
+          return id;
+        }
+        if (!event.canonicalToolName) return null;
+        const baseKey = logicalKey ?? `fallback:${event.canonicalToolName}`;
+        if (!this.fallbackCounters.has(baseKey)) {
+          this.fallbackCounters.set(baseKey, 1);
+        }
+        let count = this.fallbackCounters.get(baseKey);
+        if (event.status === "started" || event.type === "tool_started") {
+          if (this.activeMessages.has(`${baseKey}:${count}`)) {
+            count += 1;
+            this.fallbackCounters.set(baseKey, count);
+          }
+        }
+        const fallbackId = `${baseKey}:${count}`;
+        if (logicalKey) {
+          this.logicalToolCallIds.set(logicalKey, fallbackId);
+        }
+        return fallbackId;
+      }
+      async dispatch(event) {
+        try {
+          if (event.policySuppressed) {
+            this.hasTraceEvents = true;
+            if (event.displayName || event.toolName) {
+              this.currentStep = event.displayName || event.toolName;
+            }
+            await this.updateRunHeader("running");
+            return;
+          }
+          const rendered = this.registry.render(event);
+          const isUpdateTopic = event.canonicalToolName === "update_topic" || event.toolName === "update_topic" || event.displayName?.toLowerCase().includes("update topic") || event.displayName?.toLowerCase().includes("updatetopic");
+          if (isUpdateTopic) {
+            if (!rendered.suppressed) {
+              if (this.renderedTopic) {
+                return;
+              }
+              this.renderedTopic = true;
+            }
+          }
+          if (rendered.suppressed) {
+            this.hasTraceEvents = true;
+            if (event.displayName || event.toolName) {
+              this.currentStep = event.displayName || event.toolName;
+            }
+            await this.updateRunHeader("running");
+            return;
+          }
+          const payload = {
+            content: rendered.content,
+            embeds: rendered.embeds,
+            files: rendered.files,
+            allowedMentions: SUPPRESS_DISCORD_MENTIONS
+          };
+          this.hasTraceEvents = true;
+          const toolCallId = this.getEffectiveToolCallId(event);
+          if (!isUpdateTopic && (toolCallId ? !this.seenToolCallIds.has(toolCallId) : event.type === "tool_started")) {
+            this.toolCallCount += 1;
+            if (toolCallId) {
+              this.seenToolCallIds.add(toolCallId);
+            }
+          }
+          if (event.displayName || event.toolName) {
+            this.currentStep = event.displayName || event.toolName;
+          }
+          await this.updateRunHeader("running");
+          if (toolCallId) {
+            const existingMessage = this.activeMessages.get(toolCallId);
+            if (existingMessage) {
+              if (event.status === "progress") {
+                const lastEdit = this.lastEditTimes.get(toolCallId) ?? 0;
+                if (Date.now() - lastEdit >= 1e3) {
+                  await existingMessage.edit(payload);
+                  this.lastEditTimes.set(toolCallId, Date.now());
+                }
+                return;
+              } else if (event.status === "completed" || event.status === "failed" || event.status === "cancelled") {
+                await existingMessage.edit(payload);
+                this.lastEditTimes.set(toolCallId, Date.now());
+                return;
+              }
+            }
+          }
+          const sent = await this.threadChannel.send(payload);
+          if (isUpdateTopic) {
+            this.topicMessage = sent;
+          } else if (toolCallId) {
+            this.activeMessages.set(toolCallId, sent);
+            this.lastEditTimes.set(toolCallId, Date.now());
+          }
+        } catch (error) {
+          log.warn("Failed to dispatch trace event to Discord", { error: String(error) });
+        }
+      }
+      async dispatchRunHeader(manifest) {
+        try {
+          this.startedAt = Date.now();
+          this.toolCallCount = 0;
+          this.currentStep = null;
+          this.seenToolCallIds.clear();
+          this.logicalToolCallIds.clear();
+          this.hasTraceEvents = false;
+          this.renderedTopic = false;
+          this.topicMessage = null;
+          this.headerMessage = await this.threadChannel.send({
+            content: `\u25CC **Queued** \xB7 ${this.formatTask(manifest.taskSummary)}`,
+            allowedMentions: SUPPRESS_DISCORD_MENTIONS
+          });
+          this.startHeartbeat();
+          await this.updateRunHeader("running");
+        } catch (error) {
+          log.warn("Failed to dispatch run header", { error: String(error) });
+        }
+      }
+      async dispatchRunComplete() {
+        this.stopHeartbeat();
+        await this.updateRunHeader("complete");
+        await this.cleanupSimpleWorkflowTopic();
+      }
+      async dispatchRunFailed(error) {
+        this.stopHeartbeat();
+        const message = error instanceof Error ? error.message : String(error);
+        await this.updateRunHeader("failed", message);
+        await this.cleanupSimpleWorkflowTopic();
+      }
+      async cleanupSimpleWorkflowTopic() {
+        if (this.toolCallCount <= 1 && this.topicMessage) {
+          try {
+            if (typeof this.topicMessage.delete === "function") {
+              await this.topicMessage.delete();
+            }
+          } catch (error) {
+            log.warn("Failed to delete topic message for simple workflow", { error: String(error) });
+          }
+          this.topicMessage = null;
+        }
+      }
+      async dispatchFinalResponse(response) {
+        const content = formatFinalResponseBlock(response);
+        if (!content) return [];
+        const messageIds = [];
+        try {
+          for (const chunk of chunkMessage(content)) {
+            const sent = await this.threadChannel.send({
+              content: chunk,
+              allowedMentions: SUPPRESS_DISCORD_MENTIONS
+            });
+            messageIds.push(sent.id);
+          }
+          return messageIds;
+        } catch (error) {
+          log.warn("Failed to dispatch final response", { error: String(error) });
+          return [];
+        }
+      }
+      async updateRunHeader(state2, detail) {
+        if (!this.headerMessage) return;
+        const elapsed = this.formatElapsed(Date.now() - this.startedAt);
+        let content;
+        if (state2 === "complete") {
+          content = `\u2713 **Complete** \`${elapsed}\` \xB7 \`${this.toolCallCount}\` tool call${this.toolCallCount === 1 ? "" : "s"}`;
+        } else if (state2 === "failed") {
+          const suffix = detail ? ` \xB7 ${detail.slice(0, 160)}` : "";
+          content = `\u2717 **Failed** \`${elapsed}\` \xB7 \`${this.toolCallCount}\` tool call${this.toolCallCount === 1 ? "" : "s"}${suffix}`;
+        } else {
+          const suffix = this.currentStep ? ` \xB7 current step: \`${this.currentStep}\`` : this.hasTraceEvents ? "" : " \xB7 waiting for first tool event";
+          content = `\u2301 **Running** \`${elapsed}\`${suffix}`;
+        }
+        try {
+          await this.headerMessage.edit({
+            content,
+            allowedMentions: SUPPRESS_DISCORD_MENTIONS
+          });
+        } catch (error) {
+          log.warn("Failed to update trace run header", { error: String(error) });
+        }
+      }
+      formatElapsed(ms) {
+        const seconds = Math.max(0, Math.round(ms / 1e3));
+        const minutes = Math.floor(seconds / 60);
+        const remainder = seconds % 60;
+        return minutes > 0 ? `${minutes}m ${remainder}s` : `${seconds}s`;
+      }
+      formatTask(task) {
+        const trimmed = task.trim().replace(/\s+/g, " ");
+        return trimmed.length > 120 ? `${trimmed.slice(0, 117)}...` : trimmed;
+      }
+      startHeartbeat() {
+        this.stopHeartbeat();
+        this.heartbeatTimer = setInterval(() => {
+          this.updateRunHeader("running").catch(() => {
+          });
+        }, 15e3);
+      }
+      stopHeartbeat() {
+        if (!this.heartbeatTimer) return;
+        clearInterval(this.heartbeatTimer);
+        this.heartbeatTimer = null;
+      }
+    };
+  }
+});
+
+// src/daemon/workflow/final-display.ts
+function formatWorkflowFinalDisplay(text) {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (trimmed.startsWith(WORKFLOW_FINAL_MARKER)) {
+    return trimmed.replace(/^\u2726\s*/, `${WORKFLOW_FINAL_MARKER} `);
+  }
+  return `${WORKFLOW_FINAL_MARKER} ${trimmed}`;
+}
+var WORKFLOW_FINAL_MARKER;
+var init_final_display = __esm({
+  "src/daemon/workflow/final-display.ts"() {
+    "use strict";
+    WORKFLOW_FINAL_MARKER = "\u2726";
+  }
+});
+
 // src/daemon/gateway.ts
 var gateway_exports = {};
 __export(gateway_exports, {
+  buildWorkflowApiRunAccepted: () => buildWorkflowApiRunAccepted,
+  buildWorkflowApiRunMessage: () => buildWorkflowApiRunMessage,
+  buildWorkflowInteractionRunAccepted: () => buildWorkflowInteractionRunAccepted,
+  buildWorkflowInteractionRunMessage: () => buildWorkflowInteractionRunMessage,
+  buildWorkflowRunAccepted: () => buildWorkflowRunAccepted,
+  buildWorkflowRunMessage: () => buildWorkflowRunMessage,
   initGateway: () => initGateway
 });
 async function initGateway(config, state2, memory, queue, apiServer, extensionDir2) {
   const client = createClient(config);
   runtimeStore.client = client;
-  setupInteractionHandler(client, config, state2, memory, extensionDir2);
+  runtimeStore.enqueueWorkflowRun = (request) => enqueueInitialWorkflowApiRun({
+    ...request,
+    client,
+    config,
+    memory,
+    state: state2,
+    extensionDir: extensionDir2
+  });
+  setupInteractionHandler(client, config, state2, memory, extensionDir2, ({ interaction, thread, task, roleContext }) => {
+    enqueueInitialWorkflowInteractionRun({
+      interaction,
+      thread,
+      task,
+      roleContext,
+      config,
+      memory,
+      state: state2,
+      extensionDir: extensionDir2
+    });
+  });
   setupReconnectHandlers(client, config, (status) => {
     state2.status = status;
   });
@@ -89300,6 +92326,55 @@ async function initGateway(config, state2, memory, queue, apiServer, extensionDi
   setupMessageHandler(client, config, {
     onMessage: (message, accepted) => {
       runtimeStore.lastInteractiveMessageAt = Date.now();
+      const contentTrimmed = message.content.trim();
+      const isWorkflowTextCmd = contentTrimmed.startsWith("!thread ") || contentTrimmed.startsWith("!workflow ");
+      if (isWorkflowTextCmd && isBoss(accepted.roleContext)) {
+        const prefix = contentTrimmed.startsWith("!thread ") ? "!thread " : "!workflow ";
+        let task = contentTrimmed.slice(prefix.length).trim();
+        if (task) {
+          try {
+            task = validateWorkflowTaskSummary(task);
+          } catch (err) {
+            const validationMessage = err instanceof WorkflowTaskValidationError ? err.message : String(err);
+            retrySend(() => message.reply({
+              content: `\u274C ${validationMessage}`,
+              allowedMentions: SUPPRESS_DISCORD_MENTIONS
+            })).catch(() => {
+            });
+            return;
+          }
+          createWorkflowThread(client, config, extensionDir2, {
+            taskSummary: task,
+            creatorUserId: message.author.id,
+            sourceChannelId: message.channelId,
+            sourceMessageId: message.id
+          }).then(({ threadId, thread }) => {
+            retrySend(() => message.reply({
+              content: `\u{1F9F9} **Monitored Workflow Thread Created:** <#${threadId}>`,
+              allowedMentions: SUPPRESS_DISCORD_MENTIONS
+            })).catch(() => {
+            });
+            enqueueInitialWorkflowRun({
+              message,
+              accepted,
+              thread,
+              task,
+              config,
+              memory,
+              state: state2,
+              extensionDir: extensionDir2
+            });
+          }).catch((err) => {
+            log.error("Failed to create workflow thread from text command", { error: String(err) });
+            retrySend(() => message.reply({
+              content: `\u274C **Failed to create workflow thread:** ${err instanceof Error ? err.message : String(err)}`,
+              allowedMentions: SUPPRESS_DISCORD_MENTIONS
+            })).catch(() => {
+            });
+          });
+          return;
+        }
+      }
       if (!message.guildId) {
         touchDmPairing(extensionDir2, message.author.id, message.channelId);
       } else if (accepted.speakerKind === "human" && isBoss(accepted.roleContext)) {
@@ -89339,21 +92414,15 @@ async function initGateway(config, state2, memory, queue, apiServer, extensionDi
       } else {
         runtimeStore.agentExchangeCount.set(message.channelId, 0);
       }
-      const queueKeys = [
-        `binding:${processingContext.bindingKey}`,
-        `memory:${processingContext.sessionKey}`
-      ];
-      const enqueued = runtimeStore.queue?.enqueue(queueKeys, async () => {
-        await processMessage(
-          message,
-          accepted,
-          config,
-          memory,
-          state2,
-          processingContext,
-          runtimeStore.geminiSemaphore
-        );
-      }) ?? false;
+      const enqueued = enqueueProcessingTurn({
+        message,
+        accepted,
+        config,
+        memory,
+        state: state2,
+        processingContext,
+        extensionDir: extensionDir2
+      });
       if (!enqueued) {
         retrySend(() => chan.send("\u23F3 Too many pending messages for this conversation. Please wait a moment and retry.")).catch(() => {
         });
@@ -89401,6 +92470,221 @@ async function initGateway(config, state2, memory, queue, apiServer, extensionDi
   }, () => runtimeStore.isShuttingDown);
   await client.login(config.discordBotToken);
   log.info("Discord login initiated");
+}
+function enqueueInitialWorkflowRun(opts) {
+  const workflowMessage = buildWorkflowRunMessage(opts.message, opts.thread, opts.task);
+  const workflowAccepted = buildWorkflowRunAccepted(opts.accepted, opts.message, opts.thread, opts.task);
+  enqueueWorkflowRun({
+    message: workflowMessage,
+    accepted: workflowAccepted,
+    thread: opts.thread,
+    sourceMessageId: opts.message.id,
+    config: opts.config,
+    memory: opts.memory,
+    state: opts.state,
+    extensionDir: opts.extensionDir
+  });
+}
+function enqueueInitialWorkflowInteractionRun(opts) {
+  const workflowMessage = buildWorkflowInteractionRunMessage(opts.interaction, opts.thread, opts.task);
+  const workflowAccepted = buildWorkflowInteractionRunAccepted(opts.interaction, opts.thread, opts.task, opts.roleContext);
+  enqueueWorkflowRun({
+    message: workflowMessage,
+    accepted: workflowAccepted,
+    thread: opts.thread,
+    sourceMessageId: opts.interaction.id,
+    config: opts.config,
+    memory: opts.memory,
+    state: opts.state,
+    extensionDir: opts.extensionDir
+  });
+}
+function enqueueInitialWorkflowApiRun(opts) {
+  const roleContext = opts.roleContext ?? resolveDiscordRole(opts.config, {
+    discordUserId: opts.creatorUserId,
+    displayLabel: opts.creatorUserId
+  });
+  const workflowMessage = buildWorkflowApiRunMessage(opts, roleContext, opts.client);
+  const workflowAccepted = buildWorkflowApiRunAccepted(opts, roleContext);
+  return enqueueWorkflowRun({
+    message: workflowMessage,
+    accepted: workflowAccepted,
+    thread: opts.thread,
+    sourceMessageId: opts.sourceMessageId ?? workflowMessage.id,
+    config: opts.config,
+    memory: opts.memory,
+    state: opts.state,
+    extensionDir: opts.extensionDir
+  });
+}
+function enqueueWorkflowRun(opts) {
+  const processingContext = resolveProcessingContext(opts.config, opts.message, opts.accepted, opts.extensionDir);
+  runtimeStore.agentExchangeCount.set(opts.thread.id, 0);
+  const enqueued = enqueueProcessingTurn({
+    message: opts.message,
+    accepted: opts.accepted,
+    config: opts.config,
+    memory: opts.memory,
+    state: opts.state,
+    processingContext,
+    extensionDir: opts.extensionDir
+  });
+  if (!enqueued) {
+    retrySend(() => opts.thread.send({
+      content: "\u23F3 Too many pending messages for this workflow. Please wait a moment and retry in the thread.",
+      allowedMentions: SUPPRESS_DISCORD_MENTIONS
+    })).catch(() => {
+    });
+    return false;
+  }
+  log.info("Initial workflow task enqueued", {
+    sourceMessageId: opts.sourceMessageId,
+    threadId: opts.thread.id,
+    sessionKey: processingContext.sessionKey
+  });
+  return true;
+}
+function enqueueProcessingTurn(opts) {
+  const queueKeys = [
+    `binding:${opts.processingContext.bindingKey}`,
+    `memory:${opts.processingContext.sessionKey}`
+  ];
+  return runtimeStore.queue?.enqueue(queueKeys, async () => {
+    await processMessage(
+      opts.message,
+      opts.accepted,
+      opts.config,
+      opts.memory,
+      opts.state,
+      opts.processingContext,
+      runtimeStore.geminiSemaphore,
+      opts.extensionDir
+    );
+  }) ?? false;
+}
+function buildWorkflowRunMessage(message, thread, task) {
+  return new Proxy(message, {
+    get(target, prop, receiver) {
+      if (prop === "channel") return thread;
+      if (prop === "channelId") return thread.id;
+      if (prop === "content") return task;
+      if (prop === "guildId") return thread.guildId ?? target.guildId;
+      return Reflect.get(target, prop, receiver);
+    }
+  });
+}
+function buildWorkflowRunAccepted(accepted, message, thread, task) {
+  return {
+    ...accepted,
+    content: task,
+    trigger: "workflow",
+    origin: {
+      ...accepted.origin,
+      guildId: thread.guildId ?? message.guildId ?? null,
+      channelId: thread.id,
+      threadId: thread.id,
+      targetChannelId: thread.id,
+      messageId: message.id,
+      userId: message.author.id
+    },
+    channelName: thread.name,
+    guildName: message.guild?.name ?? accepted.guildName,
+    replyToMessageId: null,
+    replyToAuthorId: null,
+    replyToAuthorName: null,
+    replyToContent: null,
+    replyToAttachments: [],
+    mentionContext: null
+  };
+}
+function buildWorkflowInteractionRunMessage(interaction, thread, task) {
+  const emptyAttachments = {
+    size: 0,
+    values: function* values() {
+      return;
+    }
+  };
+  return {
+    id: interaction.id,
+    content: task,
+    channel: thread,
+    channelId: thread.id,
+    guildId: thread.guildId ?? interaction.guildId ?? null,
+    guild: interaction.guild ?? null,
+    author: interaction.user,
+    client: interaction.client,
+    attachments: emptyAttachments,
+    reference: null
+  };
+}
+function buildWorkflowInteractionRunAccepted(interaction, thread, task, roleContext) {
+  return {
+    content: task,
+    speakerKind: "human",
+    trigger: "workflow",
+    origin: {
+      guildId: thread.guildId ?? interaction.guildId ?? null,
+      channelId: thread.id,
+      threadId: thread.id,
+      targetChannelId: thread.id,
+      messageId: interaction.id,
+      userId: interaction.user.id
+    },
+    channelName: thread.name,
+    guildName: interaction.guild?.name ?? null,
+    replyToMessageId: null,
+    replyToAuthorId: null,
+    replyToAuthorName: null,
+    replyToContent: null,
+    replyToAttachments: [],
+    mentionContext: null,
+    roleContext
+  };
+}
+function buildWorkflowApiRunMessage(opts, roleContext, client) {
+  const emptyAttachments = {
+    size: 0,
+    values: function* values() {
+      return;
+    }
+  };
+  const authorTag = roleContext.senderDisplayLabel || opts.creatorUserId;
+  return {
+    id: opts.sourceMessageId ?? `workflow-api-${opts.thread.id}`,
+    content: opts.task,
+    channel: opts.thread,
+    channelId: opts.thread.id,
+    guildId: opts.thread.guildId ?? null,
+    guild: opts.thread.guild ?? null,
+    author: { id: opts.creatorUserId, tag: authorTag, bot: false },
+    client,
+    attachments: emptyAttachments,
+    reference: null
+  };
+}
+function buildWorkflowApiRunAccepted(opts, roleContext) {
+  return {
+    content: opts.task,
+    speakerKind: "human",
+    trigger: "workflow",
+    origin: {
+      guildId: opts.thread.guildId ?? null,
+      channelId: opts.thread.id,
+      threadId: opts.thread.id,
+      targetChannelId: opts.thread.id,
+      messageId: opts.sourceMessageId ?? `workflow-api-${opts.thread.id}`,
+      userId: opts.creatorUserId
+    },
+    channelName: opts.thread.name,
+    guildName: opts.thread.guild?.name ?? null,
+    replyToMessageId: null,
+    replyToAuthorId: null,
+    replyToAuthorName: null,
+    replyToContent: null,
+    replyToAttachments: [],
+    mentionContext: null,
+    roleContext
+  };
 }
 function resolveConversationAuthorBridgeRole(authorId, speakerKind, roleContext, config, botUserId) {
   if (botUserId && authorId === botUserId) {
@@ -89452,10 +92736,17 @@ function isResetCommand(rawContent, normalizedContent, resetCommand, prefix) {
   }
   return false;
 }
-async function processMessage(message, accepted, config, memory, state2, processingContext, geminiSemaphore) {
+async function processMessage(message, accepted, config, memory, state2, processingContext, geminiSemaphore, extensionDir2) {
   const channel = message.channel;
   const startTime = Date.now();
-  let requestedToolMode = accepted.trigger === "cron" ? "discord" : resolveToolMode(accepted.content);
+  let requestedToolMode;
+  if (accepted.trigger === "cron") {
+    requestedToolMode = "discord";
+  } else if (accepted.trigger === "workflow") {
+    requestedToolMode = "full";
+  } else {
+    requestedToolMode = resolveToolMode(accepted.content);
+  }
   if (requestedToolMode === "chat" && shouldUseImmediateMentionContext(accepted.trigger, accepted.content)) {
     const immediateContext = selectImmediateMentionContext(memory.snapshot(processingContext.sessionKey), {
       channelId: message.channelId,
@@ -89478,6 +92769,8 @@ async function processMessage(message, accepted, config, memory, state2, process
   let response = "";
   let responseMessageIds = [];
   let geminiSessionId;
+  let traceDispatcher;
+  const isWorkflow = isWorkflowThread(extensionDir2, message.channelId);
   try {
     if (turnDecision.decision !== "allow") {
       response = formatPermissionDenial(turnDecision);
@@ -89494,20 +92787,73 @@ async function processMessage(message, accepted, config, memory, state2, process
       });
       return;
     }
-    const result = await processViaCli(
-      message,
-      accepted,
-      config,
-      memory,
-      processingContext,
-      geminiSemaphore,
-      channel,
-      toolMode
-    );
-    response = result.response;
-    responseMessageIds = result.messageIds;
-    effectiveAttachmentMetadata = result.attachments ?? attachmentMetadata;
-    geminiSessionId = result.sessionId;
+    if (isWorkflow) {
+      const registry = new TraceRendererRegistry();
+      traceDispatcher = new TraceDispatcher(channel, registry);
+      const manifest = loadThreadManifest(extensionDir2, message.channelId);
+      if (manifest) {
+        await traceDispatcher.dispatchRunHeader(manifest);
+      }
+      runtimeStore.activeWorkflowRuns.set(message.channelId, {
+        requestMessageId: message.id,
+        channelId: message.channelId,
+        userContent: accepted.content,
+        startedAt: Date.now()
+      });
+    }
+    const traceCallbacks = traceDispatcher ? {
+      onTraceEvent: (event) => {
+        traceDispatcher.dispatch(event).catch(() => {
+        });
+      }
+    } : void 0;
+    try {
+      const result = await processViaCli(
+        message,
+        accepted,
+        config,
+        memory,
+        processingContext,
+        geminiSemaphore,
+        channel,
+        toolMode,
+        extensionDir2,
+        traceCallbacks
+      );
+      response = result.response;
+      responseMessageIds = result.messageIds;
+      effectiveAttachmentMetadata = result.attachments ?? attachmentMetadata;
+      geminiSessionId = result.sessionId;
+      if (traceDispatcher) {
+        await traceDispatcher.dispatchRunComplete();
+      }
+      const candidateKey = `${message.id}:${message.channelId}`;
+      const candidate = runtimeStore.workflowResponseCandidates.get(candidateKey);
+      if (isWorkflow) {
+        if (!response.trim() && candidate) {
+          response = candidate;
+        }
+        runtimeStore.workflowResponseCandidates.delete(candidateKey);
+        if (response.trim().length > 0) {
+          const prepared = await finalizeAssistantResponse(response, message, {
+            allowPrivilegedActions: isBoss(accepted.roleContext)
+          });
+          response = prepared.responseText;
+          const displayText = formatWorkflowFinalDisplay(prepared.displayText);
+          const finalMsgIds = await traceDispatcher.dispatchFinalResponse(displayText);
+          responseMessageIds.push(...finalMsgIds);
+          responseMessageIds.push(...prepared.actionMessageIds);
+        }
+      }
+    } catch (err) {
+      const candidateKey = `${message.id}:${message.channelId}`;
+      runtimeStore.workflowResponseCandidates.delete(candidateKey);
+      throw err;
+    } finally {
+      if (isWorkflow) {
+        runtimeStore.activeWorkflowRuns.delete(message.channelId);
+      }
+    }
     if (response.trim().length > 0 || responseMessageIds.length > 0) {
       await persistExchange();
     } else {
@@ -89519,8 +92865,11 @@ async function processMessage(message, accepted, config, memory, state2, process
     }
   } catch (err) {
     state2.lastError = err instanceof Error ? err.message : String(err);
+    if (traceDispatcher) {
+      await traceDispatcher.dispatchRunFailed(err);
+    }
     const errorMsg = formatError(err);
-    await retrySend(() => channel.send(errorMsg)).catch(() => {
+    await retrySend(() => isWorkflow ? channel.send({ content: errorMsg, allowedMentions: SUPPRESS_DISCORD_MENTIONS }) : channel.send(errorMsg)).catch(() => {
     });
     log.error("Message processing failed", {
       channelId: message.channelId,
@@ -89637,6 +92986,13 @@ var init_gateway = __esm({
     init_permissions();
     init_onboarding();
     init_config_sanitize();
+    init_thread_manifest();
+    init_thread_creator();
+    init_task_validation();
+    init_trace_renderer();
+    init_trace_dispatcher();
+    init_mention_safety();
+    init_final_display();
     MAX_AGENT_EXCHANGES = 6;
   }
 });
@@ -89798,143 +93154,11 @@ function normalizeKeys(input) {
 
 // src/daemon/api.ts
 var http = __toESM(require("node:http"), 1);
-var fs9 = __toESM(require("node:fs"), 1);
+var fs10 = __toESM(require("node:fs"), 1);
 init_log();
 init_session_reset();
 init_dm_pairing();
-
-// src/daemon/api-utils.ts
-init_memory();
-init_dm_pairing();
-init_permissions();
-var MAX_BODY_BYTES = 10240;
-function respond(res, status, body) {
-  res.writeHead(status, { "Content-Type": "application/json" });
-  res.end(JSON.stringify(body));
-}
-function requireAuth(req, config) {
-  const header = req.headers.authorization;
-  if (!header) return false;
-  const [scheme, token] = header.split(" ");
-  return scheme === "Bearer" && token === config.daemonApiToken;
-}
-async function readBody(req) {
-  return new Promise((resolve2, reject2) => {
-    const chunks = [];
-    let size = 0;
-    req.on("data", (chunk) => {
-      size += chunk.length;
-      if (size > MAX_BODY_BYTES) {
-        req.destroy();
-        reject2(new Error("Payload too large"));
-        return;
-      }
-      chunks.push(chunk);
-    });
-    req.on("end", () => resolve2(Buffer.concat(chunks).toString("utf-8")));
-    req.on("error", reject2);
-  });
-}
-function parseOptionalNumber(value) {
-  if (value === void 0 || value === null || value === "") {
-    return null;
-  }
-  const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-function parseOptionalTimestamp(value) {
-  if (value === void 0 || value === null || value === "") {
-    return null;
-  }
-  const parsed = Date.parse(String(value));
-  return Number.isFinite(parsed) ? parsed : null;
-}
-function roleContextFromRequest(req, config) {
-  const rawRole = req.headers["x-gemini-discord-role"];
-  const role = Array.isArray(rawRole) ? rawRole[0] : rawRole;
-  if (role !== "BOSS" && role !== "GUEST") {
-    return null;
-  }
-  const rawSenderId = req.headers["x-gemini-discord-sender-id"];
-  const rawSenderLabel = req.headers["x-gemini-discord-sender-label"];
-  const senderDiscordId = (Array.isArray(rawSenderId) ? rawSenderId[0] : rawSenderId)?.trim() || "unknown";
-  const senderDisplayLabel = (Array.isArray(rawSenderLabel) ? rawSenderLabel[0] : rawSenderLabel)?.trim() || senderDiscordId;
-  return resolveDiscordRole(config, { discordUserId: senderDiscordId, displayLabel: senderDisplayLabel });
-}
-function roleContextFromLocalControlToken(req, config) {
-  const rawAuth = req.headers.authorization;
-  const header = Array.isArray(rawAuth) ? rawAuth[0] : rawAuth;
-  if (!header?.startsWith("Bearer ") || !config.daemonApiToken) {
-    return null;
-  }
-  const token = header.slice("Bearer ".length).trim();
-  if (!token || token !== config.daemonApiToken) {
-    return null;
-  }
-  const boss = validateBossConfig(config);
-  if (!boss.valid) {
-    return null;
-  }
-  return resolveDiscordRole(config, {
-    discordUserId: boss.bossUserId,
-    displayLabel: "local-control-api"
-  });
-}
-function authorizeApiAction(req, res, config, action) {
-  const roleContext = roleContextFromRequest(req, config) ?? roleContextFromLocalControlToken(req, config);
-  if (!roleContext) {
-    respond(res, 403, {
-      error: "Missing Discord role context. Use the bridge from an authorized boss message in Discord, or call the local MCP server with a valid daemon token."
-    });
-    return false;
-  }
-  const decision = authorizeAction(action, roleContext);
-  if (decision.decision === "allow") {
-    return true;
-  }
-  respond(res, 403, { error: formatPermissionDenial(decision) });
-  return false;
-}
-function resolveConversationSessionKey(config, extensionDir2, channelId, guildId) {
-  if (guildId) {
-    return resolveSessionKey("channel", channelId, null);
-  }
-  return resolveSessionKey(
-    "channel",
-    channelId,
-    resolveDmUserIdForChannel(extensionDir2, channelId)
-  );
-}
-function resolveSendChannelId(requestedChannelId) {
-  return requestedChannelId.trim();
-}
-async function fetchTextChannel(client, channelId) {
-  try {
-    const channel = await client.channels.fetch(channelId);
-    if (channel && channel.isTextBased() && "send" in channel) return channel;
-  } catch {
-  }
-  try {
-    const user = await client.users.fetch(channelId);
-    if (user) return await user.createDM();
-  } catch {
-  }
-  return null;
-}
-function isWritableTarget(channelId, channel, config) {
-  if ("isDMBased" in channel && channel.isDMBased()) {
-    return config.enableDMs;
-  }
-  if (config.allowedChannelIds.includes(channelId)) {
-    return true;
-  }
-  const parentId = channel.parentId ?? null;
-  if (parentId && config.allowedChannelIds.includes(parentId)) {
-    return true;
-  }
-  const guildId = channel.guildId ?? null;
-  return config.allowedChannelIds.length === 0 && Boolean(config.discordServerId) && guildId === config.discordServerId;
-}
+init_api_utils();
 
 // src/daemon/api/status.ts
 init_channels();
@@ -89942,6 +93166,7 @@ init_cron();
 init_binding();
 init_dm_pairing();
 init_config_sanitize();
+init_api_utils();
 function handleStatusRoutes(req, res, url, deps) {
   const pathname = url.pathname;
   const { config, state: state2, memory, queue, extensionDir: extensionDir2 } = deps;
@@ -90011,7 +93236,10 @@ function handleStatusRoutes(req, res, url, deps) {
 }
 
 // src/daemon/api/discovery.ts
+var import_discord3 = __toESM(require_src(), 1);
 init_users();
+init_channels();
+init_api_utils();
 async function handleDiscoveryRoutes(req, res, url, deps) {
   const pathname = url.pathname;
   const { config } = deps;
@@ -90035,6 +93263,44 @@ async function handleDiscoveryRoutes(req, res, url, deps) {
       resolved,
       bot_id: deps.client.user?.id ?? null
     });
+    return true;
+  }
+  if (req.method === "GET" && pathname === "/channels") {
+    if (!authorizeApiAction(req, res, config, "status")) return true;
+    if (!deps.client) {
+      respond(res, 503, { error: "Client not ready" });
+      return true;
+    }
+    const query = url.searchParams.get("query") ?? "";
+    const all = url.searchParams.get("all") === "true";
+    let channelsList = [];
+    if (all && config.discordServerId) {
+      try {
+        const guild = await deps.client.guilds.fetch(config.discordServerId);
+        const fetchedChannels = await guild.channels.fetch();
+        for (const [id, channel] of fetchedChannels) {
+          if (!channel) continue;
+          if (channel.type === import_discord3.ChannelType.GuildText || channel.type === import_discord3.ChannelType.GuildAnnouncement || channel.type === import_discord3.ChannelType.GuildForum) {
+            let typeStr = "text";
+            if (channel.type === import_discord3.ChannelType.GuildAnnouncement) typeStr = "announcement";
+            if (channel.type === import_discord3.ChannelType.GuildForum) typeStr = "forum";
+            channelsList.push({ id, name: channel.name, type: typeStr });
+          }
+        }
+      } catch (err) {
+        respond(res, 502, {
+          error: `Channel discovery failed: ${err instanceof Error ? err.message : String(err)}`
+        });
+        return true;
+      }
+    } else {
+      channelsList = getChannelMapEntries().map(([name, { id }]) => ({ id, name, type: "text" }));
+    }
+    if (query.trim()) {
+      const needle = query.trim().toLowerCase();
+      channelsList = channelsList.filter((c) => c.name.toLowerCase().includes(needle) || c.id.includes(needle));
+    }
+    respond(res, 200, { ok: true, channels: channelsList });
     return true;
   }
   if (req.method === "GET" && pathname === "/reactions") {
@@ -90110,8 +93376,26 @@ async function handleDiscoveryRoutes(req, res, url, deps) {
 // src/daemon/api/messages.ts
 init_chunker();
 init_sender();
+init_mention_safety();
 init_channels();
 init_log();
+init_runtime();
+init_permissions();
+init_task_validation();
+init_thread_manifest();
+init_policy();
+init_api_utils();
+function ensureWritableTarget(res, channelId, channel, config, action) {
+  if (!channel) {
+    respond(res, 400, { error: "Channel is not text-based" });
+    return false;
+  }
+  if (!isWritableTarget(channelId, channel, config)) {
+    respond(res, 403, { error: `Channel ${channelId} is not allowed for ${action}`, channel_id: channelId });
+    return false;
+  }
+  return true;
+}
 async function handleMessageRoutes(req, res, pathname, parsed, deps) {
   const { config, memory, extensionDir: extensionDir2 } = deps;
   if (pathname === "/send") {
@@ -90162,7 +93446,24 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
         return true;
       }
       const silent = parsed["silent"] === true;
-      const messageIds = await sendDiscordMessage(channel, content, chunkMessage, { files, silent });
+      if (channelId && isWorkflowThread(extensionDir2, channelId)) {
+        const activeRun = runtimeStore.activeWorkflowRuns.get(channelId);
+        if (activeRun && !isExplicitSendToCurrentThread(activeRun.userContent)) {
+          const key = `${activeRun.requestMessageId}:${channelId}`;
+          runtimeStore.workflowResponseCandidates.set(key, content);
+          respond(res, 200, {
+            ok: true,
+            intercepted: true,
+            chunks: 0,
+            messageIds: [],
+            channel_id: channelId,
+            note: "Captured as final response candidate for current workflow thread; no Discord send was performed."
+          });
+          return true;
+        }
+      }
+      const allowedMentions = resolveAllowedMentions(config);
+      const messageIds = await sendDiscordMessage(channel, content, chunkMessage, { files, silent, allowedMentions });
       const sessionKey = resolveConversationSessionKey(
         config,
         extensionDir2,
@@ -90219,9 +93520,26 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
         respond(res, 403, { error: `Channel ${channelId} is not allowed for replies` });
         return true;
       }
-      const msg = await channel.messages.fetch(messageId);
       const silent = parsed["silent"] === true;
-      const messageIds = await sendDiscordMessage(channel, content, chunkMessage, { replyTo: msg, files, silent });
+      const msg = await channel.messages.fetch(messageId);
+      if (channelId && isWorkflowThread(extensionDir2, channelId)) {
+        const activeRun = runtimeStore.activeWorkflowRuns.get(channelId);
+        if (activeRun && !isExplicitSendToCurrentThread(activeRun.userContent)) {
+          const key = `${activeRun.requestMessageId}:${channelId}`;
+          runtimeStore.workflowResponseCandidates.set(key, content);
+          respond(res, 200, {
+            ok: true,
+            intercepted: true,
+            chunks: 0,
+            messageIds: [],
+            channel_id: channelId,
+            note: "Captured as final response candidate for current workflow thread; no Discord send was performed."
+          });
+          return true;
+        }
+      }
+      const allowedMentions = resolveAllowedMentions(config);
+      const messageIds = await sendDiscordMessage(channel, content, chunkMessage, { replyTo: msg, files, silent, allowedMentions });
       const sessionKey = resolveConversationSessionKey(
         config,
         extensionDir2,
@@ -90269,10 +93587,7 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
         return true;
       }
       const channel = await fetchTextChannel(deps.client, channelId);
-      if (!channel) {
-        respond(res, 400, { error: "Channel is not text-based" });
-        return true;
-      }
+      if (!ensureWritableTarget(res, channelId, channel, config, "reactions")) return true;
       const msg = await channel.messages.fetch(messageId);
       await msg.react(emoji);
       respond(res, 200, { ok: true });
@@ -90296,10 +93611,7 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
         return true;
       }
       const channel = await fetchTextChannel(deps.client, channelId);
-      if (!channel) {
-        respond(res, 400, { error: "Channel is not text-based" });
-        return true;
-      }
+      if (!ensureWritableTarget(res, channelId, channel, config, "reaction removal")) return true;
       const msg = await channel.messages.fetch(messageId);
       if (emoji) {
         const reaction = msg.reactions.cache.find(
@@ -90334,10 +93646,7 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
         return true;
       }
       const channel = await fetchTextChannel(deps.client, channelId);
-      if (!channel) {
-        respond(res, 400, { error: "Channel is not text-based" });
-        return true;
-      }
+      if (!ensureWritableTarget(res, channelId, channel, config, "message edits")) return true;
       const msg = await channel.messages.fetch(messageId);
       if (msg.author.id !== deps.client.user?.id) {
         respond(res, 403, { error: "Can only edit own messages" });
@@ -90364,10 +93673,7 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
         return true;
       }
       const channel = await fetchTextChannel(deps.client, channelId);
-      if (!channel) {
-        respond(res, 400, { error: "Channel is not text-based" });
-        return true;
-      }
+      if (!ensureWritableTarget(res, channelId, channel, config, "message deletion")) return true;
       const msg = await channel.messages.fetch(messageId);
       if (msg.author.id !== deps.client.user?.id) {
         respond(res, 403, { error: "Can only delete own messages" });
@@ -90394,10 +93700,7 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
         return true;
       }
       const channel = await fetchTextChannel(deps.client, channelId);
-      if (!channel) {
-        respond(res, 400, { error: "Channel is not text-based" });
-        return true;
-      }
+      if (!ensureWritableTarget(res, channelId, channel, config, "pinning")) return true;
       const msg = await channel.messages.fetch(messageId);
       await msg.pin();
       respond(res, 200, { ok: true });
@@ -90420,10 +93723,7 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
         return true;
       }
       const channel = await fetchTextChannel(deps.client, channelId);
-      if (!channel) {
-        respond(res, 400, { error: "Channel is not text-based" });
-        return true;
-      }
+      if (!ensureWritableTarget(res, channelId, channel, config, "unpinning")) return true;
       const msg = await channel.messages.fetch(messageId);
       await msg.unpin();
       respond(res, 200, { ok: true });
@@ -90475,12 +93775,77 @@ async function handleMessageRoutes(req, res, pathname, parsed, deps) {
     }
     return true;
   }
+  if (pathname === "/workflow") {
+    if (!authorizeApiAction(req, res, config, "admin_command")) return true;
+    let task = String(parsed["task"] ?? "");
+    const creatorUserId = String(parsed["creator_user_id"] ?? "");
+    const sourceChannelId = String(parsed["source_channel_id"] ?? "");
+    const sourceMessageId = parsed["source_message_id"] == null ? void 0 : String(parsed["source_message_id"]);
+    const traceMode = parsed["trace_mode"] ?? "compact";
+    if (!task || !creatorUserId || !sourceChannelId) {
+      respond(res, 400, { error: "task, creator_user_id, and source_channel_id are required" });
+      return true;
+    }
+    if (creatorUserId !== config.discordBossUserId) {
+      respond(res, 403, { error: "creator_user_id must match the configured DISCORD_BOSS_USER_ID" });
+      return true;
+    }
+    try {
+      task = validateWorkflowTaskSummary(task);
+      const roleContext = resolveDiscordRole(config, {
+        discordUserId: config.discordBossUserId,
+        displayLabel: "local-control-api"
+      });
+      if (!runtimeStore.enqueueWorkflowRun) {
+        respond(res, 503, { error: "Workflow runner is not ready. Try again after the Discord gateway is ready." });
+        return true;
+      }
+      if (!deps.client) {
+        respond(res, 503, { error: "Client not ready" });
+        return true;
+      }
+      const { createWorkflowThread: createWorkflowThread2 } = await Promise.resolve().then(() => (init_thread_creator(), thread_creator_exports));
+      const { threadId, thread } = await createWorkflowThread2(
+        deps.client,
+        config,
+        extensionDir2,
+        {
+          taskSummary: task,
+          creatorUserId,
+          sourceChannelId,
+          sourceMessageId,
+          traceMode
+        }
+      );
+      const started = runtimeStore.enqueueWorkflowRun({
+        thread,
+        task,
+        creatorUserId,
+        sourceChannelId,
+        sourceMessageId,
+        roleContext
+      });
+      if (!started) {
+        respond(res, 429, { error: "Workflow thread was created but the processing queue is full. Retry inside the thread.", threadId, task });
+        return true;
+      }
+      respond(res, 200, { ok: true, threadId, task, started: true });
+    } catch (err) {
+      if (err instanceof WorkflowTaskValidationError) {
+        respond(res, 400, { error: err.message });
+        return true;
+      }
+      respond(res, 500, { error: err instanceof Error ? err.message : String(err) });
+    }
+    return true;
+  }
   return false;
 }
 
 // src/daemon/api/cron.ts
 init_cron();
 init_channels();
+init_api_utils();
 async function handleCronRoutes(req, res, pathname, parsed, deps) {
   const { config } = deps;
   if (req.method === "GET" && pathname === "/cron") {
@@ -90556,9 +93921,11 @@ async function handleCronRoutes(req, res, pathname, parsed, deps) {
 }
 
 // src/daemon/api/moderation.ts
-var import_discord3 = __toESM(require_src(), 1);
+var import_discord4 = __toESM(require_src(), 1);
+init_api_utils();
 init_config();
 init_config_vars();
+init_channels();
 var DISCORD_SNOWFLAKE_RE3 = /^\d{15,25}$/;
 async function handleModerationRoutes(req, res, pathname, parsed, deps) {
   const { config, extensionDir: extensionDir2 } = deps;
@@ -90622,6 +93989,55 @@ async function handleModerationRoutes(req, res, pathname, parsed, deps) {
     }
     return true;
   }
+  if (pathname === "/channel-allowlist") {
+    if (!authorizeApiAction(req, res, config, "moderation")) return true;
+    const action = String(parsed["action"] ?? "");
+    const channelId = String(parsed["channel_id"] ?? "").trim();
+    if (!["add", "remove"].includes(action)) {
+      respond(res, 400, { error: "action must be add or remove" });
+      return true;
+    }
+    if (!channelId || !DISCORD_SNOWFLAKE_RE3.test(channelId)) {
+      respond(res, 400, {
+        error: "channel_id must be a stable numeric Discord channel ID."
+      });
+      return true;
+    }
+    if (action === "add" && deps.client && config.discordServerId) {
+      try {
+        const channel = await deps.client.channels.fetch(channelId);
+        if (!channel || !("guildId" in channel) || channel.guildId !== config.discordServerId) {
+          respond(res, 400, { error: "Refusing to allowlist a channel that is not in the configured Discord server." });
+          return true;
+        }
+      } catch (err) {
+        respond(res, 400, {
+          error: `Cannot verify channel belongs to the configured server: ${err instanceof Error ? err.message : String(err)}`
+        });
+        return true;
+      }
+    }
+    const current = new Set(config.allowedChannelIds);
+    if (action === "add") {
+      current.add(channelId);
+    } else {
+      current.delete(channelId);
+    }
+    const next = [...current];
+    config.allowedChannelIds = next;
+    try {
+      persistConfigEnvUpdates(extensionDir2, {
+        [ENV.DISCORD_ALLOWED_CHANNEL_IDS]: next.join(",")
+      });
+      if (deps.client) {
+        await buildGuildChannelMap(deps.client, config);
+      }
+      respond(res, 200, { ok: true, action, channel_id: channelId, count: next.length });
+    } catch (err) {
+      respond(res, 500, { error: `Failed to persist config: ${err instanceof Error ? err.message : String(err)}` });
+    }
+    return true;
+  }
   if (pathname === "/moderation") {
     if (!authorizeApiAction(req, res, config, "moderation")) return true;
     const action = String(parsed["action"] ?? "");
@@ -90643,6 +94059,10 @@ async function handleModerationRoutes(req, res, pathname, parsed, deps) {
     }
     if (!guildId) {
       respond(res, 400, { error: "guild_id is required because no Discord server is configured" });
+      return true;
+    }
+    if (config.discordServerId && guildId !== config.discordServerId) {
+      respond(res, 403, { error: `Guild ${guildId} is not allowed for moderation` });
       return true;
     }
     if (userId === deps.client?.user?.id) {
@@ -90696,12 +94116,12 @@ async function handleModerationRoutes(req, res, pathname, parsed, deps) {
       const validStatuses = ["online", "idle", "dnd", "invisible"];
       const resolvedStatus = validStatuses.includes(status) ? status : "online";
       const activityTypeMap = {
-        playing: import_discord3.ActivityType.Playing,
-        watching: import_discord3.ActivityType.Watching,
-        listening: import_discord3.ActivityType.Listening,
-        competing: import_discord3.ActivityType.Competing
+        playing: import_discord4.ActivityType.Playing,
+        watching: import_discord4.ActivityType.Watching,
+        listening: import_discord4.ActivityType.Listening,
+        competing: import_discord4.ActivityType.Competing
       };
-      const activities = activityName ? [{ name: activityName, type: activityTypeMap[activityType] ?? import_discord3.ActivityType.Playing }] : [];
+      const activities = activityName ? [{ name: activityName, type: activityTypeMap[activityType] ?? import_discord4.ActivityType.Playing }] : [];
       deps.client.user.setPresence({ status: resolvedStatus, activities });
       respond(res, 200, { ok: true, status: resolvedStatus, activities });
     } catch (err) {
@@ -90714,6 +94134,7 @@ async function handleModerationRoutes(req, res, pathname, parsed, deps) {
 
 // src/daemon/api.ts
 init_runtime_paths();
+init_api_utils();
 function startControlApi(deps) {
   const { config, memory, extensionDir: extensionDir2, isShuttingDown, shutdown } = deps;
   const server = http.createServer(async (req, res) => {
@@ -90799,7 +94220,7 @@ function startControlApi(deps) {
       config.daemonPort = actualPort;
       try {
         const portPath = ensureRuntimePaths(extensionDir2).daemonPortFile;
-        fs9.writeFileSync(portPath, String(actualPort), "utf-8");
+        fs10.writeFileSync(portPath, String(actualPort), "utf-8");
       } catch (e) {
         log.warn("Failed to write daemon port discovery file", { error: String(e) });
       }
@@ -90881,757 +94302,7 @@ var Semaphore = class {
 
 // src/daemon.ts
 init_retry();
-
-// src/daemon/cli-pool.ts
-var import_node_child_process2 = require("node:child_process");
-var readline = __toESM(require("node:readline"), 1);
-init_log();
-
-// src/daemon/acp-content.ts
-var path8 = __toESM(require("node:path"), 1);
-function buildAcpPromptBlocks(prompt, attachments = []) {
-  if (attachments.length === 0) {
-    return [{ type: "text", text: prompt }];
-  }
-  return [
-    ...attachments.map(toAcpAttachmentBlock),
-    {
-      type: "text",
-      text: [
-        "",
-        "Use the attached file content as the primary evidence for this turn. If the user asks to identify a person, character, object, place, or media source, ground the answer in visible/audible/textual details from the attachment and say when you are uncertain. Do not infer from prior conversation, memory, or unrelated context when it conflicts with the attachment.",
-        "",
-        prompt
-      ].join("\n")
-    }
-  ];
-}
-function toAcpAttachmentBlock(attachment) {
-  const uri = toFileUri(attachment.relativePath);
-  const mimeType = attachment.inlineData?.mimeType;
-  if (attachment.inlineData && mimeType?.startsWith("image/")) {
-    return {
-      type: "image",
-      data: attachment.inlineData.data,
-      mimeType,
-      uri
-    };
-  }
-  if (attachment.inlineData && mimeType?.startsWith("audio/")) {
-    return {
-      type: "audio",
-      data: attachment.inlineData.data,
-      mimeType
-    };
-  }
-  if (attachment.inlineData && mimeType) {
-    return {
-      type: "resource",
-      resource: {
-        uri,
-        blob: attachment.inlineData.data,
-        mimeType
-      }
-    };
-  }
-  return {
-    type: "resource_link",
-    uri,
-    name: attachment.metadata.name || path8.basename(attachment.relativePath),
-    mimeType: attachment.metadata.contentType,
-    size: attachment.metadata.sizeBytes
-  };
-}
-function toFileUri(relativePath) {
-  return `file://${relativePath.split(path8.sep).join("/")}`;
-}
-
-// src/daemon/gemini-output.ts
-function asRecord(value) {
-  return value && typeof value === "object" ? value : null;
-}
-function extractGeminiResultText(value) {
-  if (typeof value === "string") {
-    return value;
-  }
-  if (Array.isArray(value)) {
-    const joined = value.map((entry) => extractGeminiResultText(entry)).filter((entry) => typeof entry === "string" && entry.length > 0).join("");
-    return joined || null;
-  }
-  const record = asRecord(value);
-  if (!record) {
-    return null;
-  }
-  const directFields = ["response", "text", "content"];
-  for (const field of directFields) {
-    const candidate = record[field];
-    if (typeof candidate === "string" && candidate.length > 0) {
-      return candidate;
-    }
-  }
-  const parts = record["parts"];
-  if (Array.isArray(parts)) {
-    const joined = parts.map((part) => {
-      const partRecord = asRecord(part);
-      if (!partRecord || partRecord["thought"] === true) {
-        return "";
-      }
-      return typeof partRecord["text"] === "string" ? partRecord["text"] : "";
-    }).join("");
-    if (joined.length > 0) {
-      return joined;
-    }
-  }
-  const nestedFields = ["result", "output", "message"];
-  for (const field of nestedFields) {
-    const nested = extractGeminiResultText(record[field]);
-    if (nested) {
-      return nested;
-    }
-  }
-  return null;
-}
-function getGeminiTextDelta(existing, incoming) {
-  if (!incoming || incoming === existing) {
-    return "";
-  }
-  if (!existing) {
-    return incoming;
-  }
-  if (incoming.startsWith(existing)) {
-    return incoming.slice(existing.length);
-  }
-  const maxOverlap = Math.min(existing.length, incoming.length);
-  for (let overlap = maxOverlap; overlap > 0; overlap--) {
-    if (existing.slice(-overlap) === incoming.slice(0, overlap)) {
-      return incoming.slice(overlap);
-    }
-  }
-  return incoming;
-}
-
-// src/daemon/cli-pool.ts
-init_permissions();
-var ACP_PROTOCOL_VERSION = 1;
-var SESSION_REQUEST_TIMEOUT_MS = 12e4;
-var STARTUP_REQUEST_TIMEOUT_MS = 9e4;
-var SESSION_REPLAY_QUIET_MS = 400;
-var SESSION_REPLAY_MAX_WAIT_MS = 6e3;
-function buildPoolKey(bindingKey, allowedTools) {
-  const tier = allowedTools === "all" ? "full" : allowedTools === "none" ? "chat" : allowedTools === "google_web_search" ? "public-web-search" : allowedTools === "google_web_search,web_fetch" ? "web" : allowedTools.includes("google_web_search,web_fetch") ? "web-discord" : "discord";
-  return `${bindingKey}:${tier}`;
-}
-function appendHeadlessIsolationArgs(args) {
-  args.push("--extensions", "gemini-discord");
-  args.push("--allowed-mcp-server-names", "discord-bridge");
-}
-function normalizeResumeSessionId(value) {
-  const trimmed = value?.trim();
-  return trimmed && trimmed !== "latest" ? trimmed : null;
-}
-function normalizeAcpError(error) {
-  if (error && typeof error === "object") {
-    const candidate = error;
-    const message = typeof candidate["message"] === "string" ? candidate["message"] : "Gemini ACP request failed";
-    const details = candidate["data"];
-    if (details && typeof details === "object" && "details" in details) {
-      const detailMessage = details["details"];
-      if (typeof detailMessage === "string" && detailMessage.trim()) {
-        return new Error(`${message}: ${detailMessage}`);
-      }
-    }
-    return new Error(message);
-  }
-  return new Error(typeof error === "string" ? error : "Gemini ACP request failed");
-}
-function isRetryableAcpExitError(error) {
-  const message = error.message.toLowerCase();
-  return message.includes("gemini acp exited with code 1") || message.includes("gemini returned no assistant output");
-}
-function isMissingSessionError(error) {
-  const message = error.message.toLowerCase();
-  return message.includes("no previous sessions found for this project") || message.includes("session not found") || message.includes("invalid session identifier") || message.includes("failed to resolve session") || message.includes("resume_session_unavailable");
-}
-function extractUpdateText(update) {
-  const content = update["content"];
-  if (Array.isArray(content)) {
-    return content.map((value) => {
-      if (!value || typeof value !== "object") {
-        return "";
-      }
-      const record = value;
-      const inner = record["content"];
-      if (inner && typeof inner === "object" && typeof inner["text"] === "string") {
-        return String(inner["text"]);
-      }
-      return typeof record["text"] === "string" ? record["text"] : "";
-    }).join("");
-  }
-  if (content && typeof content === "object") {
-    const record = content;
-    if (typeof record["text"] === "string") {
-      return record["text"];
-    }
-  }
-  return "";
-}
-var CliProcessPool = class {
-  pool = /* @__PURE__ */ new Map();
-  maxSize;
-  idleTimeoutMs;
-  config;
-  constructor(config) {
-    this.config = config;
-    this.maxSize = config.geminiMaxConcurrent;
-    this.idleTimeoutMs = config.cliIdleTimeoutMs;
-  }
-  async send(bindingKey, prompt, callbacks, opts) {
-    const allowedTools = resolveGeminiAllowedTools(opts.roleContext, opts.toolMode);
-    const poolKey = buildPoolKey(bindingKey, allowedTools);
-    let lastError = null;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      let entry = this.pool.get(poolKey);
-      if (entry && !entry.busy && this.isAlive(entry)) {
-        entry.busy = true;
-        entry.lastActivityAt = Date.now();
-        this.resetIdleTimer(entry);
-        log.info("CLI pool: reusing warm ACP process", {
-          poolKey,
-          aliveMs: Date.now() - entry.spawnedAt,
-          sessionId: entry.sessionId
-        });
-      } else {
-        if (entry) {
-          this.evict(poolKey);
-        }
-        if (this.pool.size >= this.maxSize) {
-          this.evictOldestIdle();
-        }
-        entry = await this.spawnProcess(poolKey, allowedTools, opts.roleContext);
-        entry.busy = true;
-        this.pool.set(poolKey, entry);
-      }
-      try {
-        await this.ensureSession(entry, opts);
-        const response = await this.promptWithAcp(entry, prompt, callbacks, opts);
-        entry.busy = false;
-        entry.lastActivityAt = Date.now();
-        this.resetIdleTimer(entry);
-        return response;
-      } catch (error) {
-        const normalized = error instanceof Error ? error : new Error(String(error));
-        lastError = normalized;
-        this.evict(poolKey);
-        if (attempt === 0 && isRetryableAcpExitError(normalized)) {
-          log.warn("CLI pool: retrying Gemini ACP after crash", {
-            poolKey,
-            error: normalized.message
-          });
-          continue;
-        }
-        throw normalized;
-      }
-    }
-    throw lastError ?? new Error("Gemini ACP request failed");
-  }
-  async spawnProcess(poolKey, allowedTools, roleContext) {
-    const spawnedAt = Date.now();
-    const args = [
-      "--acp",
-      "--model",
-      this.config.geminiModel,
-      "--approval-mode",
-      "yolo",
-      "--allowed-tools",
-      allowedTools
-    ];
-    appendHeadlessIsolationArgs(args);
-    log.info("CLI pool: initializing ACP process entry", {
-      poolKey,
-      model: this.config.geminiModel,
-      allowedTools,
-      extensionScope: "gemini-discord"
-    });
-    const proc = (0, import_node_child_process2.spawn)(this.config.geminiPath, args, {
-      stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, ...roleEnv(roleContext) }
-    });
-    if (!proc.stdout || !proc.stdin) {
-      throw new Error("Gemini ACP did not expose the expected stdio streams.");
-    }
-    const rl = readline.createInterface({ input: proc.stdout });
-    const entry = {
-      proc,
-      poolKey,
-      rl,
-      busy: false,
-      spawnedAt,
-      lastActivityAt: spawnedAt,
-      idleTimer: null,
-      allowedTools,
-      initialized: false,
-      nextRequestId: 1,
-      pendingRequests: /* @__PURE__ */ new Map(),
-      activePrompt: null,
-      sessionId: null,
-      cwd: null,
-      stderrTail: "",
-      lastSessionUpdateAt: 0
-    };
-    proc.stderr?.on("data", (chunk) => {
-      entry.stderrTail = `${entry.stderrTail}${chunk.toString()}`.slice(-4e3);
-    });
-    rl.on("line", (line) => {
-      this.handleStdoutLine(entry, line);
-    });
-    proc.on("error", (error) => {
-      this.rejectAllPending(entry, new Error(`Failed to spawn gemini: ${error.message}`));
-      this.pool.delete(entry.poolKey);
-    });
-    proc.on("close", (code) => {
-      this.rejectAllPending(entry, new Error(`Gemini ACP exited with code ${code}. ${entry.stderrTail.slice(-300)}`));
-      if (entry.idleTimer) {
-        clearTimeout(entry.idleTimer);
-      }
-      try {
-        rl.close();
-      } catch {
-      }
-      this.pool.delete(entry.poolKey);
-    });
-    try {
-      await this.sendRequest(entry, "initialize", {
-        protocolVersion: ACP_PROTOCOL_VERSION,
-        clientCapabilities: {
-          auth: { terminal: false },
-          fs: { readTextFile: false, writeTextFile: false },
-          terminal: false
-        },
-        clientInfo: {
-          name: "gemini-discord",
-          version: "0.1.0"
-        }
-      }, STARTUP_REQUEST_TIMEOUT_MS);
-      entry.initialized = true;
-      this.resetIdleTimer(entry);
-      return entry;
-    } catch (error) {
-      try {
-        proc.kill("SIGTERM");
-      } catch {
-      }
-      try {
-        rl.close();
-      } catch {
-      }
-      throw error;
-    }
-  }
-  async ensureSession(entry, opts) {
-    const resumeSessionId = normalizeResumeSessionId(opts.resumeSessionId);
-    if (entry.sessionId && entry.cwd === opts.cwd) {
-      if (!resumeSessionId || resumeSessionId === entry.sessionId) {
-        opts.onSessionId?.(entry.sessionId);
-        return;
-      }
-      await this.closeSession(entry);
-    }
-    if (resumeSessionId) {
-      try {
-        await this.sendRequest(entry, "session/load", {
-          sessionId: resumeSessionId,
-          cwd: opts.cwd,
-          mcpServers: []
-        }, SESSION_REQUEST_TIMEOUT_MS);
-        entry.sessionId = resumeSessionId;
-        entry.cwd = opts.cwd;
-        await this.waitForSessionReplayToDrain(entry);
-        opts.onSessionId?.(entry.sessionId);
-        return;
-      } catch (error) {
-        const normalized = error instanceof Error ? error : new Error(String(error));
-        if (!isMissingSessionError(normalized)) {
-          throw normalized;
-        }
-        log.warn("CLI pool: resume target unavailable, starting fresh session", {
-          poolKey: entry.poolKey,
-          requestedSessionId: resumeSessionId,
-          cwd: opts.cwd,
-          error: normalized.message
-        });
-        entry.sessionId = null;
-        entry.cwd = null;
-      }
-    }
-    const result = await this.sendRequest(entry, "session/new", {
-      cwd: opts.cwd,
-      mcpServers: []
-    }, SESSION_REQUEST_TIMEOUT_MS);
-    if (!result || typeof result !== "object" || typeof result["sessionId"] !== "string") {
-      throw new Error("Gemini ACP did not return a sessionId for the new session.");
-    }
-    entry.sessionId = String(result["sessionId"]);
-    entry.cwd = opts.cwd;
-    opts.onSessionId?.(entry.sessionId);
-  }
-  async closeSession(entry) {
-    if (!entry.sessionId) {
-      return;
-    }
-    try {
-      await this.sendRequest(entry, "session/close", {
-        sessionId: entry.sessionId
-      }, 3e4);
-    } catch {
-    } finally {
-      entry.sessionId = null;
-      entry.cwd = null;
-    }
-  }
-  async waitForSessionReplayToDrain(entry) {
-    const startedAt = Date.now();
-    let lastObservedAt = startedAt;
-    while (Date.now() - startedAt < SESSION_REPLAY_MAX_WAIT_MS) {
-      if (entry.lastSessionUpdateAt > lastObservedAt) {
-        lastObservedAt = entry.lastSessionUpdateAt;
-      }
-      if (Date.now() - lastObservedAt >= SESSION_REPLAY_QUIET_MS) {
-        return;
-      }
-      await new Promise((resolve2) => setTimeout(resolve2, 50));
-    }
-    log.warn("CLI pool: session replay did not fully drain before prompt", {
-      poolKey: entry.poolKey,
-      sessionId: entry.sessionId,
-      waitedMs: Date.now() - startedAt
-    });
-  }
-  async promptWithAcp(entry, prompt, callbacks, opts) {
-    if (!entry.sessionId) {
-      throw new Error("Gemini ACP session is not initialized.");
-    }
-    const requestId = entry.nextRequestId++;
-    const hasAttachments = (opts.attachments?.length ?? 0) > 0;
-    return new Promise((resolve2, reject2) => {
-      const maxTotalTimeoutMs = this.config.geminiTimeoutMs;
-      const firstOutputTimeoutMs = hasAttachments ? Math.min(maxTotalTimeoutMs, 6e5) : Math.min(maxTotalTimeoutMs, 12e4);
-      const postOutputTimeoutMs = 12e4;
-      const activePrompt = {
-        requestId,
-        callbacks,
-        fullResponse: "",
-        sawAssistantOutput: false,
-        lastOutputAt: Date.now(),
-        startedAt: Date.now(),
-        timeoutHandle: setInterval(() => {
-          const current = entry.activePrompt;
-          if (!current || current.requestId !== requestId) {
-            return;
-          }
-          const idleMs = Date.now() - current.lastOutputAt;
-          const totalMs = Date.now() - current.startedAt;
-          if (!current.sawAssistantOutput && idleMs > firstOutputTimeoutMs) {
-            const error = new Error(`Gemini stalled \u2014 no output for ${Math.round(idleMs / 1e3)}s`);
-            this.failPrompt(entry, error, true);
-            return;
-          }
-          if (current.sawAssistantOutput && idleMs > postOutputTimeoutMs) {
-            const error = new Error(`Gemini stalled \u2014 no output for ${Math.round(idleMs / 1e3)}s`);
-            this.failPrompt(entry, error, true);
-            return;
-          }
-          if (totalMs > maxTotalTimeoutMs) {
-            const error = new Error(`Gemini timed out after ${Math.round(totalMs / 1e3)}s total`);
-            this.failPrompt(entry, error, true);
-          }
-        }, 5e3),
-        resolve: resolve2,
-        reject: reject2
-      };
-      entry.activePrompt = activePrompt;
-      entry.pendingRequests.set(requestId, {
-        resolve: () => {
-          const current = entry.activePrompt;
-          if (!current || current.requestId !== requestId) {
-            resolve2("");
-            return;
-          }
-          clearInterval(current.timeoutHandle);
-          entry.activePrompt = null;
-          if (!current.sawAssistantOutput) {
-            reject2(new Error("Gemini returned no assistant output for this turn."));
-            return;
-          }
-          resolve2(current.fullResponse);
-        },
-        reject: (error) => {
-          const current = entry.activePrompt;
-          if (current && current.requestId === requestId) {
-            clearInterval(current.timeoutHandle);
-            entry.activePrompt = null;
-          }
-          reject2(error);
-        }
-      });
-      try {
-        this.writeJsonLine(entry, {
-          jsonrpc: "2.0",
-          id: requestId,
-          method: "session/prompt",
-          params: {
-            sessionId: entry.sessionId,
-            prompt: buildAcpPromptBlocks(prompt, opts.attachments)
-          }
-        });
-      } catch (error) {
-        this.failPrompt(entry, error instanceof Error ? error : new Error(String(error)), false);
-      }
-    });
-  }
-  handleStdoutLine(entry, line) {
-    if (line.length < 3 || line[0] !== "{") {
-      return;
-    }
-    let parsed;
-    try {
-      parsed = JSON.parse(line);
-    } catch {
-      return;
-    }
-    const method = typeof parsed["method"] === "string" ? parsed["method"] : null;
-    if (method === "session/update") {
-      const params = parsed["params"];
-      if (params && typeof params === "object") {
-        this.handleSessionUpdate(entry, params);
-      }
-      return;
-    }
-    const rawId = parsed["id"];
-    if (typeof rawId !== "number") {
-      return;
-    }
-    const pending = entry.pendingRequests.get(rawId);
-    if (!pending) {
-      return;
-    }
-    entry.pendingRequests.delete(rawId);
-    if ("error" in parsed && parsed["error"]) {
-      pending.reject(normalizeAcpError(parsed["error"]));
-      return;
-    }
-    const activePrompt = entry.activePrompt;
-    if (activePrompt && activePrompt.requestId === rawId) {
-      const finalText = extractGeminiResultText(parsed["result"]);
-      if (finalText) {
-        const delta = getGeminiTextDelta(activePrompt.fullResponse, finalText);
-        if (delta) {
-          activePrompt.sawAssistantOutput = true;
-          activePrompt.fullResponse += delta;
-          activePrompt.callbacks.onToken(delta);
-        }
-      }
-    }
-    pending.resolve(parsed["result"]);
-  }
-  handleSessionUpdate(entry, params) {
-    entry.lastSessionUpdateAt = Date.now();
-    const activePrompt = entry.activePrompt;
-    if (!activePrompt || !entry.sessionId) {
-      return;
-    }
-    const sessionId = typeof params["sessionId"] === "string" ? params["sessionId"] : null;
-    if (!sessionId || sessionId !== entry.sessionId) {
-      return;
-    }
-    const rawUpdate = params["update"];
-    if (!rawUpdate || typeof rawUpdate !== "object") {
-      return;
-    }
-    const update = rawUpdate;
-    const sessionUpdate = typeof update["sessionUpdate"] === "string" ? update["sessionUpdate"] : "";
-    activePrompt.lastOutputAt = Date.now();
-    if (sessionUpdate === "agent_message_chunk") {
-      const candidate = extractUpdateText(update);
-      if (!candidate) {
-        return;
-      }
-      const delta = getGeminiTextDelta(activePrompt.fullResponse, candidate);
-      if (!delta) {
-        return;
-      }
-      activePrompt.sawAssistantOutput = true;
-      activePrompt.fullResponse += delta;
-      activePrompt.callbacks.onToken(delta);
-      return;
-    }
-    if (sessionUpdate === "agent_thought_chunk") {
-      activePrompt.callbacks.onThought?.();
-      return;
-    }
-    if (sessionUpdate === "tool_call" || sessionUpdate === "tool_call_update" || sessionUpdate === "plan") {
-      activePrompt.callbacks.onThought?.();
-    }
-  }
-  failPrompt(entry, error, evictAfter) {
-    const activePrompt = entry.activePrompt;
-    if (!activePrompt) {
-      return;
-    }
-    const pending = entry.pendingRequests.get(activePrompt.requestId);
-    if (pending) {
-      entry.pendingRequests.delete(activePrompt.requestId);
-      pending.reject(error);
-    } else {
-      clearInterval(activePrompt.timeoutHandle);
-      entry.activePrompt = null;
-      activePrompt.reject(error);
-    }
-    if (evictAfter) {
-      this.evict(entry.poolKey);
-    }
-  }
-  async sendRequest(entry, method, params, timeoutMs) {
-    const requestId = entry.nextRequestId++;
-    return new Promise((resolve2, reject2) => {
-      const timeoutHandle = setTimeout(() => {
-        entry.pendingRequests.delete(requestId);
-        reject2(new Error(`Gemini ACP ${method} timed out after ${Math.round(timeoutMs / 1e3)}s`));
-      }, timeoutMs);
-      entry.pendingRequests.set(requestId, {
-        resolve: (value) => {
-          clearTimeout(timeoutHandle);
-          resolve2(value);
-        },
-        reject: (error) => {
-          clearTimeout(timeoutHandle);
-          reject2(error);
-        }
-      });
-      try {
-        this.writeJsonLine(entry, {
-          jsonrpc: "2.0",
-          id: requestId,
-          method,
-          params
-        });
-      } catch (error) {
-        clearTimeout(timeoutHandle);
-        entry.pendingRequests.delete(requestId);
-        reject2(error instanceof Error ? error : new Error(String(error)));
-      }
-    });
-  }
-  writeJsonLine(entry, payload) {
-    if (!entry.proc.stdin || entry.proc.stdin.destroyed || !this.isAlive(entry)) {
-      throw new Error("Gemini ACP stdin is not writable.");
-    }
-    entry.proc.stdin.write(`${JSON.stringify(payload)}
-`);
-  }
-  rejectAllPending(entry, error) {
-    if (entry.activePrompt) {
-      clearInterval(entry.activePrompt.timeoutHandle);
-      entry.activePrompt = null;
-    }
-    for (const [requestId, pending] of entry.pendingRequests.entries()) {
-      entry.pendingRequests.delete(requestId);
-      pending.reject(error);
-    }
-  }
-  isAlive(entry) {
-    return entry.proc.exitCode === null && !entry.proc.killed;
-  }
-  resetIdleTimer(entry) {
-    if (entry.idleTimer) {
-      clearTimeout(entry.idleTimer);
-    }
-    entry.idleTimer = setTimeout(() => {
-      if (!entry.busy) {
-        log.info("CLI pool: evicting idle ACP process", {
-          poolKey: entry.poolKey,
-          sessionId: entry.sessionId
-        });
-        this.evict(entry.poolKey);
-      }
-    }, this.idleTimeoutMs);
-  }
-  evict(poolKey) {
-    const entry = this.pool.get(poolKey);
-    if (!entry) {
-      return;
-    }
-    if (entry.idleTimer) {
-      clearTimeout(entry.idleTimer);
-    }
-    this.rejectAllPending(entry, new Error(`CLI pool entry evicted: ${poolKey}`));
-    this.pool.delete(poolKey);
-    try {
-      if (this.isAlive(entry)) {
-        entry.proc.kill("SIGTERM");
-      }
-    } catch {
-    }
-    try {
-      entry.rl.close();
-    } catch {
-    }
-    entry.pendingRequests.clear();
-  }
-  evictOldestIdle() {
-    let oldest = null;
-    for (const entry of this.pool.values()) {
-      if (entry.busy) {
-        continue;
-      }
-      if (!oldest || entry.lastActivityAt < oldest.lastActivityAt) {
-        oldest = entry;
-      }
-    }
-    if (oldest) {
-      log.info("CLI pool: evicting oldest idle ACP process to make room", {
-        poolKey: oldest.poolKey
-      });
-      this.evict(oldest.poolKey);
-    }
-  }
-  kill(bindingKey) {
-    let killed = 0;
-    for (const [key] of this.pool) {
-      if (key.startsWith(bindingKey + ":")) {
-        this.evict(key);
-        killed++;
-      }
-    }
-    log.info("CLI pool: killed binding processes", { bindingKey, killed });
-  }
-  killAll() {
-    for (const [key] of this.pool) {
-      this.evict(key);
-    }
-  }
-  status() {
-    const now = Date.now();
-    const processes = [];
-    for (const entry of this.pool.values()) {
-      processes.push({
-        poolKey: entry.poolKey,
-        busy: entry.busy,
-        aliveMs: now - entry.spawnedAt,
-        lastActivityMs: now - entry.lastActivityAt,
-        allowedTools: entry.allowedTools
-      });
-    }
-    return {
-      total: this.pool.size,
-      busy: processes.filter((process2) => process2.busy).length,
-      idle: processes.filter((process2) => !process2.busy).length,
-      maxSize: this.maxSize,
-      processes
-    };
-  }
-};
-
-// src/daemon.ts
+init_cli_pool();
 init_runtime();
 
 // src/daemon/probe.ts
@@ -91658,13 +94329,13 @@ async function probeDiscordGateway(token) {
     let hasGuildMembers = false;
     if (appRes.ok) {
       const appBody = await appRes.json();
-      const flags = appBody.flags || 0;
+      const flags2 = appBody.flags || 0;
       const GATEWAY_GUILD_MEMBERS = 1 << 14;
       const GATEWAY_GUILD_MEMBERS_LIMITED = 1 << 15;
       const GATEWAY_MESSAGE_CONTENT = 1 << 18;
       const GATEWAY_MESSAGE_CONTENT_LIMITED = 1 << 19;
-      hasMessageContent = (flags & GATEWAY_MESSAGE_CONTENT) !== 0 || (flags & GATEWAY_MESSAGE_CONTENT_LIMITED) !== 0;
-      hasGuildMembers = (flags & GATEWAY_GUILD_MEMBERS) !== 0 || (flags & GATEWAY_GUILD_MEMBERS_LIMITED) !== 0;
+      hasMessageContent = (flags2 & GATEWAY_MESSAGE_CONTENT) !== 0 || (flags2 & GATEWAY_MESSAGE_CONTENT_LIMITED) !== 0;
+      hasGuildMembers = (flags2 & GATEWAY_GUILD_MEMBERS) !== 0 || (flags2 & GATEWAY_GUILD_MEMBERS_LIMITED) !== 0;
     } else {
       log.warn("Failed to fetch bot application intents. Proceeding without explicit verification.");
       hasMessageContent = true;
@@ -91689,19 +94360,19 @@ init_cron();
 init_binding();
 
 // src/daemon/attachment-cleanup.ts
-var fs10 = __toESM(require("node:fs/promises"), 1);
-var path9 = __toESM(require("node:path"), 1);
+var fs11 = __toESM(require("node:fs/promises"), 1);
+var path10 = __toESM(require("node:path"), 1);
 init_log();
 var DEFAULT_TMP_ATTACHMENT_TTL_MS = 24 * 60 * 60 * 1e3;
 var DEFAULT_TMP_ATTACHMENT_CLEANUP_INTERVAL_MS = 60 * 60 * 1e3;
 async function cleanupStaleTmpAttachments(extensionDir2, options = {}) {
-  const root = path9.join(extensionDir2, ".tmp-attachments");
+  const root = path10.join(extensionDir2, ".tmp-attachments");
   const nowMs = options.nowMs ?? Date.now();
   const ttlMs = options.ttlMs ?? DEFAULT_TMP_ATTACHMENT_TTL_MS;
   const cutoffMs = nowMs - ttlMs;
   let entries;
   try {
-    entries = await fs10.readdir(root, { withFileTypes: true });
+    entries = await fs11.readdir(root, { withFileTypes: true });
   } catch (err) {
     if (err.code === "ENOENT") {
       return { checked: 0, removed: 0, root };
@@ -91711,18 +94382,18 @@ async function cleanupStaleTmpAttachments(extensionDir2, options = {}) {
   let checked = 0;
   let removed = 0;
   for (const entry of entries) {
-    const target = path9.join(root, entry.name);
+    const target = path10.join(root, entry.name);
     checked++;
     let stat3;
     try {
-      stat3 = await fs10.stat(target);
+      stat3 = await fs11.stat(target);
     } catch {
       continue;
     }
     if (stat3.mtimeMs > cutoffMs) {
       continue;
     }
-    await fs10.rm(target, { recursive: true, force: true });
+    await fs11.rm(target, { recursive: true, force: true });
     removed++;
   }
   return { checked, removed, root };
@@ -91753,6 +94424,151 @@ function startTmpAttachmentCleanup(extensionDir2, options = {}) {
 
 // src/daemon.ts
 init_permissions();
+
+// src/daemon/singleton.ts
+var fs12 = __toESM(require("node:fs"), 1);
+var os = __toESM(require("node:os"), 1);
+var path11 = __toESM(require("node:path"), 1);
+var import_node_crypto = require("node:crypto");
+var import_node_child_process3 = require("node:child_process");
+var LOCK_PREFIX = "gemini-discord-daemon";
+function acquireDaemonSingletonLock(deps = {}) {
+  const pid = deps.pid ?? process.pid;
+  const scope = deps.scope ?? "default";
+  const lockPath = deps.lockPath ?? defaultDaemonLockPath(scope, deps.uid ?? getProcessUid());
+  const listPeerProcesses = deps.listPeerProcesses ?? (() => listSameUserDaemonProcesses(pid));
+  const peers = listPeerProcesses().filter((peer) => peer.pid !== pid);
+  if (peers.length > 0) {
+    const peer = peers[0];
+    throw new Error(`Another gemini-discord daemon may already be connected (pid ${peer.pid}: ${peer.command}). Stop it before starting this daemon.`);
+  }
+  return acquireLockFile(lockPath, pid);
+}
+function defaultDaemonLockPath(scope = "default", uid = getProcessUid()) {
+  const suffix = uid == null ? "unknown" : String(uid);
+  const safeScope = scope.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "default";
+  return path11.join(os.tmpdir(), `${LOCK_PREFIX}-${safeScope}-${suffix}.lock`);
+}
+function daemonSingletonScope(discordBotToken) {
+  const normalized = discordBotToken.trim();
+  if (!normalized) {
+    return "missing-token";
+  }
+  return `token-${(0, import_node_crypto.createHash)("sha256").update(normalized).digest("hex").slice(0, 16)}`;
+}
+function listSameUserDaemonProcesses(currentPid = process.pid) {
+  const uid = getProcessUid();
+  if (uid == null) {
+    return [];
+  }
+  let output = "";
+  try {
+    output = (0, import_node_child_process3.execFileSync)("ps", ["-axo", "pid=,uid=,command="], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"]
+    });
+  } catch {
+    return [];
+  }
+  return parseDaemonProcesses(output, uid, currentPid);
+}
+function parseDaemonProcesses(psOutput, uid, currentPid) {
+  const rows = [];
+  for (const line of psOutput.split("\n")) {
+    const match = line.match(/^\s*(\d+)\s+(\d+)\s+(.+)$/);
+    if (!match) continue;
+    const pid = Number(match[1]);
+    const rowUid = Number(match[2]);
+    const command = match[3] ?? "";
+    if (!Number.isFinite(pid) || !Number.isFinite(rowUid) || pid === currentPid || rowUid !== uid) {
+      continue;
+    }
+    if (isGeminiDiscordDaemonCommand(command)) {
+      rows.push({ pid, command: command.trim() });
+    }
+  }
+  return rows;
+}
+function acquireLockFile(lockPath, pid) {
+  fs12.mkdirSync(path11.dirname(lockPath), { recursive: true });
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const fd = fs12.openSync(lockPath, "wx");
+      try {
+        fs12.writeFileSync(fd, `${pid}
+`, "utf8");
+      } catch (err) {
+        try {
+          fs12.closeSync(fd);
+        } catch {
+        }
+        throw err;
+      }
+      return {
+        lockPath,
+        release: () => releaseLockFile(lockPath, fd, pid)
+      };
+    } catch (error) {
+      if (!isAlreadyExistsError(error)) {
+        throw error;
+      }
+      if (!removeStaleLock(lockPath)) {
+        throw new Error(`Another gemini-discord daemon is already running (lock: ${lockPath}).`);
+      }
+    }
+  }
+  throw new Error(`Could not acquire gemini-discord daemon lock: ${lockPath}`);
+}
+function releaseLockFile(lockPath, fd, pid) {
+  try {
+    fs12.closeSync(fd);
+  } catch {
+  }
+  try {
+    const lockPid = fs12.readFileSync(lockPath, "utf8").trim();
+    if (lockPid === String(pid)) {
+      fs12.unlinkSync(lockPath);
+    }
+  } catch {
+  }
+}
+function removeStaleLock(lockPath) {
+  let lockPid = null;
+  try {
+    const raw = fs12.readFileSync(lockPath, "utf8").trim();
+    lockPid = raw ? Number(raw) : null;
+  } catch {
+    return false;
+  }
+  if (lockPid && Number.isFinite(lockPid) && isProcessAlive(lockPid)) {
+    return false;
+  }
+  try {
+    fs12.unlinkSync(lockPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function isGeminiDiscordDaemonCommand(command) {
+  return command.includes("gemini-discord") && command.includes("dist/daemon.cjs") && !command.includes("dist/server.cjs");
+}
+function isProcessAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function getProcessUid() {
+  return typeof process.getuid === "function" ? process.getuid() : null;
+}
+function isAlreadyExistsError(error) {
+  return Boolean(error && typeof error === "object" && error.code === "EEXIST");
+}
+
+// src/daemon.ts
 var tmpDir = process.cwd();
 try {
   tmpDir = __dirname;
@@ -91761,6 +94577,11 @@ try {
 var extensionDir = resolveExtensionDir(tmpDir);
 var shuttingDown = false;
 var attachmentCleanupTimer = null;
+var singletonLock = null;
+function releaseSingletonLock() {
+  singletonLock?.release();
+  singletonLock = null;
+}
 var state = {
   status: "starting",
   startedAt: (/* @__PURE__ */ new Date()).toISOString(),
@@ -91782,6 +94603,10 @@ async function main() {
     state.status = "degraded";
   }
   const config = loadConfig(extensionDir);
+  if (process.env.GEMINI_DISCORD_DAEMON_SINGLETON === "1") {
+    singletonLock = acquireDaemonSingletonLock({ scope: daemonSingletonScope(config.discordBotToken) });
+    process.once("exit", releaseSingletonLock);
+  }
   attachmentCleanupTimer = startTmpAttachmentCleanup(extensionDir);
   const removedLegacyContextFiles = cleanupLegacyBindingContextFiles(extensionDir);
   if (removedLegacyContextFiles > 0) {
@@ -91827,6 +94652,7 @@ async function main() {
       runtimeStore.client.destroy();
     }
     shutdownCron();
+    releaseSingletonLock();
     if (apiServer) {
       apiServer.close(() => {
         log.info("Shutdown complete");
@@ -91895,5 +94721,6 @@ async function main() {
 }
 main().catch((err) => {
   log.error("Fatal startup error", { error: err instanceof Error ? err.message : String(err) });
+  releaseSingletonLock();
   process.exit(1);
 });

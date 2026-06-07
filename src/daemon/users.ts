@@ -30,9 +30,27 @@ export async function buildGuildUserMap(
 
   for (const guild of await resolveGuilds(client, config)) {
     try {
-      const members = options.query?.trim()
-        ? await guild.members.fetch({ query: options.query.trim(), limit: options.limit ?? 25 })
-        : await guild.members.fetch();
+      let members;
+      if (options.query?.trim()) {
+        members = await guild.members.fetch({ query: options.query.trim(), limit: options.limit ?? 25 });
+      } else {
+        // Fetch specific key users (owners, boss) to ensure they are registered in the cache
+        const idsToFetch = [
+          ...(config?.ownerIds ?? []),
+          ...(config?.discordBossUserId ? [config.discordBossUserId] : []),
+          client.user?.id,
+        ].filter((id): id is string => Boolean(id));
+
+        try {
+          if (idsToFetch.length > 0) {
+            await guild.members.fetch({ user: idsToFetch });
+          }
+        } catch (e) {
+          // Ignore fetch errors for specific IDs
+        }
+
+        members = guild.members.cache || await guild.members.fetch();
+      }
 
       for (const [, member] of members) {
         registerDiscoveredUser(memberToTarget(member, guild));

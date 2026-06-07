@@ -15,6 +15,8 @@ import { log } from './log.js';
 import { buildAcpPromptBlocks, type AcpPromptAttachment } from './acp-content.js';
 import { extractGeminiResultText, getGeminiTextDelta } from './gemini-output.js';
 import { resolveGeminiAllowedTools, roleEnv, type RoleContext } from './permissions.js';
+import type { TraceEvent } from './workflow/trace-event.js';
+import { normalizeAcpUpdate } from './workflow/trace-normalizer.js';
 
 const ACP_PROTOCOL_VERSION = 1;
 const SESSION_REQUEST_TIMEOUT_MS = 120_000;
@@ -25,6 +27,7 @@ const SESSION_REPLAY_MAX_WAIT_MS = 6_000;
 export interface StreamCallbacks {
   onToken: (token: string) => void;
   onThought?: () => void;
+  onTraceEvent?: (event: TraceEvent) => void;
 }
 
 export interface PoolSendOptions {
@@ -84,6 +87,7 @@ interface PersistentProcess {
   cwd: string | null;
   stderrTail: string;
   lastSessionUpdateAt: number;
+  activeToolTimers: Map<string, number>;
 }
 
 function buildPoolKey(bindingKey: string, allowedTools: string): string {
@@ -99,6 +103,14 @@ function buildPoolKey(bindingKey: string, allowedTools: string): string {
             ? 'web-discord'
           : 'discord';
   return `${bindingKey}:${tier}`;
+}
+
+export function buildGeminiProcessEnv(
+  config: Config,
+  roleContext: RoleContext,
+  baseEnv: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  return { ...baseEnv, ...(config.geminiCliEnv ?? {}), ...roleEnv(roleContext) };
 }
 
 function appendHeadlessIsolationArgs(args: string[]): void {
@@ -264,7 +276,7 @@ export class CliProcessPool {
 
     const proc = spawn(this.config.geminiPath, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, ...roleEnv(roleContext) },
+      env: buildGeminiProcessEnv(this.config, roleContext),
     });
 
     if (!proc.stdout || !proc.stdin) {
@@ -289,6 +301,7 @@ export class CliProcessPool {
       cwd: null,
       stderrTail: '',
       lastSessionUpdateAt: 0,
+      activeToolTimers: new Map(),
     };
 
     proc.stderr?.on('data', (chunk: Buffer) => {
@@ -301,7 +314,9 @@ export class CliProcessPool {
 
     proc.on('error', (error) => {
       this.rejectAllPending(entry, new Error(`Failed to spawn gemini: ${error.message}`));
-      this.pool.delete(entry.poolKey);
+      if (this.pool.get(entry.poolKey) === entry) {
+        this.pool.delete(entry.poolKey);
+      }
     });
 
     proc.on('close', (code) => {
@@ -312,7 +327,9 @@ export class CliProcessPool {
       try {
         rl.close();
       } catch {}
-      this.pool.delete(entry.poolKey);
+      if (this.pool.get(entry.poolKey) === entry) {
+        this.pool.delete(entry.poolKey);
+      }
     });
 
     try {
@@ -325,7 +342,7 @@ export class CliProcessPool {
         },
         clientInfo: {
           name: 'gemini-discord',
-          version: '0.1.0',
+          version: '0.1.1',
         },
       }, STARTUP_REQUEST_TIMEOUT_MS);
       entry.initialized = true;
@@ -634,6 +651,12 @@ export class CliProcessPool {
       || sessionUpdate === 'plan'
     ) {
       activePrompt.callbacks.onThought?.();
+      if (activePrompt.callbacks.onTraceEvent) {
+        const traceEvent = normalizeAcpUpdate(sessionUpdate, update, entry.activeToolTimers);
+        if (traceEvent) {
+          activePrompt.callbacks.onTraceEvent(traceEvent);
+        }
+      }
     }
   }
 

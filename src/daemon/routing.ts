@@ -16,6 +16,7 @@ export interface RoutingInput {
   mentionedBot: boolean;
   repliedToBot: boolean;
   replyToMessageId: string | null;
+  parentChannelId?: string | null;
 }
 
 export interface RoutingDecision {
@@ -178,6 +179,9 @@ function reject(): RoutingDecision {
 
 function isAllowedGuildChannel(input: RoutingInput, config: Config): boolean {
   if (config.allowedChannelIds.includes(input.channelId)) {
+    return true;
+  }
+  if (input.parentChannelId && config.allowedChannelIds.includes(input.parentChannelId)) {
     return true;
   }
 

@@ -26,6 +26,7 @@ These are auto-derived from the core settings above unless explicitly overridden
 | `DISCORD_ALLOWED_CHANNEL_IDS`| - | Comma-separated list of channel IDs where the bot is allowed to respond. Leave blank to allow all channels in `DISCORD_SERVER_ID`; this is not derived from `DISCORD_CHANNEL_ID`. |
 | `DISCORD_ALLOWED_USER_IDS` | - | Comma-separated list of human user IDs allowed to interact with the bot even when `DISCORD_ENABLE_GUESTS=false`. Empty means no allowlisted humans. |
 | `DISCORD_ALLOWED_AGENT_IDS` | - | Comma-separated list of peer bot IDs allowed to trigger this agent. |
+| `WORKFLOW_PARENT_CHANNEL_ID` | - | Optional guild text channel used when a monitored workflow thread is requested from a DM. The channel must be thread-capable and allowed by routing rules. |
 
 ## Engine Defaults
 
@@ -35,6 +36,11 @@ These are auto-derived from the core settings above unless explicitly overridden
 | `GEMINI_PATH` | `gemini` | Command or path to the Gemini CLI executable. |
 | `GEMINI_MODEL` | `gemini-3.1-flash-lite-preview` | The Gemini model to use for conversations. |
 | `GEMINI_TIMEOUT_MS` | `900000` | Network timeout (ms) for Gemini CLI calls. |
+| `GEMINI_API_KEY` | - | Optional Gemini API key passed through to Gemini CLI child processes for bridge workflows. |
+| `GOOGLE_API_KEY` | - | Optional Google API key passed through to Gemini CLI child processes for Vertex AI workflows. |
+| `GOOGLE_GENAI_USE_VERTEXAI` | - | Set to `true` when using Gemini CLI with Vertex AI. |
+| `GOOGLE_CLOUD_PROJECT` | - | Google Cloud project ID for Vertex AI workflows. |
+| `GOOGLE_CLOUD_LOCATION` | - | Google Cloud location for Vertex AI workflows. |
 | `GEMINI_MAX_CONCURRENT` | `3` | Maximum number of concurrent warm Gemini CLI processes in the pool. |
 | `CONVERSATION_HISTORY_LENGTH` | `30` | Number of messages to keep in the short-term conversation buffer. |
 | `PROMPT_HISTORY_MAX_MESSAGES` | `12` | Max messages from history to include in the context prompt. |
@@ -43,9 +49,9 @@ These are auto-derived from the core settings above unless explicitly overridden
 | `STREAMING` | `true` | Enable/disable streaming responses and typing indicators. |
 | `QUEUE_MAX_DEPTH` | `20` | Maximum number of tasks that can be queued per conversation. |
 | `ENABLE_DMS` | `true` | Whether the bot should respond to Direct Messages. |
-| `REQUIRE_MENTION` | `false` | If true, the bot only responds in servers when explicitly mentioned. |
-| `RESPOND_TO_REPLIES` | `true` | Whether the bot should respond to direct replies to its messages. |
-| `MEMORY_SCOPE` | `channel` | Isolation level for Discord memory (`channel` or `global`). |
+| `REQUIRE_MENTION` | `true` | If true, the bot only responds in servers when explicitly mentioned. |
+| `RESPOND_TO_REPLIES` | `false` | Whether the bot should respond to direct replies to its messages in servers. |
+| `MEMORY_SCOPE` | `channel` | Isolation level for Discord memory. Use `channel` for separate channel/DM transcripts or `global` for one shared transcript. Invalid values fall back to `channel`. |
 | `AUTO_START_DAEMON` | `true` | Automatically start the Discord daemon when the MCP server is initialized. |
 | `USE_GEMINI_CLI_SESSIONS` | `true` | Use native Gemini CLI session management. |
 | `GEMINI_SESSION_BINDING_SCOPE`| `channel` | Isolation level for Gemini CLI sessions (`channel`, `server`, or `global`). |

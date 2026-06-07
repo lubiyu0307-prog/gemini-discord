@@ -226,7 +226,7 @@ describe('BOSS/GUEST permissions', () => {
     });
   });
 
-  it('prefers configured boss over stale guest role env for local MCP', () => {
+  it('respects guest role env for local MCP and denies privileged actions', () => {
     const previous = {
       role: process.env.GEMINI_DISCORD_ROLE,
       senderId: process.env.GEMINI_DISCORD_SENDER_ID,
@@ -239,12 +239,12 @@ describe('BOSS/GUEST permissions', () => {
 
     try {
       expect(authorizeMcpToolAction('user_discovery', createConfig({ discordBossUserId: BOSS_ID }))).toMatchObject({
-        decision: 'allow',
-        reason: 'boss',
+        decision: 'deny',
+        reason: 'guest_requires_boss',
       });
       expect(authorizeMcpToolAction('admin_command', createConfig({ discordBossUserId: BOSS_ID }))).toMatchObject({
-        decision: 'allow',
-        reason: 'boss',
+        decision: 'deny',
+        reason: 'guest_requires_boss',
       });
     } finally {
       if (previous.role === undefined) delete process.env.GEMINI_DISCORD_ROLE;

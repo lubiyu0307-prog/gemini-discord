@@ -9,16 +9,18 @@ const repoRoot = process.cwd();
 describe('extension metadata', () => {
   it('keeps install prompts aligned with centralized setup variables', () => {
     const manifest = readJson('gemini-extension.json') as {
+      version?: string;
       description?: string;
       settings?: Array<{ envVar?: string }>;
       mcpServers?: Record<string, { env?: Record<string, string> }>;
       contextFileName?: string;
     };
-    const pkg = readJson('package.json') as { description?: string };
+    const pkg = readJson('package.json') as { version?: string; description?: string };
 
     const settingEnvVars = manifest.settings?.map((setting) => setting.envVar) ?? [];
     expect(settingEnvVars).toEqual([...INSTALL_SETTING_ENV_KEYS]);
     expect(Object.keys(manifest.mcpServers?.['discord-bridge']?.env ?? {})).toEqual([...INSTALL_SETTING_ENV_KEYS]);
+    expect(manifest.version).toBe(pkg.version);
     expect(manifest.description).toBe(pkg.description);
   });
 

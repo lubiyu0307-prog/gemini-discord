@@ -88,6 +88,7 @@ export interface Config {
   geminiModel: string;
   geminiTimeoutMs: number;
   geminiMaxConcurrent: number;
+  geminiCliEnv?: Record<string, string>;
   conversationHistoryLength: number;
   promptHistoryMessageLimit: number;
   promptHistoryCharBudget: number;
@@ -104,6 +105,11 @@ export interface Config {
   geminiSessionBindingScope: GeminiSessionBindingScope;
   cliIdleTimeoutMs: number;
   setupValidationPending: boolean;
+  workflowParentChannelId: string;
+  chunkerLimit?: number;
+  geminiAvailableModels?: string[];
+  discordAllowedMentions?: string[];
+  discordPingRepliedUser?: boolean;
 }
 
 /** A single conversation message stored in persistent memory */
