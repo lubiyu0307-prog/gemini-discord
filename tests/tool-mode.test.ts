@@ -44,6 +44,8 @@ describe('resolveToolMode', () => {
     expect(resolveToolMode('recommend a channel for learning Japanese')).toBe('chat');
     expect(resolveToolMode('what are the best crossplay games between ps5 and pc')).toBe('chat');
     expect(resolveToolMode('how does the channel selection algorithm work')).toBe('chat');
+    expect(resolveToolMode('why is there noise in this channel')).toBe('chat');
+    expect(resolveToolMode('what is allowed in this channel')).toBe('chat');
   });
 
   it('escalates to discord mode for explicit cross-channel action intent', () => {
@@ -51,5 +53,7 @@ describe('resolveToolMode', () => {
     expect(resolveToolMode('post the summary in another channel')).toBe('discord');
     expect(resolveToolMode('list the channels in this server')).toBe('discord');
     expect(resolveToolMode('show channels')).toBe('discord');
+    expect(resolveToolMode('send this to #general')).toBe('discord');
+    expect(resolveToolMode('post the summary to #announcements')).toBe('discord');
   });
 });
