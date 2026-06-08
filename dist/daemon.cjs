@@ -91064,7 +91064,7 @@ var init_tool_mode = __esm({
       /\breport back\b/i,
       /\bfollow up\b/i,
       /\bcheck back\b/i,
-      /\b(?:send|post|write|put|drop|move|copy)\b.*\b(?:to|in|into) (?:the |a |this |that |another )?(?:#\S+ )?channel\b/i,
+      /\b(?:send|post|write|put|drop|move|copy)\b.*\b(?:to|in|into) (?:the |a |this |that )?(?:#\S+ |(?!this\b|that\b|the\b|a\b|my\b|our\b|your\b)\w+ )channel\b/i,
       /\b(?:send|post|write|put|drop|move|copy)\b.*\b(?:to|in|into) #\w/i,
       /\b(?:list|show|discover|find) (?:the )?channels?\b/i,
       /\b(?:create|start|make|open) (?:a )?(?:new )?(?:discord )?thread\b/i,

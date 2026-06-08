@@ -46,11 +46,15 @@ describe('resolveToolMode', () => {
     expect(resolveToolMode('how does the channel selection algorithm work')).toBe('chat');
     expect(resolveToolMode('why is there noise in this channel')).toBe('chat');
     expect(resolveToolMode('what is allowed in this channel')).toBe('chat');
+    expect(resolveToolMode('what should i post in this channel')).toBe('chat');
+    expect(resolveToolMode('write a haiku in this channel')).toBe('chat');
   });
 
   it('escalates to discord mode for explicit cross-channel action intent', () => {
     expect(resolveToolMode('send this to the #general channel')).toBe('discord');
     expect(resolveToolMode('post the summary in another channel')).toBe('discord');
+    expect(resolveToolMode('post the summary in a different channel')).toBe('discord');
+    expect(resolveToolMode('send this to the welcome channel')).toBe('discord');
     expect(resolveToolMode('list the channels in this server')).toBe('discord');
     expect(resolveToolMode('show channels')).toBe('discord');
     expect(resolveToolMode('send this to #general')).toBe('discord');
