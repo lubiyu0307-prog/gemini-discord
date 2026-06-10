@@ -105,6 +105,13 @@ npm run setup
 | `/workflow` | Create and start a monitored workflow thread for a task (boss only) |
 | `/ping` | Round-trip latency |
 
+**Slash command visibility model:**
+
+- Global slash commands are registered only for bot DMs. They use Discord's `BotDM` interaction context and guild-install integration type so public global commands do not appear across every server channel.
+- Guild slash commands are registered separately for each guild where the bot is installed. Guild payloads intentionally omit global `contexts` and `integration_types`; Discord scopes those commands to that guild install.
+- Discord command visibility is not treated as authorization. The daemon still checks `DISCORD_BOSS_USER_ID`, owner IDs, and allowed users at interaction time.
+- Privileged commands such as `/model`, `/pool`, `/kill`, and `/workflow` remain boss-gated even if Discord shows the command to someone else because of guild command permissions or server UI state.
+
 ---
 
 ## Permissions
