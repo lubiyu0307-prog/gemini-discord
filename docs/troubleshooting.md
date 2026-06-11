@@ -64,11 +64,11 @@ Fix:
 
 ## Bare Mentions and Immediate Context
 
-When a Discord message only mentions the bot, the daemon accepts it as a normal mention turn and sends Gemini a small immediate-context block. That block is capped to the last 2-3 messages in the same channel or thread and labels speakers as `BOSS`, `GUEST`, `allowed_agent`, or `self_bot`.
+When a Discord message only mentions the bot, the daemon accepts it as a normal mention turn and sends Gemini a small immediate-context block. That block is capped to the last 6 messages in the same channel or thread, can include multiple recent users, and labels speakers as `BOSS`, `GUEST`, `allowed_agent`, or `self_bot`. This lets visually grouped Discord follow-ups such as several separate messages and then a standalone bot ping read like one normal conversation turn without changing the agent prompt.
 
 If a bare mention does not respond:
 1. Confirm the message appears in `.gemini-discord/daemon.log` as `Accepted Discord message` with `trigger:"mention"`.
-2. Confirm the preceding messages were in the same channel or thread.
+2. Confirm the preceding messages were in the same channel or thread and came from users or allowed agents the daemon was authorized to hear.
 3. If the bot needs to perform a Discord action from that context, check that the prior message clearly requested the action, such as creating a thread.
 
 ## Native Thread Creation

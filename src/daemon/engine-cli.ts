@@ -18,6 +18,7 @@ import {
   selectImmediateMentionContext,
   shouldUseImmediateMentionContext,
 } from './memory.js';
+import { mergeImmediateMentionContext } from './recent-context.js';
 import { Semaphore } from './semaphore.js';
 import { retrySend } from './retry.js';
 import { LiveEditor } from './editor.js';
@@ -145,7 +146,10 @@ export async function processViaCli(
 
   if (allowPersistentSession) {
     const immediateContext = shouldUseImmediateMentionContext(accepted.trigger, accepted.content)
-      ? selectImmediateMentionContext(memory.snapshot(processingContext.sessionKey), incomingPrompt)
+      ? mergeImmediateMentionContext(
+        selectImmediateMentionContext(memory.snapshot(processingContext.sessionKey), incomingPrompt),
+        runtimeStore.recentDiscordContext.selectForAtomicMention(incomingPrompt),
+      )
       : [];
     let seedContextOverride: string | undefined;
     if (isWorkflow && !resumeSessionId) {
@@ -167,7 +171,10 @@ export async function processViaCli(
   } else {
     const fullHistorySnapshot = memory.snapshot(processingContext.sessionKey);
     const immediateContext = shouldUseImmediateMentionContext(accepted.trigger, accepted.content)
-      ? selectImmediateMentionContext(fullHistorySnapshot, incomingPrompt)
+      ? mergeImmediateMentionContext(
+        selectImmediateMentionContext(fullHistorySnapshot, incomingPrompt),
+        runtimeStore.recentDiscordContext.selectForAtomicMention(incomingPrompt),
+      )
       : [];
     const historySnapshot = immediateContext.length > 0 ? [] : fullHistorySnapshot;
     prompt = buildDiscordPrompt({
