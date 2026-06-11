@@ -84,6 +84,7 @@ export function registerAdminTool(server: McpServer, config: Config): void {
             `**Streaming:** ${s.streaming ? 'enabled' : 'disabled'}`,
             `**DMs:** ${s.enableDMs ? 'enabled' : 'disabled'}`,
             `**Guests:** ${s.enableGuests ? 'enabled' : 'disabled'}`,
+            `**Guest Attachments:** ${s.enableGuestAttachments ? 'enabled' : 'disabled'}`,
             `**Server:** ${s.serverName ?? s.serverId ?? 'not yet pinned'}`,
             `**Primary Channel:** ${s.channelId || 'not yet pinned'}`,
             `**Memory Scope:** ${s.sessionScope}`,

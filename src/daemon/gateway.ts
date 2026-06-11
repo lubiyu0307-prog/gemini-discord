@@ -35,6 +35,7 @@ import { ensureOwnerDmPairings, touchDmPairing } from './dm-pairing.js';
 import {
   authorizeAction,
   authorizeGuestRequest,
+  canProcessAttachments,
   formatPermissionDenial,
   isBoss,
   resolveDiscordRole,
@@ -721,9 +722,10 @@ async function processMessage(
     content: accepted.content,
     attachmentCount: message.attachments.size,
     toolMode: requestedToolMode,
+    allowGuestAttachments: config.enableGuestAttachments,
   }, accepted.roleContext);
   const toolMode = resolveEffectiveToolMode(accepted.roleContext, requestedToolMode, turnDecision.action);
-  const attachmentMetadata = isBoss(accepted.roleContext) ? getSupportedAttachmentMetadata(message) : [];
+  const attachmentMetadata = canProcessAttachments(config, accepted.roleContext) ? getSupportedAttachmentMetadata(message) : [];
   let effectiveAttachmentMetadata = attachmentMetadata;
 
   let response = '';

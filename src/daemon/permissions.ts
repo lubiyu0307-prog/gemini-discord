@@ -53,6 +53,7 @@ export interface RequestClassificationInput {
   content: string;
   attachmentCount?: number;
   toolMode?: ToolMode;
+  allowGuestAttachments?: boolean;
 }
 
 export const GUEST_PERMISSION_REFUSAL = 'I can only do that with approval from the authorized Discord user.';
@@ -121,14 +122,17 @@ const ADMIN_PATTERNS = [
   /\b(?:admin|owner|boss|permission|authorization|allowlist)\b/i,
 ];
 
-const HISTORY_STATUS_PATTERNS = [
+const HISTORY_PATTERNS = [
   /\b(?:history|transcript|previous messages|conversation buffer|what happened before|see what happened before)\b/i,
+];
+
+const STATUS_PATTERNS = [
   /\b(?:status|health|pool|daemon|bot internals|introspect|debug the bot)\b/i,
 ];
 
 const AMBIGUOUS_PRIVILEGED_PATTERNS = [
   /\b(?:latest|current|today'?s?|now|recent|newest|look this up|look up|check online|search the web|browse|research)\b/i,
-  /\b(?:just run a quick command|check the logs|read the config|look at the repo|inspect this attachment)\b/i,
+  /\b(?:just run a quick command|check the logs|read the config|look at the repo)\b/i,
 ];
 
 const NON_PUBLIC_WEB_PATTERNS = [
@@ -178,6 +182,10 @@ export function isBoss(roleContext: RoleContext): boolean {
   return roleContext.role === 'BOSS';
 }
 
+export function canProcessAttachments(config: Config, roleContext: RoleContext): boolean {
+  return isBoss(roleContext) || config.enableGuestAttachments;
+}
+
 export function isConfiguredBossDiscordId(config: Config, discordUserId: string): boolean {
   return resolveDiscordRole(config, { discordUserId }).role === 'BOSS';
 }
@@ -198,10 +206,9 @@ export function authorizeAction(action: PermissionAction, roleContext: RoleConte
   };
 }
 
-export function classifyRequestForGuest(input: RequestClassificationInput): PermissionAction {
+export function classifyGuestTextIntent(input: Pick<RequestClassificationInput, 'content' | 'toolMode'>): PermissionAction {
   const content = input.content.trim();
 
-  if ((input.attachmentCount ?? 0) > 0) return 'attachment_processing';
   if (!content) return 'safe_chat';
   if (PROMPT_BYPASS_PATTERNS.some((pattern) => pattern.test(content))) return 'prompt_bypass';
   if (PRIVILEGED_TOOL_NAME_PATTERNS.some((pattern) => pattern.test(content))) return 'gemini_tools';
@@ -209,11 +216,12 @@ export function classifyRequestForGuest(input: RequestClassificationInput): Perm
   if (SHELL_PATTERNS.some((pattern) => pattern.test(content))) return 'shell';
   if (LOCAL_FILE_PATTERNS.some((pattern) => pattern.test(content))) return 'local_file';
   if (REPO_PATTERNS.some((pattern) => pattern.test(content))) return 'repo_inspection';
+  if (HISTORY_PATTERNS.some((pattern) => pattern.test(content))) return 'history';
+  if (STATUS_PATTERNS.some((pattern) => pattern.test(content))) return 'status';
   if (MEDIA_PATTERNS.some((pattern) => pattern.test(content))) return 'media_search';
   if (OUTBOUND_DISCORD_PATTERNS.some((pattern) => pattern.test(content))) return 'outbound_discord';
   if (CRON_PATTERNS.some((pattern) => pattern.test(content))) return 'cron';
   if (ADMIN_PATTERNS.some((pattern) => pattern.test(content))) return 'admin_command';
-  if (HISTORY_STATUS_PATTERNS.some((pattern) => pattern.test(content))) return 'history';
 
   switch (input.toolMode) {
     case 'full':
@@ -232,12 +240,32 @@ export function classifyRequestForGuest(input: RequestClassificationInput): Perm
   return 'safe_chat';
 }
 
+function isGuestSafeTextAction(action: PermissionAction): boolean {
+  return action === 'safe_chat' || action === 'public_web_search';
+}
+
+export function classifyRequestForGuest(input: RequestClassificationInput): PermissionAction {
+  const textAction = classifyGuestTextIntent(input);
+  if (!isGuestSafeTextAction(textAction)) {
+    return textAction;
+  }
+
+  if ((input.attachmentCount ?? 0) > 0) return 'attachment_processing';
+
+  return textAction;
+}
+
 export function authorizeGuestRequest(input: RequestClassificationInput, roleContext: RoleContext): PermissionDecision {
   if (isBoss(roleContext)) {
     return { decision: 'allow', action: 'safe_chat', reason: 'boss' };
   }
 
-  return authorizeAction(classifyRequestForGuest(input), roleContext);
+  const action = classifyRequestForGuest(input);
+  if (action === 'attachment_processing' && input.allowGuestAttachments) {
+    return { decision: 'allow', action, reason: 'guest_attachments_enabled' };
+  }
+
+  return authorizeAction(action, roleContext);
 }
 
 export function formatPermissionDenial(_decision: PermissionDecision): string {

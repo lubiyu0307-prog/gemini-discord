@@ -100,6 +100,7 @@ function createConfig(): Config {
     queueMaxDepth: 20,
     enableDMs: true,
     enableGuests: false,
+    enableGuestAttachments: false,
     requireMention: false,
     respondToReplies: true,
     memoryScope: 'channel',

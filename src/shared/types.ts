@@ -96,6 +96,7 @@ export interface Config {
   queueMaxDepth: number;
   enableDMs: boolean;
   enableGuests: boolean;
+  enableGuestAttachments: boolean;
   enableServerMembersIntent?: boolean;
   requireMention: boolean;
   respondToReplies: boolean;
@@ -190,6 +191,7 @@ export interface DaemonStatus {
   ownerIds: string[];
   enableDMs: boolean;
   enableGuests: boolean;
+  enableGuestAttachments: boolean;
   sessionScope: MemoryScope;
   geminiSessionBindingScope: GeminiSessionBindingScope;
   useGeminiCliSessions: boolean;

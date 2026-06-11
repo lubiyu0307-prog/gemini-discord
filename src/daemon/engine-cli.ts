@@ -31,6 +31,7 @@ import { log } from './log.js';
 import { SUPPRESS_DISCORD_MENTIONS, resolveAllowedMentions } from './mention-safety.js';
 import {
   authorizeAction,
+  canProcessAttachments,
   formatPermissionDenial,
   isBoss,
 } from './permissions.js';
@@ -72,6 +73,7 @@ export async function processViaCli(
   traceCallbacks?: { onTraceEvent: (event: TraceEvent) => void },
 ): Promise<{ response: string; messageIds: string[]; attachments?: ConversationAttachment[]; sessionId?: string }> {
   let targetMessage = message;
+  const attachmentsAllowed = canProcessAttachments(config, accepted.roleContext);
 
   // If the current message has no attachments, but it's a reply to another message,
   // we should check the replied-to message for attachments to provide them as context.
@@ -86,8 +88,8 @@ export async function processViaCli(
     }
   }
 
-  const attachmentMetadata = isBoss(accepted.roleContext) ? getSupportedAttachmentMetadata(targetMessage) : [];
-  if ((targetMessage.attachments.size > 0 || attachmentMetadata.length > 0) && !isBoss(accepted.roleContext)) {
+  const attachmentMetadata = attachmentsAllowed ? getSupportedAttachmentMetadata(targetMessage) : [];
+  if ((targetMessage.attachments.size > 0 || attachmentMetadata.length > 0) && !attachmentsAllowed) {
     const decision = authorizeAction('attachment_processing', accepted.roleContext);
     const responseText = formatPermissionDenial(decision);
     const messageIds = await sendPreparedDisplayText(channel, responseText, config);
@@ -100,7 +102,7 @@ export async function processViaCli(
   const resumeSessionId = allowPersistentSession
     ? resolveBindingResumeSessionId(bindingState)
     : null;
-  const downloadedAttachments = isBoss(accepted.roleContext)
+  const downloadedAttachments = attachmentsAllowed
     ? await downloadSupportedAttachments(
       targetMessage,
       processingContext.attachmentsDir,

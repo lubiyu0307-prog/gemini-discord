@@ -120,7 +120,7 @@ Two roles: `BOSS` and `GUEST`.
 
 **Boss** authority is granted only by `DISCORD_BOSS_USER_ID` — never by username, display name, role, server owner status, or any other Discord metadata. If that value is missing or malformed, privileged actions fail closed.
 
-**Guests** are globally disabled by default. Human users in `DISCORD_ALLOWED_USER_IDS` can chat in allowed channels even when `DISCORD_ENABLE_GUESTS=false`; other human users can chat only when `DISCORD_ENABLE_GUESTS=true`. When available, simple public Google Search may be allowed for guests. They cannot use MCP tools, shell access, filesystem access, attachment processing, history, discovery, cron, admin, moderation, or outbound Discord actions. Peer bots remain separate and must be listed in `DISCORD_ALLOWED_AGENT_IDS`.
+**Guests** are globally disabled by default. Human users in `DISCORD_ALLOWED_USER_IDS` can chat in allowed channels even when `DISCORD_ENABLE_GUESTS=false`; other human users can chat only when `DISCORD_ENABLE_GUESTS=true`. When available, simple public Google Search may be allowed for guests. Guest attachment processing, including image viewing, is disabled by default and can be enabled with `DISCORD_ENABLE_GUEST_ATTACHMENTS=true`; boss attachment processing is unaffected. Guests cannot use MCP tools, shell access, filesystem access, history, discovery, cron, admin, moderation, or outbound Discord actions. Peer bots remain separate and must be listed in `DISCORD_ALLOWED_AGENT_IDS`.
 
 Server replies require an explicit mention by default; set `RESPOND_TO_REPLIES=true` only if you want direct replies to bot messages to trigger responses. All message sends require an explicit target. If a target can't be proven, the action fails — there is no fallback channel.
 
