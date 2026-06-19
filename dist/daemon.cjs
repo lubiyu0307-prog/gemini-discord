@@ -89638,7 +89638,7 @@ function shouldRetryWithFreshSession(error, resumeSessionId) {
     return false;
   }
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
-  return message.includes("exited with code") || message.includes("returned no assistant output") || message.includes("resume_session_unavailable");
+  return message.includes("exited with code") || message.includes("returned no assistant output") || message.includes("resume_session_unavailable") || message.includes("authentication required") && !message.includes("proxy");
 }
 var fsp2, path15, ERROR_MATCHERS;
 var init_engine_cli = __esm({
@@ -93950,7 +93950,7 @@ function isRetryableAcpExitError(error) {
 }
 function isMissingSessionError(error) {
   const message = error.message.toLowerCase();
-  return message.includes("no previous sessions found for this project") || message.includes("session not found") || message.includes("invalid session identifier") || message.includes("failed to resolve session") || message.includes("resume_session_unavailable");
+  return message.includes("no previous sessions found for this project") || message.includes("session not found") || message.includes("invalid session identifier") || message.includes("failed to resolve session") || message.includes("resume_session_unavailable") || message.includes("authentication required") && !message.includes("proxy");
 }
 function extractUpdateText(update) {
   const content = update["content"];
