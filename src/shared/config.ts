@@ -257,6 +257,7 @@ export function loadConfig(extensionDir: string): Config {
     queueMaxDepth: parseInt(get(ENV.QUEUE_MAX_DEPTH, '20'), 10),
     enableDMs: parseBoolean(get(ENV.ENABLE_DMS, 'true'), true),
     enableGuests: parseBoolean(get(ENV.DISCORD_ENABLE_GUESTS), false),
+    enableGuestAttachments: parseBoolean(get(ENV.DISCORD_ENABLE_GUEST_ATTACHMENTS), false),
     enableServerMembersIntent: parseBoolean(get(ENV.DISCORD_ENABLE_SERVER_MEMBERS_INTENT, 'true'), true),
     requireMention: parseBoolean(get(ENV.REQUIRE_MENTION, 'true'), true),
     respondToReplies: parseBoolean(get(ENV.RESPOND_TO_REPLIES, 'false'), false),

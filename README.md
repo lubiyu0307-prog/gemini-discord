@@ -107,6 +107,13 @@ npm run setup
 | `/workflow` | Create and start a monitored workflow thread for a task (boss only) |
 | `/ping` | Round-trip latency |
 
+**Slash command visibility model:**
+
+- Global slash commands are registered only for bot DMs. They use Discord's `BotDM` interaction context and guild-install integration type so public global commands do not appear across every server channel.
+- Guild slash commands are registered separately for each guild where the bot is installed. Guild payloads intentionally omit global `contexts` and `integration_types`; Discord scopes those commands to that guild install.
+- Discord command visibility is not treated as authorization. The daemon still checks `DISCORD_BOSS_USER_ID`, owner IDs, and allowed users at interaction time.
+- Privileged commands such as `/model`, `/pool`, `/kill`, and `/workflow` remain boss-gated even if Discord shows the command to someone else because of guild command permissions or server UI state.
+
 ---
 
 ## Permissions
@@ -115,7 +122,7 @@ Two roles: `BOSS` and `GUEST`.
 
 **Boss** authority is granted only by `DISCORD_BOSS_USER_ID` — never by username, display name, role, server owner status, or any other Discord metadata. If that value is missing or malformed, privileged actions fail closed.
 
-**Guests** are globally disabled by default. Human users in `DISCORD_ALLOWED_USER_IDS` can chat in allowed channels even when `DISCORD_ENABLE_GUESTS=false`; other human users can chat only when `DISCORD_ENABLE_GUESTS=true`. When available, simple public Google Search may be allowed for guests. They cannot use MCP tools, shell access, filesystem access, attachment processing, history, discovery, cron, admin, moderation, or outbound Discord actions. Peer bots remain separate and must be listed in `DISCORD_ALLOWED_AGENT_IDS`.
+**Guests** are globally disabled by default. Human users in `DISCORD_ALLOWED_USER_IDS` can chat in allowed channels even when `DISCORD_ENABLE_GUESTS=false`; other human users can chat only when `DISCORD_ENABLE_GUESTS=true`. When available, simple public Google Search may be allowed for guests. Guest attachment processing, including image viewing, is disabled by default and can be enabled with `DISCORD_ENABLE_GUEST_ATTACHMENTS=true`; boss attachment processing is unaffected. Guests cannot use MCP tools, shell access, filesystem access, history, discovery, cron, admin, moderation, or outbound Discord actions. Peer bots remain separate and must be listed in `DISCORD_ALLOWED_AGENT_IDS`.
 
 Server replies require an explicit mention by default; set `RESPOND_TO_REPLIES=true` only if you want direct replies to bot messages to trigger responses. All message sends require an explicit target. If a target can't be proven, the action fails — there is no fallback channel.
 
