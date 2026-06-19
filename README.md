@@ -45,13 +45,15 @@ Vertex AI is also supported through Gemini CLI's `GOOGLE_GENAI_USE_VERTEXAI`, `G
 gemini extensions install https://github.com/Yamato-main/gemini-discord
 ```
 
-The installer prompts for three values. Restart Gemini CLI and the bot should come online.
+The installer prompts for Discord setup values and Gemini auth values. `GEMINI_API_KEY` is recommended for unattended bridge sessions; Vertex AI users can leave it blank and set the Vertex variables instead. Restart Gemini CLI and the bot should come online.
 
 | Prompt | What it is |
 | --- | --- |
 | Discord Bot Token | From the Discord Developer Portal |
 | Boss User ID | Your stable numeric Discord user ID — the only ID with full authority |
 | Server ID | The server where the bot is installed |
+| Gemini API Key | Recommended API-key auth for Gemini CLI child processes |
+| Vertex AI settings | Optional `GOOGLE_GENAI_USE_VERTEXAI`, `GOOGLE_API_KEY`, `GOOGLE_CLOUD_PROJECT`, and `GOOGLE_CLOUD_LOCATION` values |
 
 Legacy owner and admin routing IDs are auto-derived from Boss User ID unless overridden in [advanced configuration](docs/configuration.md).
 
@@ -98,8 +100,8 @@ npm run setup
 | Command | Description |
 | --- | --- |
 | `/new` | Fresh session for the current channel |
+| `/model` | Switch the Gemini CLI model or alias. Defaults to `auto`; custom `GEMINI_AVAILABLE_MODELS` values only affect autocomplete suggestions. |
 | `/status` | Daemon health and runtime info |
-| `/model` | Switch Gemini model (boss only) |
 | `/pool` | Process pool state (boss only) |
 | `/kill` | Kill a pooled process (boss only) |
 | `/workflow` | Create and start a monitored workflow thread for a task (boss only) |
@@ -130,6 +132,8 @@ Most users only need the install prompts. Full reference via [docs/configuration
 | Discord Bot Token | Lets the bridge connect to Discord |
 | Boss User ID | The only Discord user ID with full authority |
 | Server ID | Server where the bot is installed |
+| Gemini API Key | Recommended API-key auth for Gemini CLI child processes |
+| Vertex AI settings | Optional Vertex AI auth for Gemini CLI child processes |
 
 Update these later with:
 
@@ -157,6 +161,8 @@ gemini extensions install /absolute/path/to/gemini-discord
 
 ```bash
 npm run typecheck       # Type-check
+npm run version:check   # Verify package, manifest, lockfile, and runtime version fields
+npm run version:bump -- 0.1.2
 npm test                # Run tests
 npm run dev:daemon      # Daemon in dev mode
 npm run start:daemon    # Start daemon
@@ -164,7 +170,7 @@ npm run start:server    # Start MCP server
 npm run install-service # Install as system service
 ```
 
-Before releasing: run `npm ci`, `npm run typecheck`, `npm run build`, and `npm test`; commit `dist/`; keep `.env` and `.gemini-discord/` untracked; use placeholder IDs in examples; add the `gemini-cli-extension` GitHub topic.
+Before releasing: follow [RELEASE.md](RELEASE.md). Run `npm ci`, `npm run version:check`, `npm run typecheck`, `npm run build`, and `npm test`; commit `dist/`; keep `.env` and `.gemini-discord/` untracked; use placeholder IDs in examples; add the `gemini-cli-extension` GitHub topic.
 
 ## Contributing
 

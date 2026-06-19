@@ -8,6 +8,20 @@ import { ENV } from '../src/shared/config-vars.js';
 import { resolveRuntimePaths } from '../src/shared/runtime-paths.js';
 
 describe('loadConfig', () => {
+  it('defaults Gemini model selection to the CLI auto alias', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-model-'));
+
+    try {
+      fs.writeFileSync(path.join(tmpDir, '.env'), 'DISCORD_BOT_TOKEN=token\n');
+
+      const config = loadConfig(tmpDir);
+
+      expect(config.geminiModel).toBe('auto');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('prefers extension process settings over local .env development defaults', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-'));
 

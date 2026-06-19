@@ -8,6 +8,8 @@ export interface RuntimePaths {
   daemonTokenFile: string;
   daemonLogFile: string;
   daemonPortFile: string;
+  headlessGeminiCliHome: string;
+  headlessGeminiCliSettingsFile: string;
   memoryFile: string;
   memoryTmpFile: string;
   cronFile: string;
@@ -24,6 +26,8 @@ export function resolveRuntimePaths(extensionDir: string): RuntimePaths {
     daemonTokenFile: resolveManagedRuntimePath(extensionDir, 'daemon-token', '.daemon-token'),
     daemonLogFile: resolveManagedRuntimePath(extensionDir, 'daemon.log', 'daemon.log'),
     daemonPortFile: resolveManagedRuntimePath(extensionDir, 'daemon.port', '.daemon-port'),
+    headlessGeminiCliHome: path.join(runtimeDir, 'gemini-cli'),
+    headlessGeminiCliSettingsFile: path.join(runtimeDir, 'gemini-cli', 'settings.json'),
     memoryFile: resolveManagedRuntimePath(extensionDir, 'memory.json', '.memory.json'),
     memoryTmpFile: resolveManagedRuntimePath(extensionDir, 'memory.json.tmp', '.memory.json.tmp'),
     cronFile: resolveManagedRuntimePath(extensionDir, 'cron.json', '.cron.json'),
@@ -35,6 +39,7 @@ export function ensureRuntimePaths(extensionDir: string): RuntimePaths {
   const paths = resolveRuntimePaths(extensionDir);
   fs.mkdirSync(paths.runtimeDir, { recursive: true });
   fs.mkdirSync(paths.bindingsDir, { recursive: true });
+  fs.mkdirSync(paths.headlessGeminiCliHome, { recursive: true });
   return paths;
 }
 

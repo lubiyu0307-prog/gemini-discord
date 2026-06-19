@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { parseEnvFile } from '../src/shared/config.js';
-import { CONFIG_ENV_KEYS, ENV, INSTALL_SETTING_ENV_KEYS } from '../src/shared/config-vars.js';
+import {
+  CONFIG_ENV_KEYS,
+  ENV,
+  EXTENSION_SETTING_ENV_KEYS,
+  INSTALL_SETTING_ENV_KEYS,
+} from '../src/shared/config-vars.js';
 
 const repoRoot = process.cwd();
 
@@ -18,8 +23,8 @@ describe('extension metadata', () => {
     const pkg = readJson('package.json') as { version?: string; description?: string };
 
     const settingEnvVars = manifest.settings?.map((setting) => setting.envVar) ?? [];
-    expect(settingEnvVars).toEqual([...INSTALL_SETTING_ENV_KEYS]);
-    expect(Object.keys(manifest.mcpServers?.['discord-bridge']?.env ?? {})).toEqual([...INSTALL_SETTING_ENV_KEYS]);
+    expect(settingEnvVars).toEqual([...EXTENSION_SETTING_ENV_KEYS]);
+    expect(Object.keys(manifest.mcpServers?.['discord-bridge']?.env ?? {})).toEqual([...EXTENSION_SETTING_ENV_KEYS]);
     expect(manifest.version).toBe(pkg.version);
     expect(manifest.description).toBe(pkg.description);
   });

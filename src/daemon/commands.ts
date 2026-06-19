@@ -14,7 +14,6 @@ import { log } from './log.js';
 import type { Config } from '../shared/types.js';
 import type { DaemonState } from './api.js';
 import type { ConversationMemory } from './memory.js';
-import { spawn } from 'node:child_process';
 import { updateEnvModel } from '../shared/config.js';
 import { runtimeStore } from './runtime.js';
 import { resetConversationSession } from './session-reset.js';
@@ -28,7 +27,6 @@ import {
 } from './permissions.js';
 import { createWorkflowThread } from './workflow/thread-creator.js';
 import { validateWorkflowTaskSummary, WorkflowTaskValidationError } from './workflow/task-validation.js';
-import { buildGeminiProcessEnv } from './cli-pool.js';
 import { SUPPRESS_DISCORD_MENTIONS } from './mention-safety.js';
 
 export interface WorkflowThreadCreatedEvent {
@@ -140,11 +138,15 @@ export function buildDmOnlyGlobalCommandPayloads(
 }
 
 const DEFAULT_AVAILABLE_MODELS = [
-  'gemini-3.1-pro-preview',
-  'gemini-3-flash-preview',
-  'gemini-3.1-flash-lite-preview',
-  'gemini-2.5-flash',
+  'auto',
+  'pro',
+  'flash',
+  'flash-lite',
+  'gemini-3.5-flash',
+  'gemini-3.1-flash-lite',
   'gemini-2.5-pro',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
 ];
 
 /**
@@ -311,35 +313,37 @@ export function setupInteractionHandler(
     if (commandName === 'model') {
       if (!await authorizeInteraction(interaction, roleContext, 'model_config')) return;
 
-      const newModel = interaction.options.getString('name', true);
+      const newModel = interaction.options.getString('name', true).trim();
       const oldModel = config.geminiModel;
 
-      const models = config.geminiAvailableModels && config.geminiAvailableModels.length > 0
-        ? config.geminiAvailableModels
-        : DEFAULT_AVAILABLE_MODELS;
+      if (!isValidModelId(newModel)) {
+        await interaction.reply({
+          content: 'Invalid model. Use a Gemini model id or alias containing only letters, numbers, dots, dashes, underscores, or slashes.',
+          ephemeral: true,
+        });
+        return;
+      }
 
-      if (!models.includes(newModel)) {
-        await interaction.reply({ content: `Invalid model. Available: ${models.join(', ')}`, ephemeral: true });
+      const poolStatus = runtimeStore.cliPool?.status();
+      if (poolStatus && poolStatus.busy > 0) {
+        await interaction.reply({
+          content: 'Gemini is busy handling an active turn. Try the model switch again after the current response finishes.',
+          ephemeral: true,
+        });
         return;
       }
 
       await interaction.deferReply();
 
       try {
-        // Validate with a ping
-        const isValid = await validateModel(config, newModel);
-        if (!isValid) {
-          throw new Error(`Model \`${newModel}\` failed validation check.`);
-        }
-
-        // Update config and .env
-        config.geminiModel = newModel;
         await updateEnvModel(extensionDir, newModel);
+        config.geminiModel = newModel;
+        runtimeStore.cliPool?.killAll();
 
         await interaction.editReply(`**Model switched successfully.**
 - From: \`${oldModel}\`
 - To: \`${newModel}\`
-Confirmation: Gemini CLI verified connectivity.`);
+The next turn will start with the new model.`);
       } catch (error) {
         log.error('Model switch failed', { error: error instanceof Error ? error.message : String(error) });
         await interaction.editReply(`**Model switch failed.**
@@ -415,39 +419,16 @@ async function authorizeInteraction(
 
 async function handleAutocomplete(interaction: AutocompleteInteraction, config: Config): Promise<void> {
   const focusedValue = interaction.options.getFocused();
-  const models = config.geminiAvailableModels && config.geminiAvailableModels.length > 0
-    ? config.geminiAvailableModels
-    : DEFAULT_AVAILABLE_MODELS;
+  const models = [...new Set([
+    ...DEFAULT_AVAILABLE_MODELS,
+    ...(config.geminiAvailableModels ?? []),
+  ])];
   const filtered = models.filter(choice => choice.startsWith(focusedValue));
   await interaction.respond(
     filtered.map(choice => ({ name: choice, value: choice })),
   );
 }
 
-async function validateModel(config: Config, model: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const proc = spawn(config.geminiPath, ['--model', model, '-p', 'ping', '--output-format', 'json'], {
-      timeout: 15000,
-      env: buildGeminiProcessEnv(config, resolveLocalValidationRoleContext(config)),
-    });
-
-    proc.on('close', (code) => {
-      resolve(code === 0);
-    });
-
-    proc.on('error', () => {
-      resolve(false);
-    });
-  });
-}
-
-function resolveLocalValidationRoleContext(config: Config): RoleContext {
-  return {
-    role: 'BOSS',
-    senderDiscordId: config.discordBossUserId,
-    senderDisplayLabel: 'local model validation',
-    bossLabel: 'the boss',
-    bossConfigValid: Boolean(config.discordBossUserId),
-    bossConfigReason: config.discordBossUserId ? undefined : 'missing',
-  };
+function isValidModelId(model: string): boolean {
+  return /^[A-Za-z0-9._/-]{1,128}$/.test(model);
 }

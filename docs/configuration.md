@@ -2,7 +2,7 @@
 
 This document provides a full reference for all environment variables supported by `gemini-discord`.
 
-Most users only need to configure the three core values during installation. For advanced tuning, you can update your `.env` file or use `gemini extensions config gemini-discord`.
+Most users configure the three required Discord values and one Gemini auth path during installation. For advanced tuning, you can update your `.env` file or use `gemini extensions config gemini-discord`.
 
 ## Core Settings (Set During Install)
 
@@ -34,13 +34,14 @@ These are auto-derived from the core settings above unless explicitly overridden
 | --- | --- | --- |
 | `DAEMON_PORT` | `18790` | Preferred localhost port for the daemon control API. If the port is occupied, the daemon automatically binds the next available port and writes it to `.gemini-discord/daemon.port` for MCP tools to discover. |
 | `GEMINI_PATH` | `gemini` | Command or path to the Gemini CLI executable. |
-| `GEMINI_MODEL` | `gemini-3.1-flash-lite-preview` | The Gemini model to use for conversations. |
+| `GEMINI_MODEL` | `auto` | The Gemini model or CLI alias to use for conversations. `auto` lets Gemini CLI select the current default model. |
 | `GEMINI_TIMEOUT_MS` | `900000` | Network timeout (ms) for Gemini CLI calls. |
-| `GEMINI_API_KEY` | - | Optional Gemini API key passed through to Gemini CLI child processes for bridge workflows. |
+| `GEMINI_API_KEY` | - | Recommended Gemini API key passed through to Gemini CLI child processes for unattended bridge workflows. |
 | `GOOGLE_API_KEY` | - | Optional Google API key passed through to Gemini CLI child processes for Vertex AI workflows. |
 | `GOOGLE_GENAI_USE_VERTEXAI` | - | Set to `true` when using Gemini CLI with Vertex AI. |
 | `GOOGLE_CLOUD_PROJECT` | - | Google Cloud project ID for Vertex AI workflows. |
 | `GOOGLE_CLOUD_LOCATION` | - | Google Cloud location for Vertex AI workflows. |
+| `GEMINI_AVAILABLE_MODELS` | - | Optional comma-separated autocomplete suggestions for `/model`. Boss-provided model IDs and aliases are accepted after basic string validation even if they are not listed here. |
 | `GEMINI_MAX_CONCURRENT` | `3` | Maximum number of concurrent warm Gemini CLI processes in the pool. |
 | `CONVERSATION_HISTORY_LENGTH` | `30` | Number of messages to keep in the short-term conversation buffer. |
 | `PROMPT_HISTORY_MAX_MESSAGES` | `12` | Max messages from history to include in the context prompt. |

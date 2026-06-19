@@ -84,10 +84,13 @@ export interface Config {
   discordPrefix: string;
   discordResetCmd: string;
   daemonPort: number;
+  extensionDir: string;
   geminiPath: string;
   geminiModel: string;
   geminiTimeoutMs: number;
   geminiMaxConcurrent: number;
+  headlessGeminiCliHome: string;
+  headlessGeminiCliSettingsFile: string;
   geminiCliEnv?: Record<string, string>;
   conversationHistoryLength: number;
   promptHistoryMessageLimit: number;

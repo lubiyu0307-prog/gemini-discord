@@ -59,6 +59,8 @@ function resolveRuntimePaths(extensionDir) {
     daemonTokenFile: resolveManagedRuntimePath(extensionDir, "daemon-token", ".daemon-token"),
     daemonLogFile: resolveManagedRuntimePath(extensionDir, "daemon.log", "daemon.log"),
     daemonPortFile: resolveManagedRuntimePath(extensionDir, "daemon.port", ".daemon-port"),
+    headlessGeminiCliHome: path.join(runtimeDir, "gemini-cli"),
+    headlessGeminiCliSettingsFile: path.join(runtimeDir, "gemini-cli", "settings.json"),
     memoryFile: resolveManagedRuntimePath(extensionDir, "memory.json", ".memory.json"),
     memoryTmpFile: resolveManagedRuntimePath(extensionDir, "memory.json.tmp", ".memory.json.tmp"),
     cronFile: resolveManagedRuntimePath(extensionDir, "cron.json", ".cron.json"),
@@ -69,6 +71,7 @@ function ensureRuntimePaths(extensionDir) {
   const paths = resolveRuntimePaths(extensionDir);
   fs.mkdirSync(paths.runtimeDir, { recursive: true });
   fs.mkdirSync(paths.bindingsDir, { recursive: true });
+  fs.mkdirSync(paths.headlessGeminiCliHome, { recursive: true });
   return paths;
 }
 function resolveManagedRuntimePath(extensionDir, runtimeRelativePath, legacyFileName) {
@@ -269,6 +272,14 @@ var INSTALL_SETTING_ENV_KEYS = [
   ENV.DISCORD_BOSS_USER_ID,
   ENV.DISCORD_SERVER_ID
 ];
+var EXTENSION_SETTING_ENV_KEYS = [
+  ...INSTALL_SETTING_ENV_KEYS,
+  ENV.GEMINI_API_KEY,
+  ENV.GOOGLE_GENAI_USE_VERTEXAI,
+  ENV.GOOGLE_API_KEY,
+  ENV.GOOGLE_CLOUD_PROJECT,
+  ENV.GOOGLE_CLOUD_LOCATION
+];
 var REQUIRED_DAEMON_ENV_KEYS = [
   ENV.DISCORD_BOT_TOKEN,
   ENV.DISCORD_SERVER_ID
@@ -457,10 +468,13 @@ function loadConfig(extensionDir) {
     discordPrefix: get(ENV.DISCORD_PREFIX),
     discordResetCmd: get(ENV.DISCORD_RESET_CMD, "!reset"),
     daemonPort: parseInt(get(ENV.DAEMON_PORT, "18790"), 10),
+    extensionDir,
     geminiPath: get(ENV.GEMINI_PATH, "gemini"),
-    geminiModel: get(ENV.GEMINI_MODEL, "gemini-3.1-flash-lite-preview"),
+    geminiModel: get(ENV.GEMINI_MODEL, "auto"),
     geminiTimeoutMs: parseInt(get(ENV.GEMINI_TIMEOUT_MS, "900000"), 10),
     geminiMaxConcurrent: parseInt(get(ENV.GEMINI_MAX_CONCURRENT, "3"), 10),
+    headlessGeminiCliHome: runtimePaths.headlessGeminiCliHome,
+    headlessGeminiCliSettingsFile: runtimePaths.headlessGeminiCliSettingsFile,
     geminiCliEnv: resolveGeminiCliEnv(envVars),
     conversationHistoryLength: parseInt(get(ENV.CONVERSATION_HISTORY_LENGTH, "30"), 10),
     promptHistoryMessageLimit: parseInt(get(ENV.PROMPT_HISTORY_MAX_MESSAGES, "12"), 10),

@@ -20,6 +20,36 @@
       "description": "ID of the server where the bot is installed.",
       "envVar": "DISCORD_SERVER_ID",
       "sensitive": false
+    },
+    {
+      "name": "Gemini API Key",
+      "description": "Recommended non-interactive Gemini API key for daemon child processes.",
+      "envVar": "GEMINI_API_KEY",
+      "sensitive": true
+    },
+    {
+      "name": "Use Vertex AI",
+      "description": "Set to true to authenticate Gemini CLI child processes with Vertex AI.",
+      "envVar": "GOOGLE_GENAI_USE_VERTEXAI",
+      "sensitive": false
+    },
+    {
+      "name": "Google API Key",
+      "description": "Optional Google API key for Vertex AI auth when GOOGLE_GENAI_USE_VERTEXAI=true.",
+      "envVar": "GOOGLE_API_KEY",
+      "sensitive": true
+    },
+    {
+      "name": "Google Cloud Project",
+      "description": "Optional Google Cloud project for Vertex AI auth.",
+      "envVar": "GOOGLE_CLOUD_PROJECT",
+      "sensitive": false
+    },
+    {
+      "name": "Google Cloud Location",
+      "description": "Optional Google Cloud location for Vertex AI auth.",
+      "envVar": "GOOGLE_CLOUD_LOCATION",
+      "sensitive": false
     }
   ],
   "mcpServers": {
@@ -30,7 +60,12 @@
       "env": {
         "DISCORD_BOT_TOKEN": "${DISCORD_BOT_TOKEN}",
         "DISCORD_BOSS_USER_ID": "${DISCORD_BOSS_USER_ID}",
-        "DISCORD_SERVER_ID": "${DISCORD_SERVER_ID}"
+        "DISCORD_SERVER_ID": "${DISCORD_SERVER_ID}",
+        "GEMINI_API_KEY": "${GEMINI_API_KEY}",
+        "GOOGLE_GENAI_USE_VERTEXAI": "${GOOGLE_GENAI_USE_VERTEXAI}",
+        "GOOGLE_API_KEY": "${GOOGLE_API_KEY}",
+        "GOOGLE_CLOUD_PROJECT": "${GOOGLE_CLOUD_PROJECT}",
+        "GOOGLE_CLOUD_LOCATION": "${GOOGLE_CLOUD_LOCATION}"
       }
     }
   }
