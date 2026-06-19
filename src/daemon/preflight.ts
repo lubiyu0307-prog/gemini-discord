@@ -16,6 +16,42 @@ interface PreflightResult {
   geminiVersion: string;
 }
 
+type GeminiAuthSelectedType = 'gemini-api-key' | 'vertex-ai';
+
+interface GeminiAuthClassification {
+  complete: boolean;
+  selectedType: GeminiAuthSelectedType;
+  warnings: string[];
+}
+
+export function classifyGeminiAuth(envVars: Record<string, string | undefined>): GeminiAuthClassification {
+  const hasGeminiApiKey = Boolean(envVars[ENV.GEMINI_API_KEY]?.trim());
+  const useVertex = envVars[ENV.GOOGLE_GENAI_USE_VERTEXAI]?.trim().toLowerCase() === 'true';
+  const hasGoogleApiKey = Boolean(envVars[ENV.GOOGLE_API_KEY]?.trim());
+  const hasCloudProject = Boolean(envVars[ENV.GOOGLE_CLOUD_PROJECT]?.trim());
+  const hasCloudLocation = Boolean(envVars[ENV.GOOGLE_CLOUD_LOCATION]?.trim());
+  const hasCompleteVertex = useVertex && (hasGoogleApiKey || (hasCloudProject && hasCloudLocation));
+  const warnings: string[] = [];
+
+  if (useVertex && !hasCompleteVertex) {
+    warnings.push('Gemini CLI Vertex AI auth is incomplete; set GOOGLE_API_KEY or both GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION.');
+  }
+
+  if (!hasGeminiApiKey && !hasCompleteVertex && !useVertex) {
+    warnings.push('Gemini CLI auth is not configured; set GEMINI_API_KEY or complete Vertex AI settings for unattended bridge sessions.');
+  }
+
+  if (!useVertex && hasGoogleApiKey) {
+    warnings.push('GOOGLE_API_KEY is set but GOOGLE_GENAI_USE_VERTEXAI is not true; Gemini CLI will not use Vertex AI auth.');
+  }
+
+  return {
+    complete: hasGeminiApiKey || hasCompleteVertex,
+    selectedType: hasCompleteVertex ? 'vertex-ai' : 'gemini-api-key',
+    warnings,
+  };
+}
+
 /**
  * Run startup preflight checks. Exits process on critical failures.
  * Returns non-critical state (gemini reachability) for degraded mode.
@@ -62,6 +98,11 @@ export async function runPreflight(extensionDir: string): Promise<PreflightResul
     log.warn('DISCORD_BOSS_USER_ID is missing or malformed; privileged Discord actions will fail closed.', {
       reason: bossConfig.reason,
     });
+  }
+
+  const geminiAuth = classifyGeminiAuth(envVars);
+  for (const warning of geminiAuth.warnings) {
+    log.warn(warning, { selectedType: geminiAuth.selectedType });
   }
 
   // 5. Node exists (sanity — we're running in it, logged for diagnostics)

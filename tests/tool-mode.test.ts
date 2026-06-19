@@ -32,10 +32,43 @@ describe('resolveToolMode', () => {
   it('enables combined web + discord mode for research-and-report tasks', () => {
     expect(resolveToolMode('research across multiple sites and post the summary to Discord')).toBe('web_discord');
     expect(resolveToolMode('look up the latest TypeScript release notes and report back in 30 minutes')).toBe('web_discord');
+    expect(resolveToolMode('look up the latest TypeScript release and post it in #team-updates')).toBe('web_discord');
   });
 
   it('reserves full mode for explicit shell/code requests', () => {
     expect(resolveToolMode('use full tools and inspect the repo')).toBe('full');
     expect(resolveToolMode('edit the code and patch the project')).toBe('full');
+  });
+
+  it('does NOT escalate to discord mode for casual mentions of "channel"', () => {
+    expect(resolveToolMode('what is a good YouTube channel for cooking')).toBe('chat');
+    expect(resolveToolMode('recommend a channel for learning Japanese')).toBe('chat');
+    expect(resolveToolMode('what are the best crossplay games between ps5 and pc')).toBe('chat');
+    expect(resolveToolMode('how does the channel selection algorithm work')).toBe('chat');
+    expect(resolveToolMode('why is there noise in this channel')).toBe('chat');
+    expect(resolveToolMode('what is allowed in this channel')).toBe('chat');
+    expect(resolveToolMode('what should i post in this channel')).toBe('chat');
+    expect(resolveToolMode('write a haiku in this channel')).toBe('chat');
+    expect(resolveToolMode('what should i post in the announcements channel')).toBe('chat');
+    expect(resolveToolMode('should I move this to another channel')).toBe('chat');
+    expect(resolveToolMode('how do I write in the dev-chat channel')).toBe('chat');
+  });
+
+  it('escalates to discord mode for explicit cross-channel action intent', () => {
+    expect(resolveToolMode('send this to the #general channel')).toBe('discord');
+    expect(resolveToolMode('post the summary in another channel')).toBe('discord');
+    expect(resolveToolMode('post the summary in a different channel')).toBe('discord');
+    expect(resolveToolMode('send this to the welcome channel')).toBe('discord');
+    expect(resolveToolMode('list the channels in this server')).toBe('discord');
+    expect(resolveToolMode('show channels')).toBe('discord');
+    expect(resolveToolMode('send this to #general')).toBe('discord');
+    expect(resolveToolMode('post the summary to #announcements')).toBe('discord');
+    expect(resolveToolMode('send this to my alerts channel')).toBe('discord');
+    expect(resolveToolMode('post this in our updates channel')).toBe('discord');
+    expect(resolveToolMode('send this to the dev-chat channel')).toBe('discord');
+    expect(resolveToolMode('post this in dev-chat channel')).toBe('discord');
+    expect(resolveToolMode('copy this into <#123456789012345678>')).toBe('discord');
+    expect(resolveToolMode('drop this in #team-updates')).toBe('discord');
+    expect(resolveToolMode('what should i post in announcements, then send it to #general')).toBe('discord');
   });
 });

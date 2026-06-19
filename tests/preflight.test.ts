@@ -11,7 +11,8 @@ vi.mock('node:net', async (importOriginal) => {
   };
 });
 
-import { checkPortInUse } from '../src/daemon/preflight.js';
+import { checkPortInUse, classifyGeminiAuth } from '../src/daemon/preflight.js';
+import { ENV } from '../src/shared/config-vars.js';
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -51,6 +52,54 @@ describe('checkPortInUse', () => {
 
     await expect(resultPromise).resolves.toBe(false);
     expect(socket.destroy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('classifyGeminiAuth', () => {
+  it('accepts Gemini API key auth and selects gemini-api-key', () => {
+    expect(classifyGeminiAuth({
+      [ENV.GEMINI_API_KEY]: 'gemini-key',
+    })).toEqual({
+      complete: true,
+      selectedType: 'gemini-api-key',
+      warnings: [],
+    });
+  });
+
+  it('accepts complete Vertex auth when explicitly enabled', () => {
+    expect(classifyGeminiAuth({
+      [ENV.GOOGLE_GENAI_USE_VERTEXAI]: 'true',
+      [ENV.GOOGLE_CLOUD_PROJECT]: 'project-1',
+      [ENV.GOOGLE_CLOUD_LOCATION]: 'us-central1',
+    })).toEqual({
+      complete: true,
+      selectedType: 'vertex-ai',
+      warnings: [],
+    });
+  });
+
+  it('warns when Vertex is enabled but incomplete', () => {
+    expect(classifyGeminiAuth({
+      [ENV.GOOGLE_GENAI_USE_VERTEXAI]: 'true',
+      [ENV.GOOGLE_CLOUD_PROJECT]: 'project-1',
+    })).toEqual({
+      complete: false,
+      selectedType: 'gemini-api-key',
+      warnings: [expect.stringContaining('Vertex AI auth is incomplete')],
+    });
+  });
+
+  it('warns when GOOGLE_API_KEY is set without Vertex enabled', () => {
+    expect(classifyGeminiAuth({
+      [ENV.GOOGLE_API_KEY]: 'vertex-key',
+    })).toEqual({
+      complete: false,
+      selectedType: 'gemini-api-key',
+      warnings: [
+        expect.stringContaining('Gemini CLI auth is not configured'),
+        expect.stringContaining('GOOGLE_API_KEY is set'),
+      ],
+    });
   });
 });
 

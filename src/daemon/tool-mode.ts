@@ -29,7 +29,7 @@ const DISCORD_ACTION_PATTERNS = [
   /\breport back\b/i,
   /\bfollow up\b/i,
   /\bcheck back\b/i,
-  /\bchannel\b/i,
+  /\b(?:list|show|discover|find) (?:the )?channels?\b/i,
   /\b(?:create|start|make|open) (?:a )?(?:new )?(?:discord )?thread\b/i,
   /\bthread (?:called|named)\b/i,
   /\bdiscord\b/i,
@@ -42,6 +42,16 @@ const DISCORD_ACTION_PATTERNS = [
   /\b(?:media|file|image|photo|picture|screenshot|video|movie|audio|song|music|clip|gif)\b.*\b(?:from|on) (?:my|the) (?:device|computer|mac|machine)\b/i,
   /\brandom (?:media|file|image|photo|picture|video|movie|audio|song|clip|gif)\b/i,
 ];
+
+const CHANNEL_DELIVERY_ACTIONS = 'send|post|write|put|drop|move|copy';
+const CHANNEL_DELIVERY_REQUEST_RE = new RegExp(
+  `\\b(?:${CHANNEL_DELIVERY_ACTIONS})\\b[\\s\\S]*?\\b(?:to|in|into)\\s+([^.!?\\n,;]+)`,
+  'gi',
+);
+const OWN_ACTION_ADVICE_PREFIX_RE = new RegExp(
+  '\\b(?:(?:what|where|when)\\s+(?:should|can|could|would)|how\\s+(?:do|can|should|could|would)|should|can|could|would)\\s+(?:i|we)\\s+$',
+  'i',
+);
 
 const FULL_TOOL_PATTERNS = [
   /\buse full tools?\b/i,
@@ -90,11 +100,15 @@ export function resolveToolMode(content: string): ToolMode {
     return 'full';
   }
 
+  const contentForFreshness = withoutExplicitChannelDeliveryTargets(normalized);
   const wantsWeb = (
     EXPLICIT_WEB_TOOL_PATTERNS.some((pattern) => pattern.test(normalized)) ||
-    FRESHNESS_SENSITIVE_PATTERNS.some((pattern) => pattern.test(normalized))
+    FRESHNESS_SENSITIVE_PATTERNS.some((pattern) => pattern.test(contentForFreshness))
   );
-  const wantsDiscord = DISCORD_ACTION_PATTERNS.some((pattern) => pattern.test(normalized));
+  const wantsDiscord = (
+    DISCORD_ACTION_PATTERNS.some((pattern) => pattern.test(normalized)) ||
+    hasExplicitChannelDeliveryIntent(normalized)
+  );
 
   if (wantsWeb && wantsDiscord) {
     return 'web_discord';
@@ -109,4 +123,58 @@ export function resolveToolMode(content: string): ToolMode {
   }
 
   return 'chat';
+}
+
+function hasExplicitChannelDeliveryIntent(content: string): boolean {
+  CHANNEL_DELIVERY_REQUEST_RE.lastIndex = 0;
+  for (let match = CHANNEL_DELIVERY_REQUEST_RE.exec(content); match; match = CHANNEL_DELIVERY_REQUEST_RE.exec(content)) {
+    if (OWN_ACTION_ADVICE_PREFIX_RE.test(content.slice(0, match.index))) {
+      continue;
+    }
+    if (isExplicitChannelTarget(match[1] ?? '')) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function withoutExplicitChannelDeliveryTargets(content: string): string {
+  return content.replace(CHANNEL_DELIVERY_REQUEST_RE, (match, target: string) => (
+    isExplicitChannelTarget(target) ? '' : match
+  ));
+}
+
+function isExplicitChannelTarget(rawTarget: string): boolean {
+  const target = rawTarget.trim().replace(/^["'`]+|["'`]+$/g, '').toLowerCase();
+  if (!target) {
+    return false;
+  }
+  const targetWithoutArticle = target.replace(/^(?:the|a)\s+/, '');
+
+  if (/^<#[0-9]{15,25}>/.test(targetWithoutArticle)) {
+    return true;
+  }
+
+  if (/^#[a-z0-9_-]+(?:\s+channel)?\b/i.test(targetWithoutArticle)) {
+    return true;
+  }
+
+  if (/^(?:(?:the|a)\s+)?(?:another|other|different|separate|specific)\s+channel\b/.test(target)) {
+    return true;
+  }
+
+  if (/^(?:(?:the|a|this|that|my|our|your)\s+)?(?:current|same|origin|source|this|that)\s+channel\b/.test(target)) {
+    return false;
+  }
+
+  if (/^(?:the|a|my|our|your)\s+channel\b/.test(target)) {
+    return false;
+  }
+
+  if (/^(?:(?:the|a|my|our|your)\s+)?[a-z0-9][a-z0-9_-]*(?:\s+[a-z0-9][a-z0-9_-]*)*\s+channel\b/i.test(target)) {
+    return true;
+  }
+
+  return /^[a-z0-9][a-z0-9_-]*-channel\b/i.test(target);
 }

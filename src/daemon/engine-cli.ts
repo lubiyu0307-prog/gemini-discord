@@ -18,6 +18,7 @@ import {
   selectImmediateMentionContext,
   shouldUseImmediateMentionContext,
 } from './memory.js';
+import { mergeImmediateMentionContext } from './recent-context.js';
 import { Semaphore } from './semaphore.js';
 import { retrySend } from './retry.js';
 import { LiveEditor } from './editor.js';
@@ -31,6 +32,7 @@ import { log } from './log.js';
 import { SUPPRESS_DISCORD_MENTIONS, resolveAllowedMentions } from './mention-safety.js';
 import {
   authorizeAction,
+  canProcessAttachments,
   formatPermissionDenial,
   isBoss,
 } from './permissions.js';
@@ -72,6 +74,7 @@ export async function processViaCli(
   traceCallbacks?: { onTraceEvent: (event: TraceEvent) => void },
 ): Promise<{ response: string; messageIds: string[]; attachments?: ConversationAttachment[]; sessionId?: string }> {
   let targetMessage = message;
+  const attachmentsAllowed = canProcessAttachments(config, accepted.roleContext);
 
   // If the current message has no attachments, but it's a reply to another message,
   // we should check the replied-to message for attachments to provide them as context.
@@ -86,8 +89,8 @@ export async function processViaCli(
     }
   }
 
-  const attachmentMetadata = isBoss(accepted.roleContext) ? getSupportedAttachmentMetadata(targetMessage) : [];
-  if ((targetMessage.attachments.size > 0 || attachmentMetadata.length > 0) && !isBoss(accepted.roleContext)) {
+  const attachmentMetadata = attachmentsAllowed ? getSupportedAttachmentMetadata(targetMessage) : [];
+  if ((targetMessage.attachments.size > 0 || attachmentMetadata.length > 0) && !attachmentsAllowed) {
     const decision = authorizeAction('attachment_processing', accepted.roleContext);
     const responseText = formatPermissionDenial(decision);
     const messageIds = await sendPreparedDisplayText(channel, responseText, config);
@@ -100,7 +103,7 @@ export async function processViaCli(
   const resumeSessionId = allowPersistentSession
     ? resolveBindingResumeSessionId(bindingState)
     : null;
-  const downloadedAttachments = isBoss(accepted.roleContext)
+  const downloadedAttachments = attachmentsAllowed
     ? await downloadSupportedAttachments(
       targetMessage,
       processingContext.attachmentsDir,
@@ -145,7 +148,10 @@ export async function processViaCli(
 
   if (allowPersistentSession) {
     const immediateContext = shouldUseImmediateMentionContext(accepted.trigger, accepted.content)
-      ? selectImmediateMentionContext(memory.snapshot(processingContext.sessionKey), incomingPrompt)
+      ? mergeImmediateMentionContext(
+        selectImmediateMentionContext(memory.snapshot(processingContext.sessionKey), incomingPrompt),
+        runtimeStore.recentDiscordContext.selectForAtomicMention(incomingPrompt),
+      )
       : [];
     let seedContextOverride: string | undefined;
     if (isWorkflow && !resumeSessionId) {
@@ -167,7 +173,10 @@ export async function processViaCli(
   } else {
     const fullHistorySnapshot = memory.snapshot(processingContext.sessionKey);
     const immediateContext = shouldUseImmediateMentionContext(accepted.trigger, accepted.content)
-      ? selectImmediateMentionContext(fullHistorySnapshot, incomingPrompt)
+      ? mergeImmediateMentionContext(
+        selectImmediateMentionContext(fullHistorySnapshot, incomingPrompt),
+        runtimeStore.recentDiscordContext.selectForAtomicMention(incomingPrompt),
+      )
       : [];
     const historySnapshot = immediateContext.length > 0 ? [] : fullHistorySnapshot;
     prompt = buildDiscordPrompt({

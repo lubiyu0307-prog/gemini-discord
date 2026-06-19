@@ -45,6 +45,7 @@ export function handleStatusRoutes(
       ownerIds: config.ownerIds,
       enableDMs: config.enableDMs,
       enableGuests: config.enableGuests,
+      enableGuestAttachments: config.enableGuestAttachments,
       sessionScope: config.memoryScope,
       geminiSessionBindingScope: config.geminiSessionBindingScope,
       useGeminiCliSessions: config.useGeminiCliSessions,

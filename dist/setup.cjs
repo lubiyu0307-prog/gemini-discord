@@ -59,6 +59,8 @@ function resolveRuntimePaths(extensionDir) {
     daemonTokenFile: resolveManagedRuntimePath(extensionDir, "daemon-token", ".daemon-token"),
     daemonLogFile: resolveManagedRuntimePath(extensionDir, "daemon.log", "daemon.log"),
     daemonPortFile: resolveManagedRuntimePath(extensionDir, "daemon.port", ".daemon-port"),
+    headlessGeminiCliHome: path.join(runtimeDir, "gemini-cli"),
+    headlessGeminiCliSettingsFile: path.join(runtimeDir, "gemini-cli", "settings.json"),
     memoryFile: resolveManagedRuntimePath(extensionDir, "memory.json", ".memory.json"),
     memoryTmpFile: resolveManagedRuntimePath(extensionDir, "memory.json.tmp", ".memory.json.tmp"),
     cronFile: resolveManagedRuntimePath(extensionDir, "cron.json", ".cron.json"),
@@ -69,6 +71,7 @@ function ensureRuntimePaths(extensionDir) {
   const paths = resolveRuntimePaths(extensionDir);
   fs.mkdirSync(paths.runtimeDir, { recursive: true });
   fs.mkdirSync(paths.bindingsDir, { recursive: true });
+  fs.mkdirSync(paths.headlessGeminiCliHome, { recursive: true });
   return paths;
 }
 function resolveManagedRuntimePath(extensionDir, runtimeRelativePath, legacyFileName) {
@@ -185,6 +188,7 @@ var ENV = {
   DISCORD_ALLOWED_USER_IDS: "DISCORD_ALLOWED_USER_IDS",
   DISCORD_ALLOWED_AGENT_IDS: "DISCORD_ALLOWED_AGENT_IDS",
   DISCORD_ENABLE_GUESTS: "DISCORD_ENABLE_GUESTS",
+  DISCORD_ENABLE_GUEST_ATTACHMENTS: "DISCORD_ENABLE_GUEST_ATTACHMENTS",
   DISCORD_ENABLE_SERVER_MEMBERS_INTENT: "DISCORD_ENABLE_SERVER_MEMBERS_INTENT",
   DAEMON_API_TOKEN: "DAEMON_API_TOKEN",
   DISCORD_PREFIX: "DISCORD_PREFIX",
@@ -230,6 +234,7 @@ var CONFIG_ENV_KEYS = [
   ENV.DISCORD_ALLOWED_USER_IDS,
   ENV.DISCORD_ALLOWED_AGENT_IDS,
   ENV.DISCORD_ENABLE_GUESTS,
+  ENV.DISCORD_ENABLE_GUEST_ATTACHMENTS,
   ENV.DISCORD_ENABLE_SERVER_MEMBERS_INTENT,
   ENV.DAEMON_API_TOKEN,
   ENV.DISCORD_PREFIX,
@@ -269,6 +274,14 @@ var INSTALL_SETTING_ENV_KEYS = [
   ENV.DISCORD_BOSS_USER_ID,
   ENV.DISCORD_SERVER_ID
 ];
+var EXTENSION_SETTING_ENV_KEYS = [
+  ...INSTALL_SETTING_ENV_KEYS,
+  ENV.GEMINI_API_KEY,
+  ENV.GOOGLE_GENAI_USE_VERTEXAI,
+  ENV.GOOGLE_API_KEY,
+  ENV.GOOGLE_CLOUD_PROJECT,
+  ENV.GOOGLE_CLOUD_LOCATION
+];
 var REQUIRED_DAEMON_ENV_KEYS = [
   ENV.DISCORD_BOT_TOKEN,
   ENV.DISCORD_SERVER_ID
@@ -282,6 +295,7 @@ var SETUP_RUNTIME_DEFAULTS = {
   [ENV.REQUIRE_MENTION]: "true",
   [ENV.AUTO_START_DAEMON]: "true",
   [ENV.DISCORD_ENABLE_GUESTS]: "false",
+  [ENV.DISCORD_ENABLE_GUEST_ATTACHMENTS]: "false",
   [ENV.MEMORY_SCOPE]: "channel",
   [ENV.GEMINI_SESSION_BINDING_SCOPE]: "channel",
   [ENV.SETUP_VALIDATION_PENDING]: "true"
@@ -457,10 +471,13 @@ function loadConfig(extensionDir) {
     discordPrefix: get(ENV.DISCORD_PREFIX),
     discordResetCmd: get(ENV.DISCORD_RESET_CMD, "!reset"),
     daemonPort: parseInt(get(ENV.DAEMON_PORT, "18790"), 10),
+    extensionDir,
     geminiPath: get(ENV.GEMINI_PATH, "gemini"),
-    geminiModel: get(ENV.GEMINI_MODEL, "gemini-3.1-flash-lite-preview"),
+    geminiModel: get(ENV.GEMINI_MODEL, "auto"),
     geminiTimeoutMs: parseInt(get(ENV.GEMINI_TIMEOUT_MS, "900000"), 10),
     geminiMaxConcurrent: parseInt(get(ENV.GEMINI_MAX_CONCURRENT, "3"), 10),
+    headlessGeminiCliHome: runtimePaths.headlessGeminiCliHome,
+    headlessGeminiCliSettingsFile: runtimePaths.headlessGeminiCliSettingsFile,
     geminiCliEnv: resolveGeminiCliEnv(envVars),
     conversationHistoryLength: parseInt(get(ENV.CONVERSATION_HISTORY_LENGTH, "30"), 10),
     promptHistoryMessageLimit: parseInt(get(ENV.PROMPT_HISTORY_MAX_MESSAGES, "12"), 10),
@@ -469,6 +486,7 @@ function loadConfig(extensionDir) {
     queueMaxDepth: parseInt(get(ENV.QUEUE_MAX_DEPTH, "20"), 10),
     enableDMs: parseBoolean(get(ENV.ENABLE_DMS, "true"), true),
     enableGuests: parseBoolean(get(ENV.DISCORD_ENABLE_GUESTS), false),
+    enableGuestAttachments: parseBoolean(get(ENV.DISCORD_ENABLE_GUEST_ATTACHMENTS), false),
     enableServerMembersIntent: parseBoolean(get(ENV.DISCORD_ENABLE_SERVER_MEMBERS_INTENT, "true"), true),
     requireMention: parseBoolean(get(ENV.REQUIRE_MENTION, "true"), true),
     respondToReplies: parseBoolean(get(ENV.RESPOND_TO_REPLIES, "false"), false),

@@ -4,6 +4,7 @@ import type { ChannelQueue } from './queue.js';
 import type { Semaphore } from './semaphore.js';
 import type { CliProcessPool } from './cli-pool.js';
 import type { RoleContext } from './permissions.js';
+import { RecentDiscordContextBuffer } from './recent-context.js';
 
 export interface WorkflowRuntimeRunRequest {
   thread: ThreadChannel;
@@ -33,6 +34,7 @@ export interface DaemonRuntime {
   enqueueWorkflowRun: ((request: WorkflowRuntimeRunRequest) => boolean) | null;
   activeWorkflowRuns: Map<string, WorkflowActiveRun>;
   workflowResponseCandidates: Map<string, string>;
+  recentDiscordContext: RecentDiscordContextBuffer;
 }
 
 export const runtimeStore: DaemonRuntime = {
@@ -47,9 +49,9 @@ export const runtimeStore: DaemonRuntime = {
   enqueueWorkflowRun: null,
   activeWorkflowRuns: new Map<string, WorkflowActiveRun>(),
   workflowResponseCandidates: new Map<string, string>(),
+  recentDiscordContext: new RecentDiscordContextBuffer(),
 };
 
 export function getRuntime(): DaemonRuntime {
   return runtimeStore;
 }
-

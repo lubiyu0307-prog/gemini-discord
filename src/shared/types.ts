@@ -84,10 +84,13 @@ export interface Config {
   discordPrefix: string;
   discordResetCmd: string;
   daemonPort: number;
+  extensionDir: string;
   geminiPath: string;
   geminiModel: string;
   geminiTimeoutMs: number;
   geminiMaxConcurrent: number;
+  headlessGeminiCliHome: string;
+  headlessGeminiCliSettingsFile: string;
   geminiCliEnv?: Record<string, string>;
   conversationHistoryLength: number;
   promptHistoryMessageLimit: number;
@@ -96,6 +99,7 @@ export interface Config {
   queueMaxDepth: number;
   enableDMs: boolean;
   enableGuests: boolean;
+  enableGuestAttachments: boolean;
   enableServerMembersIntent?: boolean;
   requireMention: boolean;
   respondToReplies: boolean;
@@ -190,6 +194,7 @@ export interface DaemonStatus {
   ownerIds: string[];
   enableDMs: boolean;
   enableGuests: boolean;
+  enableGuestAttachments: boolean;
   sessionScope: MemoryScope;
   geminiSessionBindingScope: GeminiSessionBindingScope;
   useGeminiCliSessions: boolean;

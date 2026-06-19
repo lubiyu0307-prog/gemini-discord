@@ -24,6 +24,9 @@ jobs:
       - name: Type-check
         run: npm run typecheck
 
+      - name: Check version sync
+        run: npm run version:check
+
       - name: Build
         run: npm run build
 

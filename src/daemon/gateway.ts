@@ -14,6 +14,7 @@ import {
   selectImmediateMentionContext,
   shouldUseImmediateMentionContext,
 } from './memory.js';
+import { mergeImmediateMentionContext } from './recent-context.js';
 import { type ChannelQueue } from './queue.js';
 import { log } from './log.js';
 import { registerGuildCommands, setupInteractionHandler } from './commands.js';
@@ -35,6 +36,7 @@ import { ensureOwnerDmPairings, touchDmPairing } from './dm-pairing.js';
 import {
   authorizeAction,
   authorizeGuestRequest,
+  canProcessAttachments,
   formatPermissionDenial,
   isBoss,
   resolveDiscordRole,
@@ -214,6 +216,7 @@ export async function initGateway(
       }
       const processingContext = resolveProcessingContext(config, message, accepted, extensionDir);
       const chan = message.channel as TextChannel | DMChannel | NewsChannel;
+      rememberRecentDiscordContext(message, accepted, accepted.roleContext, config);
 
       if (isResetCommand(message.content, accepted.content, config.discordResetCmd, config.discordPrefix)) {
         const resetDecision = authorizeAction('session_reset', accepted.roleContext);
@@ -266,6 +269,7 @@ export async function initGateway(
         discordUserId: message.author.id,
         displayLabel: message.author.tag,
       });
+      rememberRecentDiscordContext(message, trackOnlyContext, roleContext, config);
       const sessionKey = isBoss(roleContext)
         ? resolveSessionKey('channel', message.channelId, message.guildId ? null : message.author.id)
         : (message.guildId
@@ -629,6 +633,43 @@ function resolveConversationAuthorBridgeRole(
   return isBoss(roleContext) ? 'BOSS' : 'GUEST';
 }
 
+function rememberRecentDiscordContext(
+  message: Message,
+  context: Pick<AcceptedDiscordMessage, 'content' | 'speakerKind' | 'origin' | 'channelName' | 'guildName' | 'replyToMessageId' | 'replyToAuthorId' | 'replyToAuthorName' | 'replyToContent' | 'replyToAttachments' | 'mentionContext'>,
+  roleContext: RoleContext,
+  config: ReturnType<typeof loadConfig>,
+): void {
+  runtimeStore.recentDiscordContext.remember({
+    role: 'user',
+    content: context.content,
+    attachments: isBoss(roleContext) ? getSupportedAttachmentMetadata(message) : [],
+    speakerKind: context.speakerKind,
+    authorBridgeRole: resolveConversationAuthorBridgeRole(
+      message.author.id,
+      context.speakerKind,
+      roleContext,
+      config,
+      message.client.user?.id ?? null,
+    ),
+    authorId: message.author.id,
+    authorName: message.author.tag,
+    channelId: message.channelId,
+    channelName: context.channelName,
+    threadId: context.origin.threadId,
+    guildId: message.guildId ?? null,
+    guildName: context.guildName,
+    messageId: message.id,
+    replyToMessageId: context.replyToMessageId,
+    replyToAuthorId: context.replyToAuthorId,
+    replyToAuthorName: context.replyToAuthorName,
+    replyToContent: context.replyToContent,
+    replyToAttachments: isBoss(roleContext) ? context.replyToAttachments : [],
+    mentionContext: context.mentionContext,
+    trigger: 'recent',
+    createdAt: new Date().toISOString(),
+  });
+}
+
 async function sendSetupValidationMessage(
   client: Awaited<ReturnType<typeof createClient>>,
   config: ReturnType<typeof loadConfig>,
@@ -707,11 +748,15 @@ async function processMessage(
   }
 
   if (requestedToolMode === 'chat' && shouldUseImmediateMentionContext(accepted.trigger, accepted.content)) {
-    const immediateContext = selectImmediateMentionContext(memory.snapshot(processingContext.sessionKey), {
+    const origin = {
       channelId: message.channelId,
       threadId: accepted.origin.threadId,
       messageId: message.id,
-    });
+    };
+    const immediateContext = mergeImmediateMentionContext(
+      selectImmediateMentionContext(memory.snapshot(processingContext.sessionKey), origin),
+      runtimeStore.recentDiscordContext.selectForAtomicMention(origin),
+    );
     const contextToolMode = resolveToolMode(immediateContext.map((entry) => entry.content).join('\n'));
     if (contextToolMode !== 'chat') {
       requestedToolMode = contextToolMode;
@@ -721,9 +766,10 @@ async function processMessage(
     content: accepted.content,
     attachmentCount: message.attachments.size,
     toolMode: requestedToolMode,
+    allowGuestAttachments: config.enableGuestAttachments,
   }, accepted.roleContext);
   const toolMode = resolveEffectiveToolMode(accepted.roleContext, requestedToolMode, turnDecision.action);
-  const attachmentMetadata = isBoss(accepted.roleContext) ? getSupportedAttachmentMetadata(message) : [];
+  const attachmentMetadata = canProcessAttachments(config, accepted.roleContext) ? getSupportedAttachmentMetadata(message) : [];
   let effectiveAttachmentMetadata = attachmentMetadata;
 
   let response = '';

@@ -8,8 +8,11 @@
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import * as readline from 'node:readline';
 import type { Config } from '../shared/types.js';
+import { GEMINI_DISCORD_VERSION } from '../shared/version.js';
 import type { ToolMode } from './tool-mode.js';
 import { log } from './log.js';
 import { buildAcpPromptBlocks, type AcpPromptAttachment } from './acp-content.js';
@@ -17,6 +20,7 @@ import { extractGeminiResultText, getGeminiTextDelta } from './gemini-output.js'
 import { resolveGeminiAllowedTools, roleEnv, type RoleContext } from './permissions.js';
 import type { TraceEvent } from './workflow/trace-event.js';
 import { normalizeAcpUpdate } from './workflow/trace-normalizer.js';
+import { classifyGeminiAuth } from './preflight.js';
 
 const ACP_PROTOCOL_VERSION = 1;
 const SESSION_REQUEST_TIMEOUT_MS = 120_000;
@@ -56,6 +60,13 @@ interface PoolStatus {
 interface PendingRequest {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
+}
+
+interface AcpMcpServer {
+  name: string;
+  command: string;
+  args: string[];
+  env: Array<{ name: string; value: string }>;
 }
 
 interface ActivePrompt {
@@ -110,12 +121,62 @@ export function buildGeminiProcessEnv(
   roleContext: RoleContext,
   baseEnv: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
-  return { ...baseEnv, ...(config.geminiCliEnv ?? {}), ...roleEnv(roleContext) };
+  ensureHeadlessGeminiCliSettings(config);
+  return {
+    ...baseEnv,
+    ...(config.geminiCliEnv ?? {}),
+    ...roleEnv(roleContext),
+    GEMINI_CLI_HOME: config.headlessGeminiCliHome,
+  };
 }
 
-function appendHeadlessIsolationArgs(args: string[]): void {
-  args.push('--extensions', 'gemini-discord');
-  args.push('--allowed-mcp-server-names', 'discord-bridge');
+export function buildGeminiAcpArgs(config: Config, allowedTools: string): string[] {
+  return [
+    '--acp',
+    '--model', config.geminiModel,
+    '--approval-mode', 'yolo',
+    '--allowed-tools', allowedTools,
+    '--allowed-mcp-server-names', 'discord-bridge',
+  ];
+}
+
+export function buildDiscordBridgeAcpMcpServer(config: Config): AcpMcpServer {
+  return {
+    name: 'discord-bridge',
+    command: process.execPath,
+    args: [path.join(config.extensionDir, 'dist', 'server.cjs')],
+    env: [],
+  };
+}
+
+function ensureHeadlessGeminiCliSettings(config: Config): void {
+  const auth = classifyGeminiAuth(config.geminiCliEnv ?? {});
+  const settings = {
+    security: {
+      auth: {
+        selectedType: auth.selectedType,
+      },
+    },
+    extensions: {
+      disabled: ['gemini-discord'],
+    },
+    admin: {
+      extensions: {
+        enabled: false,
+      },
+    },
+    mcp: {
+      allowed: ['discord-bridge'],
+    },
+  };
+
+  fs.mkdirSync(config.headlessGeminiCliHome, { recursive: true });
+  fs.writeFileSync(config.headlessGeminiCliSettingsFile, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
+  try {
+    fs.chmodSync(config.headlessGeminiCliSettingsFile, 0o600);
+  } catch {
+    // Best-effort permission tightening; the file contents are still local runtime config.
+  }
 }
 
 function normalizeResumeSessionId(value: string | null | undefined): string | null {
@@ -259,19 +320,13 @@ export class CliProcessPool {
 
   private async spawnProcess(poolKey: string, allowedTools: string, roleContext: RoleContext): Promise<PersistentProcess> {
     const spawnedAt = Date.now();
-    const args = [
-      '--acp',
-      '--model', this.config.geminiModel,
-      '--approval-mode', 'yolo',
-      '--allowed-tools', allowedTools,
-    ];
-    appendHeadlessIsolationArgs(args);
+    const args = buildGeminiAcpArgs(this.config, allowedTools);
 
     log.info('CLI pool: initializing ACP process entry', {
       poolKey,
       model: this.config.geminiModel,
       allowedTools,
-      extensionScope: 'gemini-discord',
+      geminiCliHome: this.config.headlessGeminiCliHome,
     });
 
     const proc = spawn(this.config.geminiPath, args, {
@@ -342,7 +397,7 @@ export class CliProcessPool {
         },
         clientInfo: {
           name: 'gemini-discord',
-          version: '0.1.1',
+          version: GEMINI_DISCORD_VERSION,
         },
       }, STARTUP_REQUEST_TIMEOUT_MS);
       entry.initialized = true;
@@ -376,7 +431,7 @@ export class CliProcessPool {
         await this.sendRequest(entry, 'session/load', {
           sessionId: resumeSessionId,
           cwd: opts.cwd,
-          mcpServers: [],
+          mcpServers: [buildDiscordBridgeAcpMcpServer(this.config)],
         }, SESSION_REQUEST_TIMEOUT_MS);
         entry.sessionId = resumeSessionId;
         entry.cwd = opts.cwd;
@@ -402,7 +457,7 @@ export class CliProcessPool {
 
     const result = await this.sendRequest(entry, 'session/new', {
       cwd: opts.cwd,
-      mcpServers: [],
+      mcpServers: [buildDiscordBridgeAcpMcpServer(this.config)],
     }, SESSION_REQUEST_TIMEOUT_MS);
 
     if (!result || typeof result !== 'object' || typeof (result as Record<string, unknown>)['sessionId'] !== 'string') {

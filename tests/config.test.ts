@@ -8,6 +8,20 @@ import { ENV } from '../src/shared/config-vars.js';
 import { resolveRuntimePaths } from '../src/shared/runtime-paths.js';
 
 describe('loadConfig', () => {
+  it('defaults Gemini model selection to the CLI auto alias', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-model-'));
+
+    try {
+      fs.writeFileSync(path.join(tmpDir, '.env'), 'DISCORD_BOT_TOKEN=token\n');
+
+      const config = loadConfig(tmpDir);
+
+      expect(config.geminiModel).toBe('auto');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('prefers extension process settings over local .env development defaults', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-'));
 
@@ -339,6 +353,7 @@ describe('loadConfig', () => {
       fs.writeFileSync(path.join(tmpDir, '.env'), 'DISCORD_BOT_TOKEN=token\n');
       const config = loadConfig(tmpDir);
       expect(config.enableGuests).toBe(false);
+      expect(config.enableGuestAttachments).toBe(false);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -393,6 +408,30 @@ describe('loadConfig', () => {
       fs.rmSync(path.join(tmpDir, '.gemini-discord'), { recursive: true, force: true });
       fs.writeFileSync(path.join(tmpDir, '.env'), 'DISCORD_ENABLE_GUESTS=1\n');
       expect(loadConfig(tmpDir).enableGuests).toBe(false);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('only enables guest attachments if DISCORD_ENABLE_GUEST_ATTACHMENTS is exactly true', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-config-guest-attachments-'));
+    try {
+      vi.stubEnv('DISCORD_ENABLE_GUEST_ATTACHMENTS', ''); // Clear process.env so .env works
+
+      fs.writeFileSync(path.join(tmpDir, '.env'), 'DISCORD_ENABLE_GUEST_ATTACHMENTS=true\n');
+      expect(loadConfig(tmpDir).enableGuestAttachments).toBe(true);
+
+      fs.rmSync(path.join(tmpDir, '.gemini-discord'), { recursive: true, force: true });
+      fs.writeFileSync(path.join(tmpDir, '.env'), 'DISCORD_ENABLE_GUEST_ATTACHMENTS=TRUE\n');
+      expect(loadConfig(tmpDir).enableGuestAttachments).toBe(true);
+
+      fs.rmSync(path.join(tmpDir, '.gemini-discord'), { recursive: true, force: true });
+      fs.writeFileSync(path.join(tmpDir, '.env'), 'DISCORD_ENABLE_GUEST_ATTACHMENTS=yes\n');
+      expect(loadConfig(tmpDir).enableGuestAttachments).toBe(false);
+
+      fs.rmSync(path.join(tmpDir, '.gemini-discord'), { recursive: true, force: true });
+      fs.writeFileSync(path.join(tmpDir, '.env'), 'DISCORD_ENABLE_GUEST_ATTACHMENTS=1\n');
+      expect(loadConfig(tmpDir).enableGuestAttachments).toBe(false);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }

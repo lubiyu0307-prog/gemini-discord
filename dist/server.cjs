@@ -21030,6 +21030,8 @@ function resolveRuntimePaths(extensionDir2) {
     daemonTokenFile: resolveManagedRuntimePath(extensionDir2, "daemon-token", ".daemon-token"),
     daemonLogFile: resolveManagedRuntimePath(extensionDir2, "daemon.log", "daemon.log"),
     daemonPortFile: resolveManagedRuntimePath(extensionDir2, "daemon.port", ".daemon-port"),
+    headlessGeminiCliHome: path.join(runtimeDir, "gemini-cli"),
+    headlessGeminiCliSettingsFile: path.join(runtimeDir, "gemini-cli", "settings.json"),
     memoryFile: resolveManagedRuntimePath(extensionDir2, "memory.json", ".memory.json"),
     memoryTmpFile: resolveManagedRuntimePath(extensionDir2, "memory.json.tmp", ".memory.json.tmp"),
     cronFile: resolveManagedRuntimePath(extensionDir2, "cron.json", ".cron.json"),
@@ -21040,6 +21042,7 @@ function ensureRuntimePaths(extensionDir2) {
   const paths = resolveRuntimePaths(extensionDir2);
   fs.mkdirSync(paths.runtimeDir, { recursive: true });
   fs.mkdirSync(paths.bindingsDir, { recursive: true });
+  fs.mkdirSync(paths.headlessGeminiCliHome, { recursive: true });
   return paths;
 }
 function resolveManagedRuntimePath(extensionDir2, runtimeRelativePath, legacyFileName) {
@@ -21156,6 +21159,7 @@ var ENV = {
   DISCORD_ALLOWED_USER_IDS: "DISCORD_ALLOWED_USER_IDS",
   DISCORD_ALLOWED_AGENT_IDS: "DISCORD_ALLOWED_AGENT_IDS",
   DISCORD_ENABLE_GUESTS: "DISCORD_ENABLE_GUESTS",
+  DISCORD_ENABLE_GUEST_ATTACHMENTS: "DISCORD_ENABLE_GUEST_ATTACHMENTS",
   DISCORD_ENABLE_SERVER_MEMBERS_INTENT: "DISCORD_ENABLE_SERVER_MEMBERS_INTENT",
   DAEMON_API_TOKEN: "DAEMON_API_TOKEN",
   DISCORD_PREFIX: "DISCORD_PREFIX",
@@ -21201,6 +21205,7 @@ var CONFIG_ENV_KEYS = [
   ENV.DISCORD_ALLOWED_USER_IDS,
   ENV.DISCORD_ALLOWED_AGENT_IDS,
   ENV.DISCORD_ENABLE_GUESTS,
+  ENV.DISCORD_ENABLE_GUEST_ATTACHMENTS,
   ENV.DISCORD_ENABLE_SERVER_MEMBERS_INTENT,
   ENV.DAEMON_API_TOKEN,
   ENV.DISCORD_PREFIX,
@@ -21240,6 +21245,14 @@ var INSTALL_SETTING_ENV_KEYS = [
   ENV.DISCORD_BOSS_USER_ID,
   ENV.DISCORD_SERVER_ID
 ];
+var EXTENSION_SETTING_ENV_KEYS = [
+  ...INSTALL_SETTING_ENV_KEYS,
+  ENV.GEMINI_API_KEY,
+  ENV.GOOGLE_GENAI_USE_VERTEXAI,
+  ENV.GOOGLE_API_KEY,
+  ENV.GOOGLE_CLOUD_PROJECT,
+  ENV.GOOGLE_CLOUD_LOCATION
+];
 var REQUIRED_DAEMON_ENV_KEYS = [
   ENV.DISCORD_BOT_TOKEN,
   ENV.DISCORD_SERVER_ID
@@ -21253,6 +21266,7 @@ var SETUP_RUNTIME_DEFAULTS = {
   [ENV.REQUIRE_MENTION]: "true",
   [ENV.AUTO_START_DAEMON]: "true",
   [ENV.DISCORD_ENABLE_GUESTS]: "false",
+  [ENV.DISCORD_ENABLE_GUEST_ATTACHMENTS]: "false",
   [ENV.MEMORY_SCOPE]: "channel",
   [ENV.GEMINI_SESSION_BINDING_SCOPE]: "channel",
   [ENV.SETUP_VALIDATION_PENDING]: "true"
@@ -21428,10 +21442,13 @@ function loadConfig(extensionDir2) {
     discordPrefix: get(ENV.DISCORD_PREFIX),
     discordResetCmd: get(ENV.DISCORD_RESET_CMD, "!reset"),
     daemonPort: parseInt(get(ENV.DAEMON_PORT, "18790"), 10),
+    extensionDir: extensionDir2,
     geminiPath: get(ENV.GEMINI_PATH, "gemini"),
-    geminiModel: get(ENV.GEMINI_MODEL, "gemini-3.1-flash-lite-preview"),
+    geminiModel: get(ENV.GEMINI_MODEL, "auto"),
     geminiTimeoutMs: parseInt(get(ENV.GEMINI_TIMEOUT_MS, "900000"), 10),
     geminiMaxConcurrent: parseInt(get(ENV.GEMINI_MAX_CONCURRENT, "3"), 10),
+    headlessGeminiCliHome: runtimePaths.headlessGeminiCliHome,
+    headlessGeminiCliSettingsFile: runtimePaths.headlessGeminiCliSettingsFile,
     geminiCliEnv: resolveGeminiCliEnv(envVars),
     conversationHistoryLength: parseInt(get(ENV.CONVERSATION_HISTORY_LENGTH, "30"), 10),
     promptHistoryMessageLimit: parseInt(get(ENV.PROMPT_HISTORY_MAX_MESSAGES, "12"), 10),
@@ -21440,6 +21457,7 @@ function loadConfig(extensionDir2) {
     queueMaxDepth: parseInt(get(ENV.QUEUE_MAX_DEPTH, "20"), 10),
     enableDMs: parseBoolean(get(ENV.ENABLE_DMS, "true"), true),
     enableGuests: parseBoolean(get(ENV.DISCORD_ENABLE_GUESTS), false),
+    enableGuestAttachments: parseBoolean(get(ENV.DISCORD_ENABLE_GUEST_ATTACHMENTS), false),
     enableServerMembersIntent: parseBoolean(get(ENV.DISCORD_ENABLE_SERVER_MEMBERS_INTENT, "true"), true),
     requireMention: parseBoolean(get(ENV.REQUIRE_MENTION, "true"), true),
     respondToReplies: parseBoolean(get(ENV.RESPOND_TO_REPLIES, "false"), false),
@@ -22131,6 +22149,7 @@ function registerAdminTool(server2, config3) {
             `**Streaming:** ${s.streaming ? "enabled" : "disabled"}`,
             `**DMs:** ${s.enableDMs ? "enabled" : "disabled"}`,
             `**Guests:** ${s.enableGuests ? "enabled" : "disabled"}`,
+            `**Guest Attachments:** ${s.enableGuestAttachments ? "enabled" : "disabled"}`,
             `**Server:** ${s.serverName ?? s.serverId ?? "not yet pinned"}`,
             `**Primary Channel:** ${s.channelId || "not yet pinned"}`,
             `**Memory Scope:** ${s.sessionScope}`,
@@ -22428,8 +22447,8 @@ function registerMessageTool(server2, config3) {
     "discord_message",
     [
       "Interact with Discord messages. Actions:",
-      '\u2022 "send" \u2014 send a new message to an explicit channel_id or channel_name (use silent:true to suppress notifications)',
-      '\u2022 "reply" \u2014 reply to a specific message ID',
+      '\u2022 "send" \u2014 send a message to a DIFFERENT channel or thread than the one you are currently responding in. Do NOT use send/reply for your normal response to the current conversation; your text output is already streamed to the origin channel automatically. Only use send when the user explicitly asks to post content to a specific other channel or thread (use silent:true to suppress notifications)',
+      '\u2022 "reply" \u2014 reply to a specific message ID in a DIFFERENT channel. Do NOT use for your normal response',
       '\u2022 "thread" \u2014 create a native Discord thread from a message or in a channel',
       '\u2022 "edit" \u2014 edit a bot-owned message',
       '\u2022 "delete" \u2014 delete a bot-owned message',
@@ -22454,7 +22473,7 @@ function registerMessageTool(server2, config3) {
         "unpin",
         "list_pins"
       ]).describe("Action to perform"),
-      content: external_exports.string().optional().describe('Message text. For "send"/"reply": optional text to accompany files (your normal conversational response streams automatically). For "edit": the new message content. For "thread": the thread name.'),
+      content: external_exports.string().optional().describe('Message text. For "send"/"reply": the text to deliver to the OTHER channel (never use this for your normal response \u2014 that streams automatically to the origin channel). For "edit": the new message content. For "thread": the thread name.'),
       channel_id: external_exports.string().optional().describe("Target channel ID. Required for send unless channel_name is provided. Required for most other actions."),
       channel_name: external_exports.string().optional().describe('Target channel name (only used for "send").'),
       message_id: external_exports.string().optional().describe("Message ID (required for reply/edit/delete/react/unreact/fetch_reactions/pin/unpin)."),
