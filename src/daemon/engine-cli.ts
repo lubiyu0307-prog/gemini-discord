@@ -511,5 +511,6 @@ function shouldRetryWithFreshSession(error: unknown, resumeSessionId: string | n
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return message.includes('exited with code')
     || message.includes('returned no assistant output')
-    || message.includes('resume_session_unavailable');
+    || message.includes('resume_session_unavailable')
+    || (message.includes('authentication required') && !message.includes('proxy'));
 }

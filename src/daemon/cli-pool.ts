@@ -212,7 +212,8 @@ function isMissingSessionError(error: Error): boolean {
     || message.includes('session not found')
     || message.includes('invalid session identifier')
     || message.includes('failed to resolve session')
-    || message.includes('resume_session_unavailable');
+    || message.includes('resume_session_unavailable')
+    || (message.includes('authentication required') && !message.includes('proxy'));
 }
 
 function extractUpdateText(update: Record<string, unknown>): string {
