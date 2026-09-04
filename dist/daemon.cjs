@@ -93948,6 +93948,35 @@ function ensureHeadlessGeminiCliSettings(config, authOptions = {}) {
   if (auth.selectedType === "oauth-personal") {
     linkGoogleLogin(nestedGeminiDir, authOptions.userGeminiDir ?? resolveUserGeminiDir());
   }
+  linkPersonaFile(nestedGeminiDir, path11.join(config.extensionDir, "GEMINI.md"));
+}
+function linkPersonaFile(nestedGeminiDir, source) {
+  const target = path11.join(nestedGeminiDir, "GEMINI.md");
+  try {
+    const current = fs12.lstatSync(target, { throwIfNoEntry: false });
+    if (!fs12.existsSync(source)) {
+      if (current?.isSymbolicLink()) {
+        fs12.rmSync(target, { force: true });
+      }
+      return;
+    }
+    if (current?.isSymbolicLink() && fs12.readlinkSync(target) === source) {
+      return;
+    }
+    if (current?.isSymbolicLink()) {
+      fs12.rmSync(target, { force: true });
+    } else if (current) {
+      log.warn("Headless GEMINI.md already exists as a regular file; not replacing it with the extension persona link", { target, source });
+      return;
+    }
+    fs12.symlinkSync(source, target);
+  } catch (error) {
+    log.warn("Failed to link persona GEMINI.md into headless Gemini CLI home", {
+      source,
+      target,
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
 }
 function linkGoogleLogin(nestedGeminiDir, userGeminiDir) {
   for (const name of GOOGLE_LOGIN_FILES) {

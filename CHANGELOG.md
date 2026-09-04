@@ -14,6 +14,10 @@ This project follows Semantic Versioning:
 
 - Google login auth: when no `GEMINI_API_KEY` / Vertex settings are configured, headless Gemini CLI processes now use `oauth-personal` and share the interactive `~/.gemini` login (symlinked into the headless CLI home), so the bridge runs on subscription quota.
 
+### Added
+
+- `<extension dir>/GEMINI.md` is linked into the headless Gemini CLI home so a persona / memory file actually reaches the child processes.
+
 ### Fixed
 
 - Headless CLI settings are now also written to `<GEMINI_CLI_HOME>/.gemini/settings.json`, which is where current Gemini CLI core actually reads them; previously the auth type, extension-disable and MCP allowlist settings were silently ignored.

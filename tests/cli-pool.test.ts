@@ -142,6 +142,34 @@ describe('CliProcessPool', () => {
     }
   });
 
+  it('links an extension-level GEMINI.md persona into the headless CLI home', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-cli-persona-'));
+    try {
+      const persona = path.join(tmpDir, 'GEMINI.md');
+      fs.writeFileSync(persona, '# persona');
+      const config = createConfig({
+        extensionDir: tmpDir,
+        headlessGeminiCliHome: path.join(tmpDir, '.gemini-discord', 'gemini-cli'),
+        headlessGeminiCliSettingsFile: path.join(tmpDir, '.gemini-discord', 'gemini-cli', 'settings.json'),
+        geminiCliEnv: { GEMINI_API_KEY: 'configured-api-key' },
+      });
+
+      buildGeminiProcessEnv(config, createRoleContext(), {});
+      buildGeminiProcessEnv(config, createRoleContext(), {});
+      const link = path.join(config.headlessGeminiCliHome, '.gemini', 'GEMINI.md');
+      expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
+      expect(fs.readFileSync(link, 'utf-8')).toBe('# persona');
+
+      // Removing the persona removes the dangling link.
+      fs.rmSync(persona);
+      buildGeminiProcessEnv(config, createRoleContext(), {});
+      expect(fs.existsSync(link)).toBe(false);
+      expect(fs.lstatSync(link, { throwIfNoEntry: false })).toBeUndefined();
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('links the interactive Google login into the headless CLI home when no API key is set', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-cli-login-'));
     try {

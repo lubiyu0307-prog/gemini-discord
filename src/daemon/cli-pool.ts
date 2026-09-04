@@ -190,6 +190,43 @@ function ensureHeadlessGeminiCliSettings(config: Config, authOptions: GeminiAuth
   if (auth.selectedType === 'oauth-personal') {
     linkGoogleLogin(nestedGeminiDir, authOptions.userGeminiDir ?? resolveUserGeminiDir());
   }
+
+  linkPersonaFile(nestedGeminiDir, path.join(config.extensionDir, 'GEMINI.md'));
+}
+
+/**
+ * Headless children resolve their global context file under
+ * `<GEMINI_CLI_HOME>/.gemini/GEMINI.md`, so a `GEMINI.md` dropped next to the
+ * extension (persona, memory) is linked there. Nothing happens when it is absent.
+ */
+function linkPersonaFile(nestedGeminiDir: string, source: string): void {
+  const target = path.join(nestedGeminiDir, 'GEMINI.md');
+  try {
+    const current = fs.lstatSync(target, { throwIfNoEntry: false });
+    if (!fs.existsSync(source)) {
+      if (current?.isSymbolicLink()) {
+        fs.rmSync(target, { force: true });
+      }
+      return;
+    }
+    if (current?.isSymbolicLink() && fs.readlinkSync(target) === source) {
+      return;
+    }
+    if (current?.isSymbolicLink()) {
+      fs.rmSync(target, { force: true });
+    } else if (current) {
+      // A real file written by the CLI's save_memory tool; leave it alone.
+      log.warn('Headless GEMINI.md already exists as a regular file; not replacing it with the extension persona link', { target, source });
+      return;
+    }
+    fs.symlinkSync(source, target);
+  } catch (error) {
+    log.warn('Failed to link persona GEMINI.md into headless Gemini CLI home', {
+      source,
+      target,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 /**

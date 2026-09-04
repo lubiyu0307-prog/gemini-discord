@@ -150,7 +150,7 @@ Update these later with:
 gemini extensions config gemini-discord
 ```
 
-**Agent instructions:** This extension does not ship a `GEMINI.md`. Keep your agent instructions in `~/.gemini/GEMINI.md`. The bridge adds only transport context — message metadata, channel/thread/DM scope, attachment refs, and permission metadata.
+**Agent instructions:** This extension does not ship a `GEMINI.md`. Headless children run with their own `GEMINI_CLI_HOME`, so `~/.gemini/GEMINI.md` is *not* seen by them; put your persona / memory in `GEMINI.md` next to this extension (`<extension dir>/GEMINI.md`, this fork links it into the headless home), or write it to `<extension dir>/.gemini-discord/gemini-cli/.gemini/GEMINI.md` directly. The bridge adds only transport context — message metadata, channel/thread/DM scope, attachment refs, and permission metadata.
 
 ---
 
