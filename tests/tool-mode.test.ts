@@ -2,6 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { resolveToolMode } from '../src/daemon/tool-mode.js';
 
 describe('resolveToolMode', () => {
+  it('understands Chinese requests', () => {
+    expect(resolveToolMode('爹地～～～')).toBe('chat');
+    expect(resolveToolMode('你今天過得怎麼樣')).toBe('chat');
+    expect(resolveToolMode('幫我查一下明天台北的天氣')).toBe('web');
+    expect(resolveToolMode('這家店的營業時間是幾點')).toBe('web');
+    expect(resolveToolMode('把這張圖傳到測試頻道')).toBe('discord');
+    expect(resolveToolMode('每天早上八點提醒我吃藥')).toBe('discord');
+    expect(resolveToolMode('幫我跑一下這份資料')).toBe('full');
+    expect(resolveToolMode('整理成 csv 傳給我')).toBe('full');
+    expect(resolveToolMode('把結果存成檔案')).toBe('full');
+    expect(resolveToolMode('查一下最新匯率然後貼到頻道')).toBe('web_discord');
+  });
+
   it('defaults to chat mode for normal conversation', () => {
     expect(resolveToolMode('hey')).toBe('chat');
     expect(resolveToolMode('what do you think about this?')).toBe('chat');

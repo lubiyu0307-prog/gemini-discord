@@ -1,5 +1,27 @@
 export type ToolMode = 'chat' | 'web' | 'discord' | 'web_discord' | 'full';
 
+// 中文觸發（露比 2026-09-05）：原本只認英文，中文講「幫我查」永遠停在 chat。
+const ZH_WEB_PATTERNS = [
+  /(?:幫我|替我)?(?:查|搜|搜尋|google|估狗|上網|找找看|查一下|查查|查資料|搜一下)/i,
+  /(?:最新|新聞|天氣|氣象|價格|股價|匯率|營業時間|幾點開|開到幾點|地址|評價|網址|連結)/,
+];
+const ZH_DISCORD_PATTERNS = [
+  /(?:傳|發|貼|丟|放|送)(?:到|去|進|上)(?:.{0,8})?(?:頻道|群|那邊|那裡)/,
+  /(?:頻道|討論串)(?:.{0,6})?(?:的)?(?:歷史|紀錄|之前的訊息|剛剛的訊息)/,
+  /(?:翻|看|讀)(?:一下)?(?:之前|剛剛|上面|前面)的(?:訊息|對話|紀錄)/,
+  /(?:排程|定時|每天|每週|每周|提醒我|到時候叫我|幾點叫我)/,
+  /(?:狀態|重置|重來|清掉|新的對話|新對話)/,
+];
+const ZH_FULL_PATTERNS = [
+  /(?:跑|執行|運行)(?:一下|個|這個|那個)?(?:指令|命令|程式|腳本|script|command)/i,
+  /(?:幫我)?(?:跑|算|統計|整理|分析|轉換|處理).{0,6}(?:資料|數據|檔案|表格|報表|csv|json|excel)/i,
+  /(?:csv|json|excel|表格|檔案|檔|報表|結果|圖)\s*(?:傳|寄|送|丟)(?:給我|過來|上來)/i,
+  /(?:寫|建|建立|產生|做|存成|輸出成|匯出成)(?:一個|一份|個|成)?(?:檔案|檔|文件|表格|csv|json|txt|md|程式|腳本)/i,
+  /(?:讀|開|看|改|修改|編輯|刪)(?:一下|個)?(?:檔案|檔|這個檔|那個檔|程式碼|code)/i,
+  /(?:傳|寄|送|丟)(?:檔案|檔|圖|截圖|報表|結果)(?:給我|過來|上來)/,
+  /(?:把|將).{0,20}(?:傳|寄|送|丟)給我/,
+];
+
 const EXPLICIT_WEB_TOOL_PATTERNS = [
   /\bsearch(?: the web| online)?\b/i,
   /\bweb\s*search\b/i,
@@ -96,18 +118,20 @@ export function resolveToolMode(content: string): ToolMode {
     return 'chat';
   }
 
-  if (FULL_TOOL_PATTERNS.some((pattern) => pattern.test(normalized))) {
+  if (FULL_TOOL_PATTERNS.some((pattern) => pattern.test(normalized)) || ZH_FULL_PATTERNS.some((pattern) => pattern.test(normalized))) {
     return 'full';
   }
 
   const contentForFreshness = withoutExplicitChannelDeliveryTargets(normalized);
   const wantsWeb = (
     EXPLICIT_WEB_TOOL_PATTERNS.some((pattern) => pattern.test(normalized)) ||
-    FRESHNESS_SENSITIVE_PATTERNS.some((pattern) => pattern.test(contentForFreshness))
+    FRESHNESS_SENSITIVE_PATTERNS.some((pattern) => pattern.test(contentForFreshness)) ||
+    ZH_WEB_PATTERNS.some((pattern) => pattern.test(normalized))
   );
   const wantsDiscord = (
     DISCORD_ACTION_PATTERNS.some((pattern) => pattern.test(normalized)) ||
-    hasExplicitChannelDeliveryIntent(normalized)
+    hasExplicitChannelDeliveryIntent(normalized) ||
+    ZH_DISCORD_PATTERNS.some((pattern) => pattern.test(normalized))
   );
 
   if (wantsWeb && wantsDiscord) {
