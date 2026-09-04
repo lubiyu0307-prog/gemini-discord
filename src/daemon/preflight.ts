@@ -5,6 +5,8 @@
 
 import * as fs from 'node:fs';
 import * as net from 'node:net';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { execSync } from 'node:child_process';
 import { log } from './log.js';
 import { resolveConfigEnvMap } from '../shared/config.js';
@@ -16,15 +18,42 @@ interface PreflightResult {
   geminiVersion: string;
 }
 
-type GeminiAuthSelectedType = 'gemini-api-key' | 'vertex-ai';
+export type GeminiAuthSelectedType = 'gemini-api-key' | 'vertex-ai' | 'oauth-personal';
 
-interface GeminiAuthClassification {
+export interface GeminiAuthClassification {
   complete: boolean;
   selectedType: GeminiAuthSelectedType;
   warnings: string[];
 }
 
-export function classifyGeminiAuth(envVars: Record<string, string | undefined>): GeminiAuthClassification {
+export interface GeminiAuthOptions {
+  /** Directory holding the interactive Gemini CLI login (defaults to `~/.gemini`). */
+  userGeminiDir?: string;
+}
+
+export const GOOGLE_LOGIN_FILES = ['oauth_creds.json', 'google_accounts.json'] as const;
+
+/**
+ * Where the interactive `gemini` login lives. Gemini CLI core treats
+ * GEMINI_CLI_HOME as the *home directory* and looks for `.gemini/` inside it.
+ */
+export function resolveUserGeminiDir(env: NodeJS.ProcessEnv = process.env): string {
+  const home = env['GEMINI_CLI_HOME']?.trim() || os.homedir();
+  return path.join(home, '.gemini');
+}
+
+export function hasGoogleLogin(userGeminiDir: string = resolveUserGeminiDir()): boolean {
+  try {
+    return fs.statSync(path.join(userGeminiDir, 'oauth_creds.json')).isFile();
+  } catch {
+    return false;
+  }
+}
+
+export function classifyGeminiAuth(
+  envVars: Record<string, string | undefined>,
+  options: GeminiAuthOptions = {},
+): GeminiAuthClassification {
   const hasGeminiApiKey = Boolean(envVars[ENV.GEMINI_API_KEY]?.trim());
   const useVertex = envVars[ENV.GOOGLE_GENAI_USE_VERTEXAI]?.trim().toLowerCase() === 'true';
   const hasGoogleApiKey = Boolean(envVars[ENV.GOOGLE_API_KEY]?.trim());
@@ -37,8 +66,11 @@ export function classifyGeminiAuth(envVars: Record<string, string | undefined>):
     warnings.push('Gemini CLI Vertex AI auth is incomplete; set GOOGLE_API_KEY or both GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION.');
   }
 
-  if (!hasGeminiApiKey && !hasCompleteVertex && !useVertex) {
-    warnings.push('Gemini CLI auth is not configured; set GEMINI_API_KEY or complete Vertex AI settings for unattended bridge sessions.');
+  const useGoogleLogin = !hasGeminiApiKey && !useVertex;
+  const googleLoginReady = useGoogleLogin && hasGoogleLogin(options.userGeminiDir);
+
+  if (useGoogleLogin && !googleLoginReady) {
+    warnings.push(`Gemini CLI auth is not configured; run \`gemini\` once and sign in with Google (expected ${path.join(options.userGeminiDir ?? resolveUserGeminiDir(), 'oauth_creds.json')}), or set GEMINI_API_KEY / Vertex AI settings.`);
   }
 
   if (!useVertex && hasGoogleApiKey) {
@@ -46,8 +78,8 @@ export function classifyGeminiAuth(envVars: Record<string, string | undefined>):
   }
 
   return {
-    complete: hasGeminiApiKey || hasCompleteVertex,
-    selectedType: hasCompleteVertex ? 'vertex-ai' : 'gemini-api-key',
+    complete: hasGeminiApiKey || hasCompleteVertex || googleLoginReady,
+    selectedType: hasCompleteVertex ? 'vertex-ai' : useGoogleLogin ? 'oauth-personal' : 'gemini-api-key',
     warnings,
   };
 }

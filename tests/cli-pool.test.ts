@@ -134,6 +134,42 @@ describe('CliProcessPool', () => {
       expect(settings.admin.extensions.enabled).toBe(false);
       expect(settings.extensions.disabled).toContain('gemini-discord');
       expect(settings.mcp.allowed).toEqual(['discord-bridge']);
+      // Gemini CLI core resolves settings under <GEMINI_CLI_HOME>/.gemini/.
+      const nested = JSON.parse(fs.readFileSync(path.join(config.headlessGeminiCliHome, '.gemini', 'settings.json'), 'utf-8'));
+      expect(nested).toEqual(settings);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('links the interactive Google login into the headless CLI home when no API key is set', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-cli-login-'));
+    try {
+      const userGeminiDir = path.join(tmpDir, 'home', '.gemini');
+      fs.mkdirSync(userGeminiDir, { recursive: true });
+      fs.writeFileSync(path.join(userGeminiDir, 'oauth_creds.json'), '{"refresh_token":"r"}');
+      fs.writeFileSync(path.join(userGeminiDir, 'google_accounts.json'), '{"active":"a@b"}');
+
+      const config = createConfig({
+        extensionDir: tmpDir,
+        headlessGeminiCliHome: path.join(tmpDir, '.gemini-discord', 'gemini-cli'),
+        headlessGeminiCliSettingsFile: path.join(tmpDir, '.gemini-discord', 'gemini-cli', 'settings.json'),
+        geminiCliEnv: undefined,
+      });
+
+      buildGeminiProcessEnv(config, createRoleContext(), {}, { userGeminiDir });
+      // Idempotent: a second call must not fail on the existing symlinks.
+      buildGeminiProcessEnv(config, createRoleContext(), {}, { userGeminiDir });
+
+      const nestedDir = path.join(config.headlessGeminiCliHome, '.gemini');
+      const settings = JSON.parse(fs.readFileSync(path.join(nestedDir, 'settings.json'), 'utf-8'));
+      expect(settings.security.auth.selectedType).toBe('oauth-personal');
+      for (const name of ['oauth_creds.json', 'google_accounts.json']) {
+        const link = path.join(nestedDir, name);
+        expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
+        expect(fs.readlinkSync(link)).toBe(path.join(userGeminiDir, name));
+      }
+      expect(JSON.parse(fs.readFileSync(path.join(nestedDir, 'oauth_creds.json'), 'utf-8'))).toEqual({ refresh_token: 'r' });
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }

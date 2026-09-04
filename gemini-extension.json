@@ -23,7 +23,7 @@
     },
     {
       "name": "Gemini API Key",
-      "description": "Recommended non-interactive Gemini API key for daemon child processes.",
+      "description": "Optional. Leave blank to reuse the Google login from `gemini` (subscription quota); set a key to use the Gemini API instead.",
       "envVar": "GEMINI_API_KEY",
       "sensitive": true
     },

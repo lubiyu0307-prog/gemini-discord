@@ -20,7 +20,7 @@ import { extractGeminiResultText, getGeminiTextDelta } from './gemini-output.js'
 import { resolveGeminiAllowedTools, roleEnv, type RoleContext } from './permissions.js';
 import type { TraceEvent } from './workflow/trace-event.js';
 import { normalizeAcpUpdate } from './workflow/trace-normalizer.js';
-import { classifyGeminiAuth } from './preflight.js';
+import { classifyGeminiAuth, GOOGLE_LOGIN_FILES, resolveUserGeminiDir, type GeminiAuthOptions } from './preflight.js';
 
 const ACP_PROTOCOL_VERSION = 1;
 const SESSION_REQUEST_TIMEOUT_MS = 120_000;
@@ -120,8 +120,9 @@ export function buildGeminiProcessEnv(
   config: Config,
   roleContext: RoleContext,
   baseEnv: NodeJS.ProcessEnv = process.env,
+  authOptions: GeminiAuthOptions = {},
 ): NodeJS.ProcessEnv {
-  ensureHeadlessGeminiCliSettings(config);
+  ensureHeadlessGeminiCliSettings(config, authOptions);
   return {
     ...baseEnv,
     ...(config.geminiCliEnv ?? {}),
@@ -149,8 +150,8 @@ export function buildDiscordBridgeAcpMcpServer(config: Config): AcpMcpServer {
   };
 }
 
-function ensureHeadlessGeminiCliSettings(config: Config): void {
-  const auth = classifyGeminiAuth(config.geminiCliEnv ?? {});
+function ensureHeadlessGeminiCliSettings(config: Config, authOptions: GeminiAuthOptions = {}): void {
+  const auth = classifyGeminiAuth(config.geminiCliEnv ?? {}, authOptions);
   const settings = {
     security: {
       auth: {
@@ -170,12 +171,57 @@ function ensureHeadlessGeminiCliSettings(config: Config): void {
     },
   };
 
-  fs.mkdirSync(config.headlessGeminiCliHome, { recursive: true });
-  fs.writeFileSync(config.headlessGeminiCliSettingsFile, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
-  try {
-    fs.chmodSync(config.headlessGeminiCliSettingsFile, 0o600);
-  } catch {
-    // Best-effort permission tightening; the file contents are still local runtime config.
+  // Gemini CLI reads GEMINI_CLI_HOME two ways: the launcher treats it as the
+  // `.gemini` directory itself, while core treats it as a home directory and
+  // looks inside `<GEMINI_CLI_HOME>/.gemini/`. Write the settings to both so the
+  // child process picks them up whichever code path resolves them.
+  const nestedGeminiDir = path.join(config.headlessGeminiCliHome, '.gemini');
+  fs.mkdirSync(nestedGeminiDir, { recursive: true, mode: 0o700 });
+  const serialized = `${JSON.stringify(settings, null, 2)}\n`;
+  for (const target of [config.headlessGeminiCliSettingsFile, path.join(nestedGeminiDir, 'settings.json')]) {
+    fs.writeFileSync(target, serialized, { mode: 0o600 });
+    try {
+      fs.chmodSync(target, 0o600);
+    } catch {
+      // Best-effort permission tightening; the file contents are still local runtime config.
+    }
+  }
+
+  if (auth.selectedType === 'oauth-personal') {
+    linkGoogleLogin(nestedGeminiDir, authOptions.userGeminiDir ?? resolveUserGeminiDir());
+  }
+}
+
+/**
+ * Share the interactive Google login with the headless CLI home via symlinks,
+ * so refreshed tokens written by either side land in the same file.
+ */
+function linkGoogleLogin(nestedGeminiDir: string, userGeminiDir: string): void {
+  for (const name of GOOGLE_LOGIN_FILES) {
+    const source = path.join(userGeminiDir, name);
+    const target = path.join(nestedGeminiDir, name);
+    if (!fs.existsSync(source)) {
+      if (name === 'oauth_creds.json') {
+        log.warn('Google login not found; run `gemini` and sign in with Google before starting the bridge.', { source });
+      }
+      continue;
+    }
+    try {
+      const current = fs.lstatSync(target, { throwIfNoEntry: false });
+      if (current?.isSymbolicLink() && fs.readlinkSync(target) === source) {
+        continue;
+      }
+      if (current) {
+        fs.rmSync(target, { force: true });
+      }
+      fs.symlinkSync(source, target);
+    } catch (error) {
+      log.warn('Failed to link Google login into headless Gemini CLI home', {
+        source,
+        target,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 }
 

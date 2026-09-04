@@ -39,7 +39,9 @@ For this bridge workflow, authenticate Gemini CLI with non-interactive credentia
 export GEMINI_API_KEY="YOUR_API_KEY"
 ```
 
-Vertex AI is also supported through Gemini CLI's `GOOGLE_GENAI_USE_VERTEXAI`, `GOOGLE_API_KEY`, `GOOGLE_CLOUD_PROJECT`, and `GOOGLE_CLOUD_LOCATION` environment variables. Browser OAuth is not recommended for unattended bridge sessions.
+Vertex AI is also supported through Gemini CLI's `GOOGLE_GENAI_USE_VERTEXAI`, `GOOGLE_API_KEY`, `GOOGLE_CLOUD_PROJECT`, and `GOOGLE_CLOUD_LOCATION` environment variables.
+
+**Google login (this fork).** Leave the Gemini API key blank and the bridge reuses the login you made by running `gemini` interactively and choosing *Sign in with Google*, so Discord traffic draws on your Gemini subscription quota instead of an API key. The daemon symlinks `~/.gemini/oauth_creds.json` and `google_accounts.json` into its headless CLI home, so refreshed tokens stay shared. If the refresh token is ever revoked (password change, "sign out of all devices", long inactivity) the bridge cannot reopen a browser by itself: run `gemini` again, sign in, and restart the daemon.
 
 ```bash
 gemini extensions install https://github.com/Yamato-main/gemini-discord
@@ -52,7 +54,7 @@ The installer prompts for Discord setup values and Gemini auth values. `GEMINI_A
 | Discord Bot Token | From the Discord Developer Portal |
 | Boss User ID | Your stable numeric Discord user ID — the only ID with full authority |
 | Server ID | The server where the bot is installed |
-| Gemini API Key | Recommended API-key auth for Gemini CLI child processes |
+| Gemini API Key | Optional. Blank = reuse the interactive Google login; set to use API-key auth instead |
 | Vertex AI settings | Optional `GOOGLE_GENAI_USE_VERTEXAI`, `GOOGLE_API_KEY`, `GOOGLE_CLOUD_PROJECT`, and `GOOGLE_CLOUD_LOCATION` values |
 
 Legacy owner and admin routing IDs are auto-derived from Boss User ID unless overridden in [advanced configuration](docs/configuration.md).
@@ -139,7 +141,7 @@ Most users only need the install prompts. Full reference via [docs/configuration
 | Discord Bot Token | Lets the bridge connect to Discord |
 | Boss User ID | The only Discord user ID with full authority |
 | Server ID | Server where the bot is installed |
-| Gemini API Key | Recommended API-key auth for Gemini CLI child processes |
+| Gemini API Key | Optional. Blank = reuse the interactive Google login; set to use API-key auth instead |
 | Vertex AI settings | Optional Vertex AI auth for Gemini CLI child processes |
 
 Update these later with:

@@ -11,6 +11,9 @@ vi.mock('node:net', async (importOriginal) => {
   };
 });
 
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { checkPortInUse, classifyGeminiAuth } from '../src/daemon/preflight.js';
 import { ENV } from '../src/shared/config-vars.js';
 
@@ -78,6 +81,33 @@ describe('classifyGeminiAuth', () => {
     });
   });
 
+  it('selects Google login when no key is configured and a login exists', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-login-'));
+    try {
+      fs.writeFileSync(path.join(dir, 'oauth_creds.json'), '{}');
+      expect(classifyGeminiAuth({}, { userGeminiDir: dir })).toEqual({
+        complete: true,
+        selectedType: 'oauth-personal',
+        warnings: [],
+      });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('warns when no key is configured and no Google login exists', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-nologin-'));
+    try {
+      expect(classifyGeminiAuth({}, { userGeminiDir: dir })).toEqual({
+        complete: false,
+        selectedType: 'oauth-personal',
+        warnings: [expect.stringContaining('sign in with Google')],
+      });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('warns when Vertex is enabled but incomplete', () => {
     expect(classifyGeminiAuth({
       [ENV.GOOGLE_GENAI_USE_VERTEXAI]: 'true',
@@ -90,16 +120,21 @@ describe('classifyGeminiAuth', () => {
   });
 
   it('warns when GOOGLE_API_KEY is set without Vertex enabled', () => {
-    expect(classifyGeminiAuth({
-      [ENV.GOOGLE_API_KEY]: 'vertex-key',
-    })).toEqual({
-      complete: false,
-      selectedType: 'gemini-api-key',
-      warnings: [
-        expect.stringContaining('Gemini CLI auth is not configured'),
-        expect.stringContaining('GOOGLE_API_KEY is set'),
-      ],
-    });
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-nologin-'));
+    try {
+      expect(classifyGeminiAuth({
+        [ENV.GOOGLE_API_KEY]: 'vertex-key',
+      }, { userGeminiDir: dir })).toEqual({
+        complete: false,
+        selectedType: 'oauth-personal',
+        warnings: [
+          expect.stringContaining('Gemini CLI auth is not configured'),
+          expect.stringContaining('GOOGLE_API_KEY is set'),
+        ],
+      });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
