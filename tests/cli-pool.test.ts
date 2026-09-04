@@ -142,6 +142,23 @@ describe('CliProcessPool', () => {
     }
   });
 
+  it('points GEMINI_SYSTEM_MD at an extension-level system.md when present', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-cli-sysmd-'));
+    try {
+      const config = createConfig({
+        extensionDir: tmpDir,
+        headlessGeminiCliHome: path.join(tmpDir, '.gemini-discord', 'gemini-cli'),
+        headlessGeminiCliSettingsFile: path.join(tmpDir, '.gemini-discord', 'gemini-cli', 'settings.json'),
+        geminiCliEnv: { GEMINI_API_KEY: 'configured-api-key' },
+      });
+      expect(buildGeminiProcessEnv(config, createRoleContext(), {}).GEMINI_SYSTEM_MD).toBeUndefined();
+      fs.writeFileSync(path.join(tmpDir, 'system.md'), 'you are someone');
+      expect(buildGeminiProcessEnv(config, createRoleContext(), {}).GEMINI_SYSTEM_MD).toBe(path.join(tmpDir, 'system.md'));
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('links an extension-level GEMINI.md persona into the headless CLI home', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-discord-cli-persona-'));
     try {

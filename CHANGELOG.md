@@ -16,6 +16,7 @@ This project follows Semantic Versioning:
 
 ### Added
 
+- `<extension dir>/system.md`, when present, is passed to headless children as `GEMINI_SYSTEM_MD` (replaces the built-in system prompt).
 - `<extension dir>/GEMINI.md` is linked into the headless Gemini CLI home so a persona / memory file actually reaches the child processes.
 
 ### Fixed

@@ -93886,11 +93886,15 @@ function buildPoolKey(bindingKey, allowedTools) {
 }
 function buildGeminiProcessEnv(config, roleContext, baseEnv = process.env, authOptions = {}) {
   ensureHeadlessGeminiCliSettings(config, authOptions);
+  const systemMd = path11.join(config.extensionDir, "system.md");
   return {
     ...baseEnv,
     ...config.geminiCliEnv ?? {},
     ...roleEnv(roleContext),
-    GEMINI_CLI_HOME: config.headlessGeminiCliHome
+    GEMINI_CLI_HOME: config.headlessGeminiCliHome,
+    // <extension>/system.md replaces Gemini CLI's built-in coding-assistant
+    // system prompt for the headless children (GEMINI_SYSTEM_MD semantics).
+    ...fs12.existsSync(systemMd) ? { GEMINI_SYSTEM_MD: systemMd } : {}
   };
 }
 function buildGeminiAcpArgs(config, allowedTools) {

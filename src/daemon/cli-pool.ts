@@ -123,11 +123,15 @@ export function buildGeminiProcessEnv(
   authOptions: GeminiAuthOptions = {},
 ): NodeJS.ProcessEnv {
   ensureHeadlessGeminiCliSettings(config, authOptions);
+  const systemMd = path.join(config.extensionDir, 'system.md');
   return {
     ...baseEnv,
     ...(config.geminiCliEnv ?? {}),
     ...roleEnv(roleContext),
     GEMINI_CLI_HOME: config.headlessGeminiCliHome,
+    // <extension>/system.md replaces Gemini CLI's built-in coding-assistant
+    // system prompt for the headless children (GEMINI_SYSTEM_MD semantics).
+    ...(fs.existsSync(systemMd) ? { GEMINI_SYSTEM_MD: systemMd } : {}),
   };
 }
 
