@@ -21,6 +21,8 @@ This project follows Semantic Versioning:
 
 - Tool-mode detection understands Chinese requests (查一下／傳到頻道／幫我跑／存成檔案…), not only the English trigger phrases.
 
+- Persona mode: when `system.md` exists, the per-message runtime notes stop calling the agent "the same Gemini CLI persona" / "a capable human assistant" (that framing made smaller models refuse companion conversations every other turn).
+
 ### Fixed
 
 - Headless CLI settings are now also written to `<GEMINI_CLI_HOME>/.gemini/settings.json`, which is where current Gemini CLI core actually reads them; previously the auth type, extension-disable and MCP allowlist settings were silently ignored.

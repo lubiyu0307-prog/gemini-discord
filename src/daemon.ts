@@ -4,11 +4,13 @@
  */
 
 import * as http from 'node:http';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { loadConfig, resolveExtensionDir, persistConfigEnvUpdates } from './shared/config.js';
 import { sanitizeAllowedUserIds } from './shared/config-sanitize.js';
 import { ENV } from './shared/config-vars.js';
 import { runPreflight } from './daemon/preflight.js';
-import { ConversationMemory } from './daemon/memory.js';
+import { ConversationMemory, setPersonaMode } from './daemon/memory.js';
 import { ChannelQueue } from './daemon/queue.js';
 import { startControlApi, type DaemonState } from './daemon/api.js';
 import { log } from './daemon/log.js';
@@ -61,6 +63,10 @@ async function main(): Promise<void> {
   }
 
   const config = loadConfig(extensionDir);
+  setPersonaMode(fs.existsSync(path.join(extensionDir, 'system.md')));
+  if (fs.existsSync(path.join(extensionDir, 'system.md'))) {
+    log.info('Persona mode: system.md found; runtime notes will not describe the agent as Gemini CLI / an assistant');
+  }
   if (process.env.GEMINI_DISCORD_DAEMON_SINGLETON === '1') {
     singletonLock = acquireDaemonSingletonLock({ scope: daemonSingletonScope(config.discordBotToken) });
     process.once('exit', releaseSingletonLock);

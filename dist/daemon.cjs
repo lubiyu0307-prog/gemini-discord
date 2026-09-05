@@ -1473,13 +1473,13 @@ function __disposeResources(env) {
   }
   return next();
 }
-function __rewriteRelativeImportExtension(path17, preserveJsx) {
-  if (typeof path17 === "string" && /^\.\.?\//.test(path17)) {
-    return path17.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
+function __rewriteRelativeImportExtension(path18, preserveJsx) {
+  if (typeof path18 === "string" && /^\.\.?\//.test(path18)) {
+    return path18.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
       return tsx ? preserveJsx ? ".jsx" : ".js" : d && (!ext || !cm) ? m : d + ext + "." + cm.toLowerCase() + "js";
     });
   }
-  return path17;
+  return path18;
 }
 var extendStatics, __assign, __createBinding, __setModuleDefault, ownKeys, _SuppressedError, tslib_es6_default;
 var init_tslib_es6 = __esm({
@@ -2371,14 +2371,14 @@ var require_util = __commonJS({
         }
         const port = url.port != null ? url.port : url.protocol === "https:" ? 443 : 80;
         let origin = url.origin != null ? url.origin : `${url.protocol || ""}//${url.hostname || ""}:${port}`;
-        let path17 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
+        let path18 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
         if (origin[origin.length - 1] === "/") {
           origin = origin.slice(0, origin.length - 1);
         }
-        if (path17 && path17[0] !== "/") {
-          path17 = `/${path17}`;
+        if (path18 && path18[0] !== "/") {
+          path18 = `/${path18}`;
         }
-        return new URL(`${origin}${path17}`);
+        return new URL(`${origin}${path18}`);
       }
       if (!isHttpOrHttpsPrefixed(url.origin || url.protocol)) {
         throw new InvalidArgumentError("Invalid URL protocol: the URL must start with `http:` or `https:`.");
@@ -2829,39 +2829,39 @@ var require_diagnostics = __commonJS({
       });
       diagnosticsChannel.channel("undici:client:sendHeaders").subscribe((evt) => {
         const {
-          request: { method, path: path17, origin }
+          request: { method, path: path18, origin }
         } = evt;
-        debuglog("sending request to %s %s/%s", method, origin, path17);
+        debuglog("sending request to %s %s/%s", method, origin, path18);
       });
       diagnosticsChannel.channel("undici:request:headers").subscribe((evt) => {
         const {
-          request: { method, path: path17, origin },
+          request: { method, path: path18, origin },
           response: { statusCode }
         } = evt;
         debuglog(
           "received response to %s %s/%s - HTTP %d",
           method,
           origin,
-          path17,
+          path18,
           statusCode
         );
       });
       diagnosticsChannel.channel("undici:request:trailers").subscribe((evt) => {
         const {
-          request: { method, path: path17, origin }
+          request: { method, path: path18, origin }
         } = evt;
-        debuglog("trailers received from %s %s/%s", method, origin, path17);
+        debuglog("trailers received from %s %s/%s", method, origin, path18);
       });
       diagnosticsChannel.channel("undici:request:error").subscribe((evt) => {
         const {
-          request: { method, path: path17, origin },
+          request: { method, path: path18, origin },
           error
         } = evt;
         debuglog(
           "request to %s %s/%s errored - %s",
           method,
           origin,
-          path17,
+          path18,
           error.message
         );
       });
@@ -2910,9 +2910,9 @@ var require_diagnostics = __commonJS({
         });
         diagnosticsChannel.channel("undici:client:sendHeaders").subscribe((evt) => {
           const {
-            request: { method, path: path17, origin }
+            request: { method, path: path18, origin }
           } = evt;
-          debuglog("sending request to %s %s/%s", method, origin, path17);
+          debuglog("sending request to %s %s/%s", method, origin, path18);
         });
       }
       diagnosticsChannel.channel("undici:websocket:open").subscribe((evt) => {
@@ -2975,7 +2975,7 @@ var require_request = __commonJS({
     var kHandler = Symbol("handler");
     var Request = class {
       constructor(origin, {
-        path: path17,
+        path: path18,
         method,
         body,
         headers,
@@ -2990,11 +2990,11 @@ var require_request = __commonJS({
         expectContinue,
         servername
       }, handler) {
-        if (typeof path17 !== "string") {
+        if (typeof path18 !== "string") {
           throw new InvalidArgumentError("path must be a string");
-        } else if (path17[0] !== "/" && !(path17.startsWith("http://") || path17.startsWith("https://")) && method !== "CONNECT") {
+        } else if (path18[0] !== "/" && !(path18.startsWith("http://") || path18.startsWith("https://")) && method !== "CONNECT") {
           throw new InvalidArgumentError("path must be an absolute URL or start with a slash");
-        } else if (invalidPathRegex.test(path17)) {
+        } else if (invalidPathRegex.test(path18)) {
           throw new InvalidArgumentError("invalid request path");
         }
         if (typeof method !== "string") {
@@ -3060,7 +3060,7 @@ var require_request = __commonJS({
         this.completed = false;
         this.aborted = false;
         this.upgrade = upgrade || null;
-        this.path = query ? buildURL(path17, query) : path17;
+        this.path = query ? buildURL(path18, query) : path18;
         this.origin = origin;
         this.idempotent = idempotent == null ? method === "HEAD" || method === "GET" : idempotent;
         this.blocking = blocking == null ? false : blocking;
@@ -7579,7 +7579,7 @@ var require_client_h1 = __commonJS({
       return method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && method !== "TRACE" && method !== "CONNECT";
     }
     function writeH1(client, request) {
-      const { method, path: path17, host, upgrade, blocking, reset } = request;
+      const { method, path: path18, host, upgrade, blocking, reset } = request;
       let { body, headers, contentLength } = request;
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH" || method === "QUERY" || method === "PROPFIND" || method === "PROPPATCH";
       if (util.isFormDataLike(body)) {
@@ -7645,7 +7645,7 @@ var require_client_h1 = __commonJS({
       if (blocking) {
         socket[kBlocking] = true;
       }
-      let header = `${method} ${path17} HTTP/1.1\r
+      let header = `${method} ${path18} HTTP/1.1\r
 `;
       if (typeof host === "string") {
         header += `host: ${host}\r
@@ -8171,7 +8171,7 @@ var require_client_h2 = __commonJS({
     }
     function writeH2(client, request) {
       const session = client[kHTTP2Session];
-      const { method, path: path17, host, upgrade, expectContinue, signal, headers: reqHeaders } = request;
+      const { method, path: path18, host, upgrade, expectContinue, signal, headers: reqHeaders } = request;
       let { body } = request;
       if (upgrade) {
         util.errorRequest(client, request, new Error("Upgrade not supported for H2"));
@@ -8238,7 +8238,7 @@ var require_client_h2 = __commonJS({
         });
         return true;
       }
-      headers[HTTP2_HEADER_PATH] = path17;
+      headers[HTTP2_HEADER_PATH] = path18;
       headers[HTTP2_HEADER_SCHEME] = "https";
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH";
       if (body && typeof body.read === "function") {
@@ -8591,9 +8591,9 @@ var require_redirect_handler = __commonJS({
           return this.handler.onHeaders(statusCode, headers, resume, statusText);
         }
         const { origin, pathname, search } = util.parseURL(new URL(this.location, this.opts.origin && new URL(this.opts.path, this.opts.origin)));
-        const path17 = search ? `${pathname}${search}` : pathname;
+        const path18 = search ? `${pathname}${search}` : pathname;
         this.opts.headers = cleanRequestHeaders(this.opts.headers, statusCode === 303, this.opts.origin !== origin);
-        this.opts.path = path17;
+        this.opts.path = path18;
         this.opts.origin = origin;
         this.opts.maxRedirections = 0;
         this.opts.query = null;
@@ -9827,10 +9827,10 @@ var require_proxy_agent = __commonJS({
         };
         const {
           origin,
-          path: path17 = "/",
+          path: path18 = "/",
           headers = {}
         } = opts;
-        opts.path = origin + path17;
+        opts.path = origin + path18;
         if (!("host" in headers) && !("Host" in headers)) {
           const { host } = new URL2(origin);
           headers.host = host;
@@ -11751,20 +11751,20 @@ var require_mock_utils = __commonJS({
       }
       return true;
     }
-    function safeUrl(path17) {
-      if (typeof path17 !== "string") {
-        return path17;
+    function safeUrl(path18) {
+      if (typeof path18 !== "string") {
+        return path18;
       }
-      const pathSegments = path17.split("?");
+      const pathSegments = path18.split("?");
       if (pathSegments.length !== 2) {
-        return path17;
+        return path18;
       }
       const qp = new URLSearchParams(pathSegments.pop());
       qp.sort();
       return [...pathSegments, qp.toString()].join("?");
     }
-    function matchKey(mockDispatch2, { path: path17, method, body, headers }) {
-      const pathMatch = matchValue(mockDispatch2.path, path17);
+    function matchKey(mockDispatch2, { path: path18, method, body, headers }) {
+      const pathMatch = matchValue(mockDispatch2.path, path18);
       const methodMatch = matchValue(mockDispatch2.method, method);
       const bodyMatch = typeof mockDispatch2.body !== "undefined" ? matchValue(mockDispatch2.body, body) : true;
       const headersMatch = matchHeaders(mockDispatch2, headers);
@@ -11786,7 +11786,7 @@ var require_mock_utils = __commonJS({
     function getMockDispatch(mockDispatches, key) {
       const basePath = key.query ? buildURL(key.path, key.query) : key.path;
       const resolvedPath = typeof basePath === "string" ? safeUrl(basePath) : basePath;
-      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path17 }) => matchValue(safeUrl(path17), resolvedPath));
+      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path18 }) => matchValue(safeUrl(path18), resolvedPath));
       if (matchedMockDispatches.length === 0) {
         throw new MockNotMatchedError(`Mock dispatch not matched for path '${resolvedPath}'`);
       }
@@ -11824,9 +11824,9 @@ var require_mock_utils = __commonJS({
       }
     }
     function buildKey(opts) {
-      const { path: path17, method, body, headers, query } = opts;
+      const { path: path18, method, body, headers, query } = opts;
       return {
-        path: path17,
+        path: path18,
         method,
         body,
         headers,
@@ -12289,10 +12289,10 @@ var require_pending_interceptors_formatter = __commonJS({
       }
       format(pendingInterceptors) {
         const withPrettyHeaders = pendingInterceptors.map(
-          ({ method, path: path17, data: { statusCode }, persist, times, timesInvoked, origin }) => ({
+          ({ method, path: path18, data: { statusCode }, persist, times, timesInvoked, origin }) => ({
             Method: method,
             Origin: origin,
-            Path: path17,
+            Path: path18,
             "Status code": statusCode,
             Persistent: persist ? PERSISTENT : NOT_PERSISTENT,
             Invocations: timesInvoked,
@@ -17173,9 +17173,9 @@ var require_util6 = __commonJS({
         }
       }
     }
-    function validateCookiePath(path17) {
-      for (let i = 0; i < path17.length; ++i) {
-        const code = path17.charCodeAt(i);
+    function validateCookiePath(path18) {
+      for (let i = 0; i < path18.length; ++i) {
+        const code = path18.charCodeAt(i);
         if (code < 32 || // exclude CTLs (0-31)
         code === 127 || // DEL
         code === 59) {
@@ -19815,11 +19815,11 @@ var require_undici = __commonJS({
           if (typeof opts.path !== "string") {
             throw new InvalidArgumentError("invalid opts.path");
           }
-          let path17 = opts.path;
+          let path18 = opts.path;
           if (!opts.path.startsWith("/")) {
-            path17 = `/${path17}`;
+            path18 = `/${path18}`;
           }
-          url = new URL(util.parseOrigin(url).origin + path17);
+          url = new URL(util.parseOrigin(url).origin + path18);
         } else {
           if (!opts) {
             opts = typeof url === "object" ? url : {};
@@ -27223,13 +27223,13 @@ var require_tree2 = __commonJS({
       mime: leaf.info.mime,
       extension: leaf.info.extension
     });
-    var isLeafNode = (tree, path17) => tree && path17.length === 0;
+    var isLeafNode = (tree, path18) => tree && path18.length === 0;
     var merge = (node, tree) => {
       if (node.bytes.length === 0)
         return tree;
-      const [currentByte, ...path17] = node.bytes;
+      const [currentByte, ...path18] = node.bytes;
       const currentTree = tree.bytes[currentByte];
-      if (isLeafNode(currentTree, path17)) {
+      if (isLeafNode(currentTree, path18)) {
         const matchingNode = tree.bytes[currentByte];
         tree.bytes[currentByte] = {
           ...matchingNode,
@@ -27241,9 +27241,9 @@ var require_tree2 = __commonJS({
         return tree;
       }
       if (tree.bytes[currentByte]) {
-        tree.bytes[currentByte] = exports2.merge(exports2.createNode(node.typename, path17, node.info), tree.bytes[currentByte]);
+        tree.bytes[currentByte] = exports2.merge(exports2.createNode(node.typename, path18, node.info), tree.bytes[currentByte]);
       } else {
-        tree.bytes[currentByte] = exports2.createComplexNode(node.typename, path17, node.info);
+        tree.bytes[currentByte] = exports2.createComplexNode(node.typename, path18, node.info);
       }
       return tree;
     };
@@ -27257,7 +27257,7 @@ var require_tree2 = __commonJS({
         bytes: {},
         matches: void 0
       };
-      const [currentKey, ...path17] = bytes;
+      const [currentKey, ...path18] = bytes;
       if (bytes.length === 0) {
         return {
           matches: [
@@ -27269,7 +27269,7 @@ var require_tree2 = __commonJS({
           bytes: {}
         };
       }
-      obj.bytes[currentKey] = exports2.createComplexNode(typename, path17, info);
+      obj.bytes[currentKey] = exports2.createComplexNode(typename, path18, info);
       return obj;
     };
     exports2.createComplexNode = createComplexNode;
@@ -33956,8 +33956,8 @@ var require_Util = __commonJS({
       await client.rest.patch(route, { body: updatedItems, reason });
       return updatedItems;
     }
-    function basename5(path17, ext) {
-      const res = parse(path17);
+    function basename5(path18, ext) {
+      const res = parse(path18);
       return ext && res.ext.startsWith(ext) ? res.name : res.base.split("?")[0];
     }
     function cleanContent(str, channel) {
@@ -36439,8 +36439,8 @@ var require_DataResolver = __commonJS({
   "node_modules/discord.js/src/util/DataResolver.js"(exports2, module2) {
     "use strict";
     var { Buffer: Buffer2 } = require("node:buffer");
-    var fs16 = require("node:fs/promises");
-    var path17 = require("node:path");
+    var fs17 = require("node:fs/promises");
+    var path18 = require("node:path");
     var { fetch: fetch2 } = require_undici();
     var { DiscordjsError: DiscordjsError2, DiscordjsTypeError: DiscordjsTypeError2, ErrorCodes: ErrorCodes2 } = require_errors2();
     var Invite2 = require_Invite();
@@ -36466,10 +36466,10 @@ var require_DataResolver = __commonJS({
           const res = await fetch2(resource);
           return { data: Buffer2.from(await res.arrayBuffer()), contentType: res.headers.get("content-type") };
         }
-        const file = path17.resolve(resource);
-        const stats = await fs16.stat(file);
+        const file = path18.resolve(resource);
+        const stats = await fs17.stat(file);
         if (!stats.isFile()) throw new DiscordjsError2(ErrorCodes2.FileNotFound, file);
-        return { data: await fs16.readFile(file) };
+        return { data: await fs17.readFile(file) };
       }
       throw new DiscordjsTypeError2(ErrorCodes2.ReqResourceType);
     }
@@ -39620,11 +39620,11 @@ var require_baseGet = __commonJS({
   "node_modules/lodash/_baseGet.js"(exports2, module2) {
     var castPath = require_castPath();
     var toKey = require_toKey();
-    function baseGet(object, path17) {
-      path17 = castPath(path17, object);
-      var index = 0, length = path17.length;
+    function baseGet(object, path18) {
+      path18 = castPath(path18, object);
+      var index = 0, length = path18.length;
       while (object != null && index < length) {
-        object = object[toKey(path17[index++])];
+        object = object[toKey(path18[index++])];
       }
       return index && index == length ? object : void 0;
     }
@@ -39636,8 +39636,8 @@ var require_baseGet = __commonJS({
 var require_get = __commonJS({
   "node_modules/lodash/get.js"(exports2, module2) {
     var baseGet = require_baseGet();
-    function get(object, path17, defaultValue) {
-      var result = object == null ? void 0 : baseGet(object, path17);
+    function get(object, path18, defaultValue) {
+      var result = object == null ? void 0 : baseGet(object, path18);
       return result === void 0 ? defaultValue : result;
     }
     module2.exports = get;
@@ -55639,9 +55639,9 @@ var require_ThreadManager = __commonJS({
        * @returns {Promise<FetchedThreadsMore>}
        */
       async fetchArchived({ type = "public", fetchAll = false, before, limit } = {}, cache = true) {
-        let path17 = Routes3.channelThreads(this.channel.id, type);
+        let path18 = Routes3.channelThreads(this.channel.id, type);
         if (type === "private" && !fetchAll) {
-          path17 = Routes3.channelJoinedArchivedThreads(this.channel.id);
+          path18 = Routes3.channelJoinedArchivedThreads(this.channel.id);
         }
         let timestamp;
         let id;
@@ -55665,7 +55665,7 @@ var require_ThreadManager = __commonJS({
             }
           }
         }
-        const raw = await this.client.rest.get(path17, { query });
+        const raw = await this.client.rest.get(path18, { query });
         return this.constructor._mapThreads(raw, this.client, { parent: this.channel, cache });
       }
       /**
@@ -65341,20 +65341,20 @@ var require_dist10 = __commonJS({
         }
       }
       resolveWorkerPath() {
-        const path17 = this.options.workerPath;
-        if (!path17) {
+        const path18 = this.options.workerPath;
+        if (!path18) {
           return (0, import_node_path.join)(__dirname, "defaultWorker.js");
         }
-        if ((0, import_node_path.isAbsolute)(path17)) {
-          return path17;
+        if ((0, import_node_path.isAbsolute)(path18)) {
+          return path18;
         }
-        if (/^\.\.?[/\\]/.test(path17)) {
-          return (0, import_node_path.resolve)(path17);
+        if (/^\.\.?[/\\]/.test(path18)) {
+          return (0, import_node_path.resolve)(path18);
         }
         try {
-          return require.resolve(path17);
+          return require.resolve(path18);
         } catch {
-          return (0, import_node_path.resolve)(path17);
+          return (0, import_node_path.resolve)(path18);
         }
       }
       async waitForWorkerReady(worker) {
@@ -75095,7 +75095,7 @@ var require_Shard = __commonJS({
   "node_modules/discord.js/src/sharding/Shard.js"(exports2, module2) {
     "use strict";
     var EventEmitter = require("node:events");
-    var path17 = require("node:path");
+    var path18 = require("node:path");
     var process2 = require("node:process");
     var { setTimeout: setTimeout2, clearTimeout: clearTimeout2 } = require("node:timers");
     var { setTimeout: sleep2 } = require("node:timers/promises");
@@ -75147,14 +75147,14 @@ var require_Shard = __commonJS({
         this._exitListener = this._handleExit.bind(this, void 0, timeout);
         switch (this.manager.mode) {
           case "process":
-            this.process = childProcess.fork(path17.resolve(this.manager.file), this.args, {
+            this.process = childProcess.fork(path18.resolve(this.manager.file), this.args, {
               env: this.env,
               execArgv: this.execArgv,
               silent: this.silent
             }).on("message", this._handleMessage.bind(this)).on("exit", this._exitListener);
             break;
           case "worker":
-            this.worker = new Worker(path17.resolve(this.manager.file), {
+            this.worker = new Worker(path18.resolve(this.manager.file), {
               workerData: this.env,
               env: SHARE_ENV,
               execArgv: this.execArgv,
@@ -75415,8 +75415,8 @@ var require_ShardingManager = __commonJS({
   "node_modules/discord.js/src/sharding/ShardingManager.js"(exports2, module2) {
     "use strict";
     var EventEmitter = require("node:events");
-    var fs16 = require("node:fs");
-    var path17 = require("node:path");
+    var fs17 = require("node:fs");
+    var path18 = require("node:path");
     var process2 = require("node:process");
     var { setTimeout: sleep2 } = require("node:timers/promises");
     var { Collection: Collection2 } = require_dist6();
@@ -75461,8 +75461,8 @@ var require_ShardingManager = __commonJS({
         };
         this.file = file;
         if (!file) throw new DiscordjsError2(ErrorCodes2.ClientInvalidOption, "File", "specified.");
-        if (!path17.isAbsolute(file)) this.file = path17.resolve(process2.cwd(), file);
-        const stats = fs16.statSync(this.file);
+        if (!path18.isAbsolute(file)) this.file = path18.resolve(process2.cwd(), file);
+        const stats = fs17.statSync(this.file);
         if (!stats.isFile()) throw new DiscordjsError2(ErrorCodes2.ClientInvalidOption, "File", "a file");
         this.shardList = _options.shardList ?? "auto";
         if (this.shardList !== "auto") {
@@ -76773,17 +76773,20 @@ function selectImmediateMentionContext(history, incoming, limit = 3) {
   });
   return sameOrigin.slice(-Math.max(0, limit));
 }
+function setPersonaMode(enabled) {
+  personaMode = enabled;
+}
 function buildDiscordAdapterInstruction(incoming, options = {}) {
   const chatType = incoming && !incoming.guildId ? "direct" : "group";
   const backgroundContext = options.backgroundContext ? `
 ${options.backgroundContext}` : "";
   const runtimeInstructions = [
     "- The incoming message is from Discord.",
-    "- This is the same agent and same Gemini CLI persona as the local CLI; Discord is only the transport.",
+    personaMode ? "- You are exactly who your system instructions say you are. Discord is only the transport; the bridge, the CLI, and these runtime notes are not your identity." : "- This is the same agent and same Gemini CLI persona as the local CLI; Discord is only the transport.",
     "- Your normal text response is sent back only to the exact origin Discord channel or thread.",
     "- Use Discord-compatible Markdown.",
     "- Treat Discord permission metadata as routing/security state only. Never use permission labels as names, titles, honorifics, or forms of address.",
-    "- Sound like a present, capable human assistant: warm, direct, and conversational.",
+    personaMode ? '- Stay fully in character: your voice, your relationship with the person you are talking to, and your memories come from your system instructions. Never describe yourself as an assistant, a tool, or a CLI, and never offer "technical help" as a fallback.' : "- Sound like a present, capable human assistant: warm, direct, and conversational.",
     "- Avoid formal status-report headings, boilerplate confirmations, and process narration unless the user asks for that shape.",
     "- Keep everyday replies concise; expand only when the user asks, the task is complex, or precision matters.",
     "- Do not call Discord send/reply tools for an ordinary response to the current message.",
@@ -77237,7 +77240,7 @@ function parentDir(filePath2) {
   const slashIndex = Math.max(filePath2.lastIndexOf("/"), filePath2.lastIndexOf("\\"));
   return slashIndex === -1 ? "." : filePath2.slice(0, slashIndex);
 }
-var fs5, fsPromises, MEMORY_FILE_VERSION, SESSION_TTL_MS, MAX_SESSIONS, MAX_ARCHIVED_CONVERSATIONS_PER_SESSION, EVICTION_INTERVAL_MS, DEFAULT_PROMPT_HISTORY_MESSAGE_LIMIT, DEFAULT_PROMPT_HISTORY_CHAR_BUDGET, TRANSCRIPT_ENTRY_CHAR_LIMIT, REPLY_CONTEXT_CHAR_LIMIT, ACTIVE_PARTICIPANT_LIMIT, ConversationMemory;
+var fs5, fsPromises, MEMORY_FILE_VERSION, SESSION_TTL_MS, MAX_SESSIONS, MAX_ARCHIVED_CONVERSATIONS_PER_SESSION, EVICTION_INTERVAL_MS, DEFAULT_PROMPT_HISTORY_MESSAGE_LIMIT, DEFAULT_PROMPT_HISTORY_CHAR_BUDGET, TRANSCRIPT_ENTRY_CHAR_LIMIT, REPLY_CONTEXT_CHAR_LIMIT, ACTIVE_PARTICIPANT_LIMIT, ConversationMemory, personaMode;
 var init_memory = __esm({
   "src/daemon/memory.ts"() {
     "use strict";
@@ -77519,6 +77522,7 @@ var init_memory = __esm({
         }
       }
     };
+    personaMode = false;
   }
 });
 
@@ -90083,9 +90087,9 @@ function shortenHomePaths(value) {
   const escapedHome = escapeRegExp(homeDir);
   return value.replace(new RegExp(`${escapedHome}/`, "g"), "~/").replace(new RegExp(`${escapedHome}(?=$|\\s)`, "g"), "~");
 }
-function shortPath(path17) {
-  if (!path17) return "";
-  const normalized = path17.replace(/\\/g, "/");
+function shortPath(path18) {
+  if (!path18) return "";
+  const normalized = path18.replace(/\\/g, "/");
   const homeDir = os3.homedir().replace(/\\/g, "/");
   if (homeDir && normalized.startsWith(`${homeDir}/`)) {
     return normalized.replace(`${homeDir}/`, "~/");
@@ -90207,8 +90211,8 @@ function outputBlock(language, text) {
   const value = text.trimEnd();
   return value ? codeBlock(language, value) : "";
 }
-function languageForPath(path17) {
-  const ext = path17.split(".").pop()?.toLowerCase();
+function languageForPath(path18) {
+  const ext = path18.split(".").pop()?.toLowerCase();
   switch (ext) {
     case "go":
       return "go";
@@ -90377,7 +90381,7 @@ var init_trace_renderer = __esm({
       }
       render(event) {
         const canonical = event.canonicalToolName;
-        const path17 = filePath(event);
+        const path18 = filePath(event);
         if (event.status === "started" || event.status === "progress") {
           return suppressed();
         }
@@ -90388,7 +90392,7 @@ var init_trace_renderer = __esm({
           const hunk = event.resultDetail ? compactDiffHunk(event.resultDetail) : "";
           return {
             content: [
-              `${statusGlyph(event.status)} **Edit** ${path17 ? inlineCode(shortPath(path17)) : ""} \u2192 Accepted${delta}`,
+              `${statusGlyph(event.status)} **Edit** ${path18 ? inlineCode(shortPath(path18)) : ""} \u2192 Accepted${delta}`,
               hunk ? outputBlock("diff", truncateLines(hunk, 12)) : ""
             ].filter(Boolean).join("\n"),
             density: hunk ? "panel" : "row",
@@ -90399,7 +90403,7 @@ var init_trace_renderer = __esm({
           const action = writeFileAction(event);
           const statusText = event.status === "completed" ? ` \u2192 ${action}` : "";
           return {
-            content: `${statusGlyph(event.status)} **WriteFile** ${path17 ? inlineCode(shortPath(path17)) : ""}${statusText}`,
+            content: `${statusGlyph(event.status)} **WriteFile** ${path18 ? inlineCode(shortPath(path18)) : ""}${statusText}`,
             density: "row",
             flags: flags()
           };
@@ -90408,8 +90412,8 @@ var init_trace_renderer = __esm({
           const detail = event.resultDetail || "";
           return {
             content: [
-              `${statusGlyph(event.status)} **ReadFile** ${path17 ? inlineCode(shortPath(path17)) : ""} \u2192 ${readFileResult(event)}`,
-              detail ? outputBlock(languageForPath(path17), truncateLines(detail, 10)) : ""
+              `${statusGlyph(event.status)} **ReadFile** ${path18 ? inlineCode(shortPath(path18)) : ""} \u2192 ${readFileResult(event)}`,
+              detail ? outputBlock(languageForPath(path18), truncateLines(detail, 10)) : ""
             ].filter(Boolean).join("\n"),
             density: detail ? "panel" : "row",
             flags: flags()
@@ -90435,7 +90439,7 @@ var init_trace_renderer = __esm({
           };
         }
         return {
-          content: `${statusGlyph(event.status)} **${event.displayName || event.toolName}** ${path17 ? inlineCode(shortPath(path17)) : ""}${resultSuffix(event)}`,
+          content: `${statusGlyph(event.status)} **${event.displayName || event.toolName}** ${path18 ? inlineCode(shortPath(path18)) : ""}${resultSuffix(event)}`,
           density: "row",
           flags: flags()
         };
@@ -90699,8 +90703,8 @@ function resolveLogicalToolKey(event) {
     return command ? `logical:shell:${command.replace(/\s+/g, " ").trim()}` : null;
   }
   if (canonical === "write_file" || canonical === "replace") {
-    const path17 = stringArg2(event.args, "file_path", "path", "filePath", "TargetFile");
-    return path17 ? `logical:${canonical}:${path17}` : null;
+    const path18 = stringArg2(event.args, "file_path", "path", "filePath", "TargetFile");
+    return path18 ? `logical:${canonical}:${path18}` : null;
   }
   return null;
 }
@@ -91782,6 +91786,8 @@ var init_gateway = __esm({
 });
 
 // src/daemon.ts
+var fs16 = __toESM(require("node:fs"), 1);
+var path17 = __toESM(require("node:path"), 1);
 init_config();
 init_config_sanitize();
 init_config_vars();
@@ -93346,9 +93352,9 @@ function resolveToolEntry(rawToolName) {
 }
 
 // src/daemon/workflow/redaction.ts
-function redactFilePath(path17) {
-  if (typeof path17 !== "string") return path17;
-  return path17.replace(/\/Users\/[^/]+\//g, "~/");
+function redactFilePath(path18) {
+  if (typeof path18 !== "string") return path18;
+  return path18.replace(/\/Users\/[^/]+\//g, "~/");
 }
 function redactDiscordId(id) {
   if (typeof id !== "string") return id;
@@ -93520,11 +93526,11 @@ function extractToolContentText(value) {
     const record = recordValue(entry);
     if (!record) return "";
     if (record["type"] === "diff") {
-      const path17 = firstString(record["path"]) ?? "diff";
+      const path18 = firstString(record["path"]) ?? "diff";
       const oldText = typeof record["oldText"] === "string" ? record["oldText"] : "";
       const newText = typeof record["newText"] === "string" ? record["newText"] : "";
       return [
-        `Diff: ${path17}`,
+        `Diff: ${path18}`,
         oldText ? `--- old
 ${oldText}` : "",
         newText ? `+++ new
@@ -94939,6 +94945,10 @@ async function main() {
     state.status = "degraded";
   }
   const config = loadConfig(extensionDir);
+  setPersonaMode(fs16.existsSync(path17.join(extensionDir, "system.md")));
+  if (fs16.existsSync(path17.join(extensionDir, "system.md"))) {
+    log.info("Persona mode: system.md found; runtime notes will not describe the agent as Gemini CLI / an assistant");
+  }
   if (process.env.GEMINI_DISCORD_DAEMON_SINGLETON === "1") {
     singletonLock = acquireDaemonSingletonLock({ scope: daemonSingletonScope(config.discordBotToken) });
     process.once("exit", releaseSingletonLock);

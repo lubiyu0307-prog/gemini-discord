@@ -9,8 +9,7 @@ import {
   resolveSessionKey,
   extractHistoryImageUrls,
   selectImmediateMentionContext,
-  shouldUseImmediateMentionContext,
-} from '../src/daemon/memory.js';
+  shouldUseImmediateMentionContext, buildDiscordAdapterInstruction, setPersonaMode } from '../src/daemon/memory.js';
 
 let tmpDir: string;
 
@@ -347,6 +346,18 @@ describe('buildDiscordPrompt', () => {
     });
 
     expect(prompt).toContain('same agent and same Gemini CLI persona as the local CLI');
+    expect(prompt).toContain('capable human assistant');
+
+    setPersonaMode(true);
+    try {
+      const personaPrompt = buildDiscordAdapterInstruction(undefined, { bossUserId: '111111111111111111' });
+      expect(personaPrompt).not.toContain('Gemini CLI persona');
+      expect(personaPrompt).not.toContain('human assistant');
+      expect(personaPrompt).toContain('exactly who your system instructions say you are');
+      expect(personaPrompt).toContain('Stay fully in character');
+    } finally {
+      setPersonaMode(false);
+    }
     expect(prompt).toContain('Permission tier: privileged Discord actions authorized');
     expect(prompt).toContain('human; privileged Discord actions authorized');
     expect(prompt).toContain('Do not call the user "boss"');

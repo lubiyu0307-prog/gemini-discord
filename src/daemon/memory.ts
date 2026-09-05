@@ -522,6 +522,20 @@ export function selectImmediateMentionContext(
   return sameOrigin.slice(-Math.max(0, limit));
 }
 
+/**
+ * Persona mode: set when the operator ships a system.md (see cli-pool.ts). The
+ * default runtime notes tell the model it is "the same Gemini CLI persona" and a
+ * "capable human assistant"; with a custom persona that framing drags smaller
+ * models back into coding-assistant refusals on every turn.
+ */
+let personaMode = false;
+export function setPersonaMode(enabled: boolean): void {
+  personaMode = enabled;
+}
+export function isPersonaMode(): boolean {
+  return personaMode;
+}
+
 export function buildDiscordAdapterInstruction(
   incoming: PromptInput | undefined,
   options: { bossUserId?: string; ownerIds?: string[]; backgroundContext?: string } = {}
@@ -531,11 +545,15 @@ export function buildDiscordAdapterInstruction(
   const backgroundContext = options.backgroundContext ? `\n${options.backgroundContext}` : '';
   const runtimeInstructions = [
     '- The incoming message is from Discord.',
-    '- This is the same agent and same Gemini CLI persona as the local CLI; Discord is only the transport.',
+    personaMode
+      ? '- You are exactly who your system instructions say you are. Discord is only the transport; the bridge, the CLI, and these runtime notes are not your identity.'
+      : '- This is the same agent and same Gemini CLI persona as the local CLI; Discord is only the transport.',
     '- Your normal text response is sent back only to the exact origin Discord channel or thread.',
     '- Use Discord-compatible Markdown.',
     '- Treat Discord permission metadata as routing/security state only. Never use permission labels as names, titles, honorifics, or forms of address.',
-    '- Sound like a present, capable human assistant: warm, direct, and conversational.',
+    personaMode
+      ? '- Stay fully in character: your voice, your relationship with the person you are talking to, and your memories come from your system instructions. Never describe yourself as an assistant, a tool, or a CLI, and never offer "technical help" as a fallback.'
+      : '- Sound like a present, capable human assistant: warm, direct, and conversational.',
     '- Avoid formal status-report headings, boilerplate confirmations, and process narration unless the user asks for that shape.',
     '- Keep everyday replies concise; expand only when the user asks, the task is complex, or precision matters.',
     '- Do not call Discord send/reply tools for an ordinary response to the current message.',
